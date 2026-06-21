@@ -21,7 +21,9 @@
     HALF: 300,                     // world spans -HALF..HALF
     TOWN: { x: 0, z: 0 },
     OUTPOST: { x: 150, z: -150 },
-    TOWN_SAFE: 42, OUTPOST_SAFE: 26,
+    TOWN2: { x: 120, z: -90 },     // Tinhollow — quest-giver village
+    TOWN_SAFE: 42, OUTPOST_SAFE: 26, TOWN2_SAFE: 40,
+    STARTER_R: 95,                 // within this radius of TOWN only low-level (cmb<=8) enemies spawn
     BIOME_EDGE: 55,                // |coord| beyond which quadrant biomes begin
     ENEMY_COUNT: 130,
   };
@@ -38,6 +40,7 @@
   function biomeKind(x, z) {
     if (Math.hypot(x - MAP.TOWN.x, z - MAP.TOWN.z) < 34) return 'town';
     if (Math.hypot(x - MAP.OUTPOST.x, z - MAP.OUTPOST.z) < 22) return 'town';
+    if (Math.hypot(x - MAP.TOWN2.x, z - MAP.TOWN2.z) < 34) return 'town';
     if (z < -MAP.BIOME_EDGE) return 'grass';
     if (x > MAP.BIOME_EDGE) return 'forest';
     if (z > MAP.BIOME_EDGE) return 'desert';

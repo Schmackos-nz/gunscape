@@ -36,9 +36,15 @@ export class World {
       if (!list) continue;
       if (Math.hypot(x - MAP.TOWN.x, z - MAP.TOWN.z) < MAP.TOWN_SAFE) continue;
       if (Math.hypot(x - MAP.OUTPOST.x, z - MAP.OUTPOST.z) < MAP.OUTPOST_SAFE) continue;
-      let type = pick(list);
-      if (type === 'warlord' && Math.random() > 0.4) type = 'brute';
-      if (type === 'warlord' && Math.hypot(x - MAP.TOWN.x, z - MAP.TOWN.z) < 200) type = 'brute';
+      if (Math.hypot(x - MAP.TOWN2.x, z - MAP.TOWN2.z) < MAP.TOWN2_SAFE) continue;
+      let type;
+      if (Math.hypot(x - MAP.TOWN.x, z - MAP.TOWN.z) < MAP.STARTER_R) {
+        type = Math.random() < 0.6 ? 'rat' : 'thug';   // starter zone: cmb 2 & 7 only
+      } else {
+        type = pick(list);
+        if (type === 'warlord' && Math.random() > 0.4) type = 'brute';
+        if (type === 'warlord' && Math.hypot(x - MAP.TOWN.x, z - MAP.TOWN.z) < 200) type = 'brute';
+      }
       const s = ENEMY_STATS[type];
       this.enemies.push({ id: this.nid++, type, x, z, ry: 0, hx: x, hz: z,
         hp: s.hp, maxhp: s.hp, dead: false, respawnAt: 0, lastShot: 0,

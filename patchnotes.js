@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.13",
+ "version": "1.0.15",
  "generated": "2026-06-21",
  "patches": [
+  {
+   "version": "1.0.15",
+   "date": "2026-06-21",
+   "title": "Tinhollow village, low-level starter zone, unarmed punch, UI cleanup",
+   "notes": []
+  },
   {
    "version": "1.0.13",
    "date": "2026-06-21",

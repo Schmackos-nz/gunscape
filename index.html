@@ -17,13 +17,15 @@
   #wrap{display:flex;height:100vh;}
   #stage{position:relative;flex:1;min-width:0;background:#0a0a12;overflow:hidden;}
   #stage canvas{display:block;}
-  #side{width:300px;background:var(--panel);border-left:3px solid var(--frame);
-    display:flex;flex-direction:column;min-width:300px;}
+  #side{width:212px;background:var(--panel);border-left:3px solid var(--frame);
+    display:flex;flex-direction:column;min-width:212px;}
   #tabs{display:flex;flex-wrap:wrap;background:var(--frame);}
   .tab{flex:1 1 0;text-align:center;padding:8px 2px;font-size:12px;cursor:pointer;
     background:var(--panel2);border:1px solid var(--frame);color:var(--dim);font-weight:bold;}
   .tab.active{background:var(--gold);color:#1c1712;}
   #panelbody{flex:1;overflow-y:auto;padding:10px;}
+  .helpbox{font-size:12px;line-height:1.4;color:var(--txt);}
+  .helpbox p{margin:6px 0;} .helpbox b{color:var(--gold);font-weight:bold;}
   h2{margin:0 0 8px;font-size:15px;color:var(--gold);letter-spacing:1px;
     border-bottom:1px solid var(--panel2);padding-bottom:4px;}
   .skillgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
@@ -34,7 +36,7 @@
   .skill .lv small{font-size:12px;color:var(--dim);font-weight:normal;}
   .skill .bar{height:4px;background:#000;border-radius:2px;margin-top:4px;overflow:hidden;}
   .skill .bar i{display:block;height:100%;background:var(--xp);width:0%;}
-  #invgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;}
+  #invgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;}
   .slot{aspect-ratio:1;background:var(--panel2);border:1px solid var(--frame);
     border-radius:4px;display:flex;flex-direction:column;align-items:center;
     justify-content:center;font-size:9px;text-align:center;padding:2px;cursor:pointer;
@@ -52,7 +54,7 @@
     background:var(--panel2);border:1px solid var(--frame);border-radius:6px;
     padding:12px;margin-bottom:6px;
     background-image:radial-gradient(circle at 50% 38%, #4a4030 0 70px, transparent 71px);}
-  .pdrow{display:flex;gap:36px;justify-content:center;}
+  .pdrow{display:flex;gap:22px;justify-content:center;}
   .pdoll{width:62px;height:62px;background:#1c1712;border:1px solid var(--frame);
     border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;
     position:relative;}
@@ -73,7 +75,7 @@
     padding:5px 10px;font-weight:bold;cursor:pointer;font-size:11px;}
   .btn:hover{background:#f0cf6b;}
   .btn:disabled{background:#5a5142;color:#8a8270;cursor:not-allowed;}
-  #chat{position:absolute;left:8px;bottom:8px;width:46%;height:130px;
+  #chat{position:absolute;left:8px;bottom:8px;width:46%;height:130px;box-sizing:border-box;
     background:rgba(0,0,0,.55);border:1px solid var(--frame);border-radius:6px;
     overflow-y:auto;padding:6px 10px;font-size:13px;line-height:1.45;}
   #chat .c-cmb{color:#ffd24a;} #chat .c-xp{color:#7fd06a;}
@@ -109,9 +111,6 @@
   #questtracker .qt-q{font-size:11px;color:var(--txt);margin:3px 0;line-height:1.3;}
   #questtracker .qt-q small{color:var(--dim);}
   #questtracker .qt-q.done{color:#7fd06a;} #questtracker .qt-q.done small{color:#7fd06a;}
-  #hint{position:absolute;bottom:8px;right:8px;width:46%;text-align:center;
-    color:#cdbf9a;font-size:12px;background:rgba(0,0,0,.4);padding:5px;
-    border-radius:6px;pointer-events:none;}
   #tip{position:fixed;z-index:50;background:#0d0a07;border:1px solid var(--gold);
     border-radius:6px;padding:8px 10px;font-size:12px;max-width:240px;
     pointer-events:none;display:none;box-shadow:0 4px 16px rgba(0,0,0,.6);}
@@ -172,8 +171,8 @@
   #lg-msg.ok{color:#7fd06a;}
   #lg-version{margin-top:12px;font-size:11px;color:var(--gold);cursor:pointer;opacity:.85;}
   #lg-version:hover{opacity:1;text-decoration:underline;}
-  #chatinput{position:absolute;left:8px;bottom:144px;width:46%;z-index:40;display:none;}
-  #chatinput input{width:100%;padding:7px 10px;border-radius:6px;border:1px solid var(--gold);
+  #chatinput{position:absolute;left:8px;bottom:144px;width:46%;box-sizing:border-box;z-index:40;display:none;}
+  #chatinput input{width:100%;box-sizing:border-box;padding:7px 10px;border-radius:6px;border:1px solid var(--gold);
     background:rgba(0,0,0,.75);color:var(--txt);font-size:13px;}
   /* version chip + changelog */
   #version{padding:6px;text-align:center;font-size:11px;font-weight:bold;color:var(--gold);
@@ -239,14 +238,14 @@
     <div id="questtracker"></div>
     <div id="announce"></div>
     <div id="chat"></div>
-    <div id="hint">Click to move · click monster = auto-fight · click trees to chop · hold Tab for attack style · right-click = options · right-drag turn · wheel zoom</div>
   </div>
   <div id="side">
     <div id="tabs">
       <div class="tab active" data-tab="skills">Skills</div>
-      <div class="tab" data-tab="inv">Inventory</div>
+      <div class="tab" data-tab="inv">Inv</div>
       <div class="tab" data-tab="equip">Worn</div>
       <div class="tab" data-tab="shop">Shop</div>
+      <div class="tab" data-tab="help">?</div>
     </div>
     <div id="panelbody"></div>
     <div id="version" title="Click for patch notes">v…</div>
@@ -452,6 +451,7 @@ function addOutline(group,scale){
 const HALF=MAP.HALF;                                   // from shared/world-data.js
 const TOWN=new THREE.Vector3(MAP.TOWN.x,0,MAP.TOWN.z);
 const OUTPOST=new THREE.Vector3(MAP.OUTPOST.x,0,MAP.OUTPOST.z);
+const TOWN2=new THREE.Vector3(MAP.TOWN2.x,0,MAP.TOWN2.z);
 const blockers=[];                    // {x,z,r} solid round obstacles
 function addBlocker(x,z,r){blockers.push({x,z,r});}
 const wallBoxes=[];                   // {x,z,hw,hd,door} axis-aligned wall segments
@@ -466,6 +466,7 @@ const altars=[];                      // prayer-recharge altars
 function biomeAt(x,z){
   if(Math.hypot(x-TOWN.x,z-TOWN.z)<34) return BIOMES.town;
   if(Math.hypot(x-OUTPOST.x,z-OUTPOST.z)<22) return BIOMES.town;
+  if(Math.hypot(x-TOWN2.x,z-TOWN2.z)<34) return BIOMES.town;
   if(z<-55) return BIOMES.grass;
   if(x>55)  return BIOMES.forest;
   if(z>55)  return BIOMES.desert;
@@ -644,16 +645,15 @@ function makeHouse(x,z,w,d,color,opts){
 const FLOOR_H=5.2;            // vertical offset of the upstairs floor
 const stairsList=[];          // clickable staircases
 function addUpstairs(g,bld,x,z,w,d,h,wallCol,roofCol){
-  const hw=w/2,hd=d/2,t=0.4,HS=3.4;   // HS = stair-hole size in the SE corner
+  const hw=w/2,hd=d/2,t=0.4,HS=3.4,uh=4.5;   // HS = stair-hole size in SE corner; uh = upstairs wall height
   // ---- upstairs floor: full slab MINUS a hole in the SE corner for the stairs ----
   function slabPiece(cx,cz,ww,dd){const s=box(ww,0.3,dd,0x8a5a2e);s.position.set(cx,FLOOR_H,cz);s.userData.noOutline=true;g.add(s);}
   slabPiece(0,(-hd+(hd-HS))/2, w, d-HS);                 // north strip (full width)
   slabPiece((-hw+(hw-HS))/2,(hd-HS+hd)/2, w-HS, HS);     // south-west strip (leaves SE hole open)
-  // raise the roof for headroom
-  bld.roof.position.y += FLOOR_H;
-  // ---- full upstairs walls (floor-1 collision), with windows ----
-  const uh=4;
-  function uwall(cx,cz,ww,dd){const m=box(ww,uh,dd,wallCol);m.position.set(cx,FLOOR_H+0.3+uh/2,cz);m.userData.noOutline=true;g.add(m);
+  // raise the roof so it sits right on top of the upstairs walls (not floating)
+  bld.roof.position.y += uh;
+  // ---- full upstairs walls: bottom sits exactly on the ground walls (top at h), floor-1 collision ----
+  function uwall(cx,cz,ww,dd){const m=box(ww,uh,dd,wallCol);m.position.set(cx,h+uh/2,cz);m.userData.noOutline=true;g.add(m);
     const wl=addWall(x+cx,z+cz,ww/2,dd/2); wl.floor=1;}
   uwall(0,-hd,w,t); uwall(-hw,0,t,d); uwall(hw,0,t,d); uwall(0,hd,w,t);   // enclosed second storey
   function uwin(cx,cz,horiz){const p=box(horiz?1.6:0.18,1.1,horiz?0.18:1.6,0x9fd3e6);p.position.set(cx,FLOOR_H+2.4,cz);p.userData.noOutline=true;g.add(p);}
@@ -736,6 +736,7 @@ function buildTown(center,houses,name){
 }
 buildTown(TOWN,8,"Riverside");
 buildTown(OUTPOST,5,"Forest Outpost");
+buildTown(TOWN2,6,"Tinhollow");        // new quest-giver village (Hunter Bex & Joss live here now)
 
 // shopkeeper lives inside a shop building in the main town
 makeHouse(6,11,10,9,0xb98a5a);
@@ -863,8 +864,8 @@ function spawnNpc(questId,x,z,shirt){
   const marker=makeMarker(); marker.position.y=6.2; mesh.add(marker); npc.marker=marker;
   mesh.userData.npc=npc; npcs.push(npc); return npc;
 }
-spawnNpc("pest",  -8, 6,  0x4a7a3a);
-spawnNpc("fangs", -10,-6,  0x7a5a2a);
+spawnNpc("pest",  TOWN2.x-10, TOWN2.z+6,  0x4a7a3a);   // moved to Tinhollow
+spawnNpc("fangs", TOWN2.x+8,  TOWN2.z-6,  0x7a5a2a);   // moved to Tinhollow
 spawnNpc("sting", OUTPOST.x+4, OUTPOST.z+4, 0x3a5a7a);
 spawnNpc("scrap", 80,40, 0x9a6a3a);          // near the gas station
 spawnNpc("tags",  -130,130, 0x556655);       // near the bunker
@@ -970,13 +971,18 @@ function populateWorld(){
     if(!b.spawns.length) continue;
     if(Math.hypot(x-TOWN.x,z-TOWN.z)<42) continue;
     if(Math.hypot(x-OUTPOST.x,z-OUTPOST.z)<26) continue;
+    if(Math.hypot(x-TOWN2.x,z-TOWN2.z)<40) continue;
     let blockedSpot=false;
     for(const bl of blockers){ if(Math.hypot(x-bl.x,z-bl.z)<bl.r+1.5){blockedSpot=true;break;} }
     if(blockedSpot) continue;
-    let type=b.spawns[Math.floor(Math.random()*b.spawns.length)];
-    if(type==="warlord"&&Math.random()>0.4) type="brute"; // warlords rarer
-    // keep the lvl-85 Warlord far from the starting town
-    if(type==="warlord"&&Math.hypot(x-TOWN.x,z-TOWN.z)<200) type="brute";
+    let type;
+    if(Math.hypot(x-TOWN.x,z-TOWN.z)<MAP.STARTER_R){
+      type=Math.random()<0.6?"rat":"thug";              // starter zone: low-level only (cmb 2 & 7)
+    } else {
+      type=b.spawns[Math.floor(Math.random()*b.spawns.length)];
+      if(type==="warlord"&&Math.random()>0.4) type="brute"; // warlords rarer
+      if(type==="warlord"&&Math.hypot(x-TOWN.x,z-TOWN.z)<200) type="brute";
+    }
     spawnEnemy(type,x,z); placed++;
   }
 }
@@ -1160,6 +1166,12 @@ const SHOT={zip:[.05,.28,2600],revolver:[.08,.4,2200],smg:[.04,.22,3000],shotgun
   rifle:[.10,.5,2000],ak:[.05,.32,2600],fists:[.04,.12,1200]};
 function sfxShoot(w){const s=SHOT[w]||SHOT.zip; noise(s[0],s[1],s[2]); tone(150,s[0]*1.3,"square",s[1]*0.4,55);}
 function sfxHit(){tone(440,0.06,"square",0.16,320);}
+function sfxPunch(){tone(95,0.05,"sine",0.22,55);noise(0.05,0.16,300);}
+// player attack visual: a bullet tracer for guns, a fist thrust for bare hands
+function playerAttackFx(tx,tz){
+  if(player.equip.weapon==="fists"){ player.punchT=performance.now(); sfxPunch(); }
+  else { sfxShoot(player.equip.weapon); tracer(muzzle(player.mesh,3.7),new THREE.Vector3(tx,2.2,tz),0xffe070); }
+}
 function sfxKill(){tone(300,0.28,"sawtooth",0.26,80); noise(0.2,0.22,900);}
 function sfxHurt(){tone(130,0.2,"sawtooth",0.3,65);}
 function sfxPickup(){tone(680,0.06,"square",0.2); tone(1000,0.09,"square",0.2);}
@@ -1353,8 +1365,7 @@ function playerShootOnline(now,e){
   if(now<player.flinchUntil) return;
   if(now-(player.lastShot||0)<w.fireRate*st.fireMul) return;
   player.lastShot=now; netSend({t:"attack",enemyId:e.id});  // server resolves damage/xp
-  sfxShoot(player.equip.weapon);
-  tracer(muzzle(player.mesh,3.7),new THREE.Vector3(e.tx,2.2,e.tz),0xffe070);
+  playerAttackFx(e.tx,e.tz);
 }
 function playerShoot(now){
   const e=player.target; if(!e){player.target=null;return;}
@@ -1367,8 +1378,7 @@ function playerShoot(now){
   faceTowards(player.mesh,e.pos.x,e.pos.z,player.pos.x,player.pos.z);
   if(now-player.lastShot<w.fireRate*st.fireMul) return;
   if(now<player.flinchUntil) return;
-  player.lastShot=now; sfxShoot(player.equip.weapon);
-  tracer(muzzle(player.mesh,3.7),new THREE.Vector3(e.pos.x,2.2,e.pos.z),0xffe070);
+  player.lastShot=now; playerAttackFx(e.pos.x,e.pos.z);
   const bloom=effectiveBloom();
   const acc=100/(1+bloom*0.06)*st.accMul*(1+prayerEffect("aim"));
   const hit=acc/(acc+e.armour);
@@ -1767,6 +1777,8 @@ function loop(now){
   else moveMarker.visible=false;
   player.walk+=moving?dt*(isRunning?15:10):0; if(!moving)player.walk*=0.8;
   animateLegs(player.mesh,player.walk,moving?0.6:0.05);
+  if(player.punchT&&now-player.punchT<220){const pp=player.mesh.userData.parts;   // bare-hand punch thrust
+    if(pp&&pp.armR)pp.armR.rotation.x=-1.5*Math.sin((1-(now-player.punchT)/220)*Math.PI);}
   player.mesh.position.set(player.pos.x,terrainHeight(player.pos.x,player.pos.z)+(player.yOffset||0),player.pos.z);
 
   /* --- run energy: drain while running, regen always, agility xp --- */
@@ -1931,7 +1943,25 @@ function openShop(){document.querySelectorAll(".tab").forEach(x=>x.classList.rem
 function refreshUI(){
   if(activeTab==="skills")renderSkills();else if(activeTab==="inv")renderInv();
   else if(activeTab==="equip")renderEquip();else if(activeTab==="shop")renderShop();
+  else if(activeTab==="help")renderHelp();
   updateTopBar();}
+function renderHelp(){panel.innerHTML=`<h2>How to play</h2>
+  <div class="helpbox">
+    <p><b>Move:</b> left-click the ground to walk there.</p>
+    <p><b>Fight:</b> click a monster to auto-attack it (you path in front-to-front).</p>
+    <p><b>Options:</b> right-click anything for a context menu (talk, trade, duel, pick up…).</p>
+    <p><b>Gather:</b> click trees to chop; right-click logs to light a fire and cook food.</p>
+    <p><b>Camera:</b> <b>A/D</b> turn, <b>W/S</b> tilt, hold <b>middle-mouse</b> to orbit, wheel to zoom.</p>
+    <p><b>Attack style / Prayers:</b> hold <b>Tab</b>.</p>
+    <p><b>Chat:</b> press <b>Enter</b>. Admins: type <b>/help</b> for commands.</p>
+    <p><b>Run:</b> toggle with the 🏃 button (top-right); it uses energy.</p>
+    <p><b>Stairs:</b> click a staircase to go up/down floors.</p>
+  </div>
+  <button class="btn" id="logoutbtn" style="width:100%;margin-top:12px;padding:9px;">Logout</button>`;
+  const lb=document.getElementById("logoutbtn"); if(lb)lb.onclick=doLogout;}
+function doLogout(){ sfxClick();
+  if(NET.online){ try{netSend({t:"save",profile:serializeProfile()});}catch(e){} NET.kicked=true; try{NET.ws.close();}catch(e){} }
+  setTimeout(()=>location.reload(),120); }
 function skillRow(key,label){const s=player.skills[key];
   const cur=xpForLevel(s.lv),next=xpForLevel(Math.min(99,s.lv+1));
   const frac=s.lv>=99?1:(s.xp-cur)/Math.max(1,next-cur);
