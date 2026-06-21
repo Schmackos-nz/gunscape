@@ -667,11 +667,11 @@ function makeHouse(x,z,w,d,color,opts){
 const FLOOR_H=5.2;            // vertical offset of the upstairs floor
 const stairsList=[];          // clickable staircases
 function addUpstairs(g,bld,x,z,w,d,h,wallCol,roofCol){
-  const hw=w/2,hd=d/2,t=0.4,HS=3.4,uh=4.5;   // HS = stair-hole size in SE corner; uh = upstairs wall height
-  // ---- upstairs floor: full slab MINUS a hole in the SE corner for the stairs ----
+  const hw=w/2,hd=d/2,t=0.4,HS=3.4,uh=4.5;   // HS = stair-hole size (NE/back corner); uh = upstairs wall height
+  // ---- upstairs floor: full slab MINUS a hole in the BACK (NE) corner, away from the front door ----
   function slabPiece(cx,cz,ww,dd){const s=box(ww,0.3,dd,0x8a5a2e);s.position.set(cx,FLOOR_H,cz);s.userData.noOutline=true;g.add(s);}
-  slabPiece(0,(-hd+(hd-HS))/2, w, d-HS);                 // north strip (full width)
-  slabPiece((-hw+(hw-HS))/2,(hd-HS+hd)/2, w-HS, HS);     // south-west strip (leaves SE hole open)
+  slabPiece(0, HS/2, w, d-HS);                           // south strip (full width, toward the door)
+  slabPiece(-HS/2, -hd+HS/2, w-HS, HS);                  // back-west strip (leaves the NE/back hole open)
   // raise the roof so it sits right on top of the upstairs walls (not floating)
   bld.roof.position.y += uh;
   // ---- full upstairs walls: bottom sits exactly on the ground walls (top at h), floor-1 collision ----
@@ -683,17 +683,17 @@ function addUpstairs(g,bld,x,z,w,d,h,wallCol,roofCol){
   // ---- railings around the stair hole so you don't walk into it (floor 1) ----
   function railEdge(cx,cz,ww,dd){const m=box(ww,1.1,dd,0x6e441f);m.position.set(cx,FLOOR_H+0.3+0.55,cz);m.userData.noOutline=true;g.add(m);
     const wl=addWall(x+cx,z+cz,ww/2,dd/2); wl.floor=1;}
-  railEdge(hw-HS/2,hd-HS,HS,0.25);     // north edge of the hole
-  railEdge(hw-HS,hd-HS/2,0.25,HS);     // west edge of the hole
-  // ---- staircase steps rising through the hole (cosmetic) ----
+  railEdge(hw-HS/2,-hd+HS,HS,0.25);    // south (interior) edge of the back hole
+  railEdge(hw-HS,-hd+HS/2,0.25,HS);    // west (interior) edge of the back hole
+  // ---- staircase steps rising through the back hole (cosmetic) ----
   const steps=7, sw=2.6, cxS=hw-HS/2;
   for(let i=0;i<steps;i++){const st=box(sw,0.4,0.55,0x7a5230);
-    st.position.set(cxS, 0.4+i*(FLOOR_H/steps), hd-0.7-i*((HS-0.8)/steps)); st.userData.noOutline=true; g.add(st);}
+    st.position.set(cxS, 0.4+i*(FLOOR_H/steps), -hd+HS-0.7-i*((HS-0.8)/steps)); st.userData.noOutline=true; g.add(st);}
   // ---- clickable stair volume (spans both floors; visible through the hole) ----
   const hit=box(HS-0.4,FLOOR_H+1,HS-0.4,0x000000); hit.material.transparent=true; hit.material.opacity=0;
-  hit.position.set(hw-HS/2,(FLOOR_H+1)/2,hd-HS/2); hit.userData.noOutline=true; g.add(hit);
-  const sObj={ x:x+hw-HS/2, z:z+hd-0.9,                 // ground spot (foot of stairs)
-    topX:x+hw-HS-1.2, topZ:z+hd-HS/2, mesh:hit };       // upstairs landing (on the SW slab beside the hole)
+  hit.position.set(hw-HS/2,(FLOOR_H+1)/2,-hd+HS/2); hit.userData.noOutline=true; g.add(hit);
+  const sObj={ x:x+hw-HS/2, z:z-hd+HS+0.6,              // ground spot (foot of stairs, at the back)
+    topX:x+hw-HS-1.2, topZ:z-hd+HS/2, mesh:hit };       // upstairs landing (back-west slab beside the hole)
   hit.userData.stairs=sObj; stairsList.push(sObj);
   bld.upstairs=true;
 }

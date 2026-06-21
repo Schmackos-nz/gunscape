@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.16",
+ "version": "1.0.17",
  "generated": "2026-06-21",
  "patches": [
+  {
+   "version": "1.0.17",
+   "date": "2026-06-21",
+   "title": "Move upstairs staircases to the back of buildings so they don't block doorways",
+   "notes": []
+  },
   {
    "version": "1.0.16",
    "date": "2026-06-21",
