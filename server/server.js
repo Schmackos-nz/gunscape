@@ -22,7 +22,7 @@ import { World } from './world.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');              // static client lives one level up
-const ACCOUNTS = join(__dirname, 'accounts.json');
+const ACCOUNTS = process.env.ACCOUNTS_FILE || join(__dirname, 'accounts.json'); // set to a volume path to persist
 const PORT = Number(process.env.PORT) || 8787;
 const HOST = process.env.HOST || '0.0.0.0';
 const WORLD_HALF = 300;                            // must match the client map size

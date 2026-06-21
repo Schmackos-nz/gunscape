@@ -35,7 +35,7 @@ if (mi >= 0 && process.argv[mi + 1] && existsSync(process.argv[mi + 1])) {
 }
 
 // hide behind-the-scenes / infra commits from the in-game patch notes
-const INFRA = /wrangler|cloudflare|account_id|package-lock|lock ?file|\bdeploy\b|\bci\b|workflow|secret|\bhooks?\b|prepare-commit|post-commit|gitignore|claude\.md|build script|node_modules|crlf|lf will/i;
+const INFRA = /wrangler|cloudflare|account_id|package-lock|lock ?file|\bdeploy\b|\bci\b|workflow|secret|\bhooks?\b|prepare-commit|post-commit|gitignore|claude\.md|build script|node_modules|crlf|lf will|docker|fly\.io|fly\.toml|hosting|README/i;
 const gameNotes = body => body.filter(l => !INFRA.test(l));
 
 // Patch-notes epoch: only commits AFTER this build number appear (history wiped).

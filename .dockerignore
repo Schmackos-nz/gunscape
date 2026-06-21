@@ -1,0 +1,9 @@
+node_modules
+server/node_modules
+dist
+.git
+.github
+.wrangler
+server/accounts.json
+*.log
+_smoketest.*
