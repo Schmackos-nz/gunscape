@@ -244,7 +244,7 @@ const player={
           woodcutting:{xp:0,lv:1},cooking:{xp:0,lv:1},agility:{xp:0,lv:1}},
   equip:{weapon:"zip",head:null,body:"cloth_shirt",legs:"cloth_pants"},
   inv:[{k:"bandage",n:5},{k:"cloth_hood",n:1},{k:"hatchet",n:1},{k:"coins",n:40}],
-  mesh:null, pickupTarget:null, talkTarget:null, chopTarget:null,
+  mesh:null, pickupTarget:null, talkTarget:null, chopTarget:null, doorTarget:null,
   lastChop:0, lastCook:0, quests:{},
   running:true, energy:100, runTimer:0,
 };
@@ -1019,7 +1019,7 @@ function awardCombatXp(dmg){
   for(const k of ks) gainXp(k,pool/ks.length);     // same total; "all" splits it
   gainXp("vitality",Math.round(dmg*1.33));
 }
-function attack(e){player.dest=null;player.pickupTarget=null;player.talkTarget=null;player.chopTarget=null;
+function attack(e){player.dest=null;player.pickupTarget=null;player.talkTarget=null;player.chopTarget=null;player.doorTarget=null;
   player.target=e;e.aggro=true;e.hpDirty=true;player.combatUntil=performance.now()+6000;
   log(`You attack the ${e.name}.`,"cmb");}
 function playerShoot(now){
@@ -1182,7 +1182,7 @@ function castAt(clientX,clientY){
 }
 function toggleDoor(ds){ds.open=!ds.open;sfxClick();log(ds.open?"You open the door.":"You close the door.");}
 function clearActions(){player.target=null;player.dest=null;player.pickupTarget=null;
-  player.talkTarget=null;player.chopTarget=null; if(dialogOpen)closeDialog();}
+  player.talkTarget=null;player.chopTarget=null;player.doorTarget=null; if(dialogOpen)closeDialog();}
 
 renderer.domElement.addEventListener("contextmenu",e=>e.preventDefault());
 renderer.domElement.addEventListener("mousedown",e=>{
@@ -1193,7 +1193,7 @@ renderer.domElement.addEventListener("mousedown",e=>{
   if(h.enemy){attack(h.enemy);return;}
   if(h.shop){openShop();return;}
   if(h.npc){clearActions();player.talkTarget=h.npc;return;}
-  if(h.door){toggleDoor(h.door);return;}
+  if(h.door){clearActions();player.doorTarget=h.door;return;}
   if(h.drop){clearActions();player.pickupTarget=h.drop;return;}
   if(h.tree){clearActions();player.chopTarget=h.tree;return;}
   if(h.point){clearActions();player.dest=h.point;}
@@ -1229,7 +1229,7 @@ function openWorldMenu(cx,cy){
   if(h.enemy) opts.push(["Attack "+h.enemy.name,()=>attack(h.enemy)]);
   if(h.npc) opts.push(["Talk to "+h.npc.name,()=>{clearActions();player.talkTarget=h.npc;}]);
   if(h.shop) opts.push(["Trade with Shopkeeper",()=>openShop()]);
-  if(h.door) opts.push([h.door.open?"Close door":"Open door",()=>toggleDoor(h.door)]);
+  if(h.door) opts.push([h.door.open?"Close door":"Open door",()=>{clearActions();player.doorTarget=h.door;}]);
   if(h.tree) opts.push(["Chop down tree",()=>{clearActions();player.chopTarget=h.tree;}]);
   if(h.drop) opts.push(["Take "+ITEMS[h.drop.k].name+(h.drop.n>1?" x"+h.drop.n:""),()=>{clearActions();player.pickupTarget=h.drop;}]);
   if(h.point) opts.push(["Walk here",()=>{clearActions();player.dest=h.point;}]);
@@ -1277,6 +1277,10 @@ function loop(now){
       if(tr.depleted){player.chopTarget=null;}
       else if(dist2(player.pos,tr.pos)>3.2){ if(moveToward(tr.pos.x,tr.pos.z,step))moving=true; }
       else { faceTowards(player.mesh,tr.pos.x,tr.pos.z,player.pos.x,player.pos.z); chopTick(now); }
+    }
+    else if(player.doorTarget){ const ds=player.doorTarget, dp={x:ds.wall.x,z:ds.wall.z};
+      if(dist2(player.pos,dp)>3){ if(moveToward(dp.x,dp.z,step))moving=true; } // only toggle when beside it
+      else { toggleDoor(ds); player.doorTarget=null; }
     }
     else if(player.dest){
       if(dist2(player.pos,player.dest)>0.6){ if(moveToward(player.dest.x,player.dest.z,step))moving=true; }
