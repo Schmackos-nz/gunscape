@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.13",
+ "version": "1.0.14",
  "generated": "2026-06-21",
  "patches": [
+  {
+   "version": "1.0.14",
+   "date": "2026-06-21",
+   "title": "Add root package-lock.json so CI deploy (npm ci + setup-node cache) works",
+   "notes": []
+  },
   {
    "version": "1.0.13",
    "date": "2026-06-21",
