@@ -149,6 +149,12 @@ wss.on('connection', (ws) => {
       case 'duelattack': { if (session.authed) world.pvpAttack(session.id, msg.target); break; }
       case 'duelend': { if (session.authed) world.endDuelFor(session.id); break; }
       case 'heal': { if (session.authed) world.heal(session.id, +msg.amt || 0); break; }
+      case 'selfhurt': {   // client-side boss (Darude) damaging the player; server applies it to world HP
+        if (session.authed) { const wp = world.players.get(session.id);
+          if (wp && !wp.dead) { wp.hp = Math.max(0, wp.hp - Math.max(0, Math.min(999, +msg.dmg || 0)));
+            if (wp.hp <= 0) { wp.dead = true; wp.respawnAt = Date.now() + 4000; send(ws, { t: 'death' }); } } }
+        break;
+      }
       case 'droploot': { if (session.authed) { const wp = world.players.get(session.id); if (wp) world.dropLoot(session.id, msg.items, wp.x, wp.z); } break; }
       case 'p2p': {   // relay a player-to-player message (duel/trade) to one target
         if (!session.authed) break;

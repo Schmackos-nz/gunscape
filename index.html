@@ -85,6 +85,10 @@
   #gold{top:8px;left:8px;border:1px solid var(--gold);color:#ffd24a;}
   #cmblvl{top:8px;left:120px;border:1px solid #b23b2e;color:#ff9b8a;}
   #biome{top:8px;left:232px;border:1px solid var(--gold);color:#cdbf9a;}
+  #bossbar{position:absolute;top:96px;left:50%;transform:translateX(-50%);z-index:94;display:none;width:46%;text-align:center;}
+  #bossbar .bb-name{color:#ffb0a0;font-weight:bold;font-size:14px;text-shadow:1px 1px 0 #000;margin-bottom:3px;}
+  #bossbar .bb-track{height:14px;background:#2a0c0a;border:2px solid #b23b2e;border-radius:7px;overflow:hidden;}
+  #bossbar .bb-fill{display:block;height:100%;width:100%;background:linear-gradient(#ff7a5a,#b22e1e);}
   #announce{position:absolute;top:54px;left:50%;transform:translateX(-50%);z-index:95;display:none;
     max-width:70%;text-align:center;background:rgba(60,40,5,.9);color:#ffe08a;border:2px solid var(--gold);
     border-radius:8px;padding:8px 18px;font-size:16px;font-weight:bold;text-shadow:1px 1px 0 #000;
@@ -249,6 +253,7 @@
     <div id="netbanner"></div>
     <div id="questtracker"></div>
     <div id="announce"></div>
+    <div id="bossbar"><div class="bb-name">Darude — Sand Tyrant</div><div class="bb-track"><i class="bb-fill"></i></div></div>
     <div id="chat"></div>
   </div>
   <div id="side">
@@ -1075,6 +1080,106 @@ makeFurnace(MAP.TOWNS[5].x-13, MAP.TOWNS[5].z);   // Ironcross
 makeFurnace(MAP.TOWNS[6].x+13, MAP.TOWNS[6].z);   // Mistvale
 populateOres();                         // scatter mineable ore rocks across the wild
 
+/* ============================================================ *
+ *  DARUDE — telegraphed desert boss (client-side, solo)
+ * ============================================================ */
+let darude=null;
+const bossFx=[];   // active telegraph decals: {mesh,t,delay,kind,...}
+function makeDarude(){
+  const x=20,z=250;                                   // alone in the deep southern sands
+  const m=makeHumanoid({height:7.4,shirt:0xc2a05a,pants:0x8a6a30,skin:0xd8b878,gun:false});
+  const horn=box(0.45,1.4,0.45,0x6a4a2a); horn.position.set(-0.5,3.7,0); m.add(horn);
+  const horn2=box(0.45,1.4,0.45,0x6a4a2a); horn2.position.set(0.5,3.7,0); m.add(horn2);
+  addOutline(m); m.position.set(x,terrainHeight(x,z),z); scene.add(m);
+  const plate=makeNameBar("Darude — Sand Tyrant"); plate.position.y=(m.userData.baseHeight||7.4)+1.6; m.add(plate);
+  darude={mesh:m,pos:new THREE.Vector3(x,0,z),home:new THREE.Vector3(x,0,z),
+    hp:1500,maxhp:1500,alive:true,armour:36,state:"idle",t:0,cd:1.0,nextTantrum:20,yelled:false};
+}
+function bossBar(){const el=document.getElementById("bossbar");
+  if(!darude||!darude.alive||darude.state==="idle"){el.style.display="none";return;}
+  el.style.display="block"; el.querySelector(".bb-fill").style.width=Math.max(0,darude.hp/darude.maxhp*100)+"%";}
+function moveBoss(tx,tz,dt,spd){const d=darude,dx=tx-d.pos.x,dz=tz-d.pos.z,l=Math.hypot(dx,dz)||1,s=Math.min(spd*dt,l);
+  d.pos.x+=dx/l*s; d.pos.z+=dz/l*s; d.mesh.position.set(d.pos.x,terrainHeight(d.pos.x,d.pos.z),d.pos.z);}
+function moveBossDir(dir,dt,spd){const d=darude,s=spd*dt;
+  d.pos.x+=Math.sin(dir)*s; d.pos.z+=Math.cos(dir)*s; d.mesh.position.set(d.pos.x,terrainHeight(d.pos.x,d.pos.z),d.pos.z);}
+function bossDamage(dmg){ if(player.dead)return;
+  dmg=Math.max(1,Math.round(dmg*(1-prayerEffect("soak"))));
+  if(NET.online){ netSend({t:"selfhurt",dmg}); player.hp=Math.max(0,player.hp-dmg); }
+  else { player.hp-=dmg; }
+  floater(player.pos,String(dmg),"#ff3a2a"); sfxHurt();
+  if(!NET.online&&player.hp<=0) playerDeath();
+}
+function bossCircle(cx,cz,R,dmg){
+  const m=new THREE.Mesh(new THREE.CircleGeometry(R,28),new THREE.MeshBasicMaterial({color:0xff2a2a,transparent:true,opacity:0.30}));
+  m.rotation.x=-Math.PI/2; m.position.set(cx,terrainHeight(cx,cz)+0.12,cz); m.userData.noOutline=true; scene.add(m);
+  bossFx.push({mesh:m,t:0,delay:1.2,kind:"circle",cx,cz,R,dmg});
+}
+function bossCone(dir,len,half,dmg){
+  const g=new THREE.Group();
+  const cone=new THREE.Mesh(new THREE.ConeGeometry(Math.tan(half)*len,len,18),new THREE.MeshBasicMaterial({color:0xff7a2a,transparent:true,opacity:0.28}));
+  cone.rotation.x=Math.PI/2; cone.position.z=len/2; cone.userData.noOutline=true; g.add(cone);
+  g.position.set(darude.pos.x,terrainHeight(darude.pos.x,darude.pos.z)+0.15,darude.pos.z); g.rotation.y=dir; scene.add(g);
+  bossFx.push({mesh:g,t:0,delay:1.0,kind:"cone",dir,len,half,dmg});
+}
+function angDiff(a,b){let d=a-b;while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;return d;}
+function updateBossFx(dt){
+  for(let i=bossFx.length-1;i>=0;i--){const fx=bossFx[i]; fx.t+=dt;
+    const k=Math.min(1,fx.t/fx.delay); if(fx.mesh.material)fx.mesh.material.opacity=0.20+0.35*k;       // flash up
+    if(fx.t>=fx.delay){
+      if(fx.kind==="circle"){ if(Math.hypot(player.pos.x-fx.cx,player.pos.z-fx.cz)<fx.R) bossDamage(fx.dmg); }
+      else { const toP=Math.atan2(player.pos.x-darude.pos.x,player.pos.z-darude.pos.z);
+        if(dist2(player.pos,darude.pos)<fx.len && Math.abs(angDiff(toP,fx.dir))<fx.half) bossDamage(fx.dmg); }
+      scene.remove(fx.mesh); bossFx.splice(i,1);
+    }
+  }
+}
+function updateDarude(dt,now){
+  if(!darude||!darude.alive) return;
+  updateBossFx(dt);
+  const d=darude, p=player.pos, dist=dist2(p,d.pos);
+  if(d.state==="idle"){ if(!player.dead && dist<46){ d.state="combat"; d.cd=1.2; d.nextTantrum=18; log("Darude rises from the dunes — its attacks strike where you stand and where it faces!","bad"); } else return; }
+  d.t+=dt;
+  if(d.state==="combat"){
+    faceTowards(d.mesh,p.x,p.z,d.pos.x,d.pos.z);
+    if(dist>9) moveBoss(p.x,p.z,dt,9);
+    d.cd-=dt; d.nextTantrum-=dt;
+    if(d.nextTantrum<=0){ d.state="flee"; d.t=0; d.fleeDir=Math.atan2(d.pos.x-p.x,d.pos.z-p.z); d.nextTantrum=20; }
+    else if(d.cd<=0){ d.cd=2.6;
+      if(Math.random()<0.55) bossCircle(p.x,p.z,5.5,Math.max(18,Math.round(maxHp()*0.28)));   // significant
+      else bossCone(Math.atan2(p.x-d.pos.x,p.z-d.pos.z),18,0.38,9999);                          // frontal one-shot
+    }
+  }
+  else if(d.state==="flee"){ moveBossDir(d.fleeDir,dt,17); d.mesh.rotation.y=d.fleeDir;
+    if(d.t>1.5){ d.state="yell"; d.t=0; d.yelled=false; } }
+  else if(d.state==="yell"){ faceTowards(d.mesh,p.x,p.z,d.pos.x,d.pos.z);
+    if(!d.yelled){ d.yelled=true; showAnnounce("Darude: SANDSTORM!",2200); floater(d.pos,"SANDSTORM!","#ffb84a"); tone(70,0.6,"sawtooth",0.3,40); }
+    if(d.t>1.2){ d.state="charge"; d.t=0; } }
+  else if(d.state==="charge"){ faceTowards(d.mesh,p.x,p.z,d.pos.x,d.pos.z); moveBoss(p.x,p.z,dt,36);
+    if(dist<6 || d.t>3.2){ bossCircle(p.x,p.z,6,Math.max(20,Math.round(maxHp()*0.30)));
+      bossCone(Math.atan2(p.x-d.pos.x,p.z-d.pos.z),18,0.42,9999); d.state="combat"; d.cd=2.6; d.t=0; } }
+  bossBar();
+}
+function bossPlayerShoot(now){ const d=darude; const w=curWeapon(), st=STYLES[attackStyle];
+  if(now-(player.lastShot||0)<w.fireRate*st.fireMul) return; if(now<player.flinchUntil) return;
+  player.lastShot=now; playerAttackFx(d.pos.x,d.pos.z);
+  const bloom=effectiveBloom(); const acc=100/(1+bloom*0.06)*st.accMul*(1+prayerEffect("aim"));
+  if(Math.random()<acc/(acc+d.armour)){ let dmg=randint(w.dmgMin,w.dmgMax); dmg=Math.round(dmg*(1+prayerEffect("dmg")));
+    d.hp-=dmg; floater(d.pos,String(dmg),"#ffd24a"); sfxHit(); awardCombatXp(dmg); bossBar();
+    if(d.hp<=0) killDarude();
+  } else floater(d.pos,"miss","#aaaaaa");
+}
+function killDarude(){ const d=darude; d.alive=false; d.mesh.visible=false; player.bossTarget=null; bossBar();
+  for(const fx of bossFx) scene.remove(fx.mesh); bossFx.length=0;
+  sfxKill(); log("You have slain Darude, Tyrant of the Sands!","cmb"); player.killedDarude=true;
+  awardCombatXp(900); addItem("titanium_bits",12); addItem("coins",2500);
+  if(Math.random()<0.6) addItem("rifle",1); else addItem("ak",1);
+  log("Darude's hoard: ⛁2500, 12 Titanium Bits, and a powerful gun!","loot");
+  checkQuestProgress();
+  setTimeout(()=>{ if(!darude)return; d.alive=true; d.hp=d.maxhp; d.state="idle"; d.t=0; d.cd=1.2;
+    d.pos.copy(d.home); d.mesh.position.set(d.home.x,terrainHeight(d.home.x,d.home.z),d.home.z); d.mesh.visible=true; },90000);
+}
+makeDarude();
+
 // Multi-combat zones come from shared/world-data.js (MULTI_ZONES / inMulti).
 function inMultiCombat(x,z){return inMulti(x,z);}
 
@@ -1087,6 +1192,7 @@ const QUESTS={
   sting:  {giver:"Quartermaster",title:"Sting Operation",need:"scorpion_tail",count:3, reward:{coins:650,xp:160,item:"revolver"},text:"The desert scorpions are a menace. Fetch me 3 Scorpion Tails."},
   scrap:  {giver:"Tinker Ada",  title:"Scrap Drive",    need:"scrap",        count:8, reward:{coins:400,xp:80,item:"card_vest"},text:"I can build something great with 8 pieces of Scrap. Help me out?"},
   tags:   {giver:"Sgt. Mercer", title:"No Loose Ends",  need:"dog_tags",     count:5, reward:{coins:1500,xp:400,item:"smg"},text:"Mercenaries and Marksmen wronged us. Bring me 5 Dog Tags for justice."},
+  darude: {giver:"Captain Vane", title:"Sands of Fury", boss:true,           reward:{coins:3000,xp:1500,item:"rifle"},text:"A monster the locals call Darude rules the southern sands alone. Slay him and the desert is yours."},
 };
 const npcs=[];
 function makeMarker(){
@@ -1120,11 +1226,12 @@ spawnNpc("fangs", TOWN2.x+8,  TOWN2.z-6,  0x7a5a2a);   // moved to Tinhollow
 spawnNpc("sting", OUTPOST.x+4, OUTPOST.z+4, 0x3a5a7a);
 spawnNpc("scrap", 80,40, 0x9a6a3a);          // near the gas station
 spawnNpc("tags",  -130,130, 0x556655);       // near the bunker
+spawnNpc("darude", MAP.TOWNS[4].x, MAP.TOWNS[4].z-6, 0xc2a05a);  // Captain Vane in Dustfall
 
 player.quests={}; // questId -> "active" | "done"
 function questState(id){return player.quests[id];}
-function questItemCount(id){return invCount(QUESTS[id].need);}
-function questReady(id){return questState(id)==="active"&&questItemCount(id)>=QUESTS[id].count;}
+function questItemCount(id){return QUESTS[id].boss?(player.killedDarude?1:0):invCount(QUESTS[id].need);}
+function questReady(id){const q=QUESTS[id];return questState(id)==="active"&&(q.boss?!!player.killedDarude:invCount(q.need)>=q.count);}
 function updateMarkers(){
   for(const npc of npcs){const st=questState(npc.questId);
     if(st==="done") drawMarker(npc.marker,"","#000"),npc.marker.visible=false;
@@ -1140,6 +1247,8 @@ function updateQuestTracker(){
   if(!act.length){el.style.display="none";return;}
   el.style.display="block";
   el.innerHTML='<div class="qt-h">✦ Quests</div>'+act.map(id=>{const q=QUESTS[id];
+    if(q.boss){const done=!!player.killedDarude;
+      return `<div class="qt-q ${done?'done':''}">${q.title}<br><small>☠️ Slay Darude: ${done?'1/1 ✓ — hand in!':'0/1'}</small></div>`;}
     const have=Math.min(invCount(q.need),q.count);
     return `<div class="qt-q ${have>=q.count?'done':''}">${q.title}<br><small>${ITEMS[q.need].ic} ${ITEMS[q.need].name}: ${have}/${q.count}${have>=q.count?' ✓ — hand in!':''}</small></div>`;}).join("");
 }
@@ -1157,14 +1266,20 @@ function renderDialog(npc){
       (q.reward.item?`, a ${ITEMS[q.reward.item].name}`:"")+`, and ${q.reward.xp} xp.</i>`;
     acts=btn("Accept",()=>{player.quests[npc.questId]="active";log(`Quest started: ${q.title}.`,"xp");checkQuestProgress();})
         +btn("Maybe later",()=>closeDialog()); }
-  else { // active
+  else if(q.boss){ // active boss quest
+    if(player.killedDarude){ say="You actually did it — Darude is dead?! The sands are free. Take this.";
+      acts=btn("Complete",()=>completeQuest(npc.questId))+btn("Close",()=>closeDialog()); }
+    else { say="Darude still walks the southern sands. Be careful — his attacks are telegraphed, so watch the ground and stay out of his cone."; acts=btn("OK",()=>closeDialog()); }
+  }
+  else { // active item quest
     const have=questItemCount(npc.questId);
     if(have>=q.count){ say=`You've got them all! Hand over the ${q.count} ${ITEMS[q.need].name}s?`;
       acts=btn("Complete",()=>completeQuest(npc.questId))+btn("Not yet",()=>closeDialog()); }
     else { say=`Have you got my ${q.count} ${ITEMS[q.need].name}s yet? Keep at it!`;
       acts=btn("OK",()=>closeDialog()); }
   }
-  const prog=(st==="active")?`<div class="prog">${ITEMS[q.need].ic} ${ITEMS[q.need].name}: ${Math.min(questItemCount(npc.questId),q.count)} / ${q.count}</div>`:"";
+  const prog=(st==="active"&&!q.boss)?`<div class="prog">${ITEMS[q.need].ic} ${ITEMS[q.need].name}: ${Math.min(questItemCount(npc.questId),q.count)} / ${q.count}</div>`:
+    (st==="active"&&q.boss?`<div class="prog">Slay Darude: ${player.killedDarude?"1/1 ✓":"0/1"}</div>`:"");
   dialogEl.innerHTML=`<div class="who">${q.giver} — ${q.title}</div><div class="say">${say}</div>${prog}<div class="acts" id="dlgacts"></div>`;
   const wrap=dialogEl.querySelector("#dlgacts"); wrap.innerHTML="";
   dlgButtons.forEach(b=>wrap.appendChild(b)); dlgButtons=[];
@@ -1173,7 +1288,7 @@ let dlgButtons=[];
 function btn(label,fn){const b=document.createElement("button");b.className="btn";b.textContent=label;
   b.onclick=fn;dlgButtons.push(b);return "";}
 function completeQuest(id){const q=QUESTS[id];
-  removeItem(q.need,q.count); player.quests[id]="done";
+  if(!q.boss) removeItem(q.need,q.count); player.quests[id]="done";
   addItem("coins",q.reward.coins);
   gainXp("aim",q.reward.xp); gainXp("composure",q.reward.xp*0.5);
   if(q.reward.item) addItem(q.reward.item,1);
@@ -1868,7 +1983,7 @@ function castAt(clientX,clientY){
   const r=renderer.domElement.getBoundingClientRect();
   mouse.x=((clientX-r.left)/r.width)*2-1; mouse.y=-((clientY-r.top)/r.height)*2+1;
   raycaster.setFromCamera(mouse,camera);
-  const res={enemy:null,npc:null,shop:false,drop:null,tree:null,door:null,altar:null,player:null,stairs:null,workshop:null,ore:null,point:null};
+  const res={enemy:null,npc:null,shop:false,drop:null,tree:null,door:null,altar:null,player:null,stairs:null,workshop:null,ore:null,boss:null,point:null};
   if(NET.online){ // server-driven enemies + loot
     const eh=raycaster.intersectObjects([...serverEnemies.values()].map(s=>s.mesh),true);
     if(eh.length){let o=eh[0].object;while(o&&o.userData.serverEnemy==null)o=o.parent;if(o)res.enemy=serverEnemies.get(o.userData.serverEnemy);}
@@ -1897,6 +2012,7 @@ function castAt(clientX,clientY){
   if(wh.length){let o=wh[0].object;while(o&&!o.userData.workshop)o=o.parent;if(o)res.workshop=o.userData.workshop;}
   const oh=raycaster.intersectObjects(oreNodes.filter(n=>!n.depleted).map(n=>n.group),true);
   if(oh.length){let o=oh[0].object;while(o&&!o.userData.ore)o=o.parent;if(o)res.ore=o.userData.ore;}
+  if(darude&&darude.alive&&raycaster.intersectObject(darude.mesh,true).length) res.boss=darude;
   const gh=raycaster.intersectObject(ground);
   if(gh.length)res.point=new THREE.Vector3(gh[0].point.x,0,gh[0].point.z);
   return res;
@@ -1904,7 +2020,7 @@ function castAt(clientX,clientY){
 function toggleDoor(ds){ds.open=!ds.open;sfxClick();log(ds.open?"You open the door.":"You close the door.");}
 function clearActions(){player.target=null;player.dest=null;player.pickupTarget=null;
   player.talkTarget=null;player.chopTarget=null;player.doorTarget=null;player.altarTarget=null;
-  player.clickMark=null;player.pvpTarget=null;player.path=null;player.stairTarget=null;player.workshopTarget=null;player.mineTarget=null;
+  player.clickMark=null;player.pvpTarget=null;player.path=null;player.stairTarget=null;player.workshopTarget=null;player.mineTarget=null;player.bossTarget=null;
   if(dialogOpen)closeDialog();}
 function useStairs(s){ if(player.floor===0){player.floor=1;player.yOffset=FLOOR_H;player.pos.set(s.topX,0,s.topZ);log("You climb the stairs.");}
   else{player.floor=0;player.yOffset=0;player.pos.set(s.x,0,s.z);log("You go downstairs.");} sfxClick(); }
@@ -1916,6 +2032,7 @@ renderer.domElement.addEventListener("mousedown",e=>{
   if(e.button!==0)return;
   ctxEl.style.display="none";
   const h=castAt(e.clientX,e.clientY);
+  if(h.boss){clearActions();player.bossTarget=h.boss;log("You attack Darude!","cmb");return;}
   if(h.enemy){attack(h.enemy);return;}
   if(h.shop){openShop();return;}
   if(h.npc){clearActions();player.talkTarget=h.npc;return;}
@@ -1960,6 +2077,7 @@ function updateRunUI(){const on=player.running&&player.energy>0.5;
 // right-click world context menu
 function openWorldMenu(cx,cy){
   const h=castAt(cx,cy); const opts=[];
+  if(h.boss) opts.push(["Attack Darude",()=>{clearActions();player.bossTarget=h.boss;}]);
   if(h.enemy) opts.push(["Attack "+h.enemy.name,()=>attack(h.enemy)]);
   if(h.player){ const rp=h.player;
     if(player.duel===rp.id) opts.push(["Attack "+rp.user,()=>{clearActions();player.pvpTarget=rp;}]);
@@ -2034,6 +2152,11 @@ function loop(now){
       if(nd.depleted){player.mineTarget=null;}
       else if(dist2(player.pos,nd.pos)>3.4){ if(moveToward(nd.pos.x,nd.pos.z,step))moving=true; }
       else { faceTowards(player.mesh,nd.pos.x,nd.pos.z,player.pos.x,player.pos.z); mineTick(now); }
+    }
+    else if(player.bossTarget){ const d=player.bossTarget;
+      if(!d.alive){player.bossTarget=null;}
+      else if(dist2(player.pos,d.pos)>COMBAT_RANGE+6){ if(moveToward(d.pos.x,d.pos.z,step))moving=true; }
+      else { faceTowards(player.mesh,d.pos.x,d.pos.z,player.pos.x,player.pos.z); bossPlayerShoot(now); }
     }
     else if(player.doorTarget){ const ds=player.doorTarget, dp={x:ds.wall.x,z:ds.wall.z};
       if(dist2(player.pos,dp)>3){ if(moveToward(dp.x,dp.z,step))moving=true; } // only toggle when beside it
@@ -2147,6 +2270,8 @@ function loop(now){
   for(let i=fires.length-1;i>=0;i--){const f=fires[i];
     f.flame.scale.y=1+Math.sin(now/80+i)*0.18; f.flame.rotation.y+=dt*4;
     if(now>=f.expireAt){scene.remove(f.mesh);fires.splice(i,1);}}
+
+  updateDarude(dt,now);   // boss telegraphs/AI (both online & offline)
 
   /* --- doors: swing on their hinge (pivot group rotates) --- */
   for(const b of buildings){const ds=b.door; const tgt=ds.open?-Math.PI*0.5:0;
