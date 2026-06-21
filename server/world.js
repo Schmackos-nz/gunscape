@@ -50,8 +50,8 @@ export class World {
   addPlayer(pid, profile) {
     const p = profile || {};
     this.players.set(pid, { x: p.x ?? 0, z: p.z ?? 40, ry: 0,
-      hp: p.hp ?? 100, maxhp: p.maxhp ?? 100, armour: p.armour ?? 1, aim: p.aim ?? 1,
-      weapon: p.weapon || 'zip', attacking: null, lastShot: 0, dead: false, respawnAt: 0 });
+      hp: p.hp ?? p.maxhp ?? 100, maxhp: p.maxhp ?? 100, armour: p.armour ?? 1, aim: p.aim ?? 1,
+      weapon: p.weapon || 'zip', attacking: null, lastShot: 0, lastHit: 0, dead: false, respawnAt: 0 });
   }
   removePlayer(pid) { this.players.delete(pid); for (const e of this.enemies) if (e.target === pid) e.target = null; }
 
@@ -62,18 +62,27 @@ export class World {
     if (typeof msg.ry === 'number') p.ry = msg.ry;
     if (typeof msg.armour === 'number') p.armour = msg.armour;
     if (typeof msg.aim === 'number') p.aim = msg.aim;
+    if (typeof msg.maxhp === 'number') { p.maxhp = msg.maxhp; if (p.hp > p.maxhp) p.hp = p.maxhp; }
     if (msg.weapon) p.weapon = msg.weapon;
   }
   attackIntent(pid, enemyId) { const p = this.players.get(pid); if (p) p.attacking = enemyId; }
+  heal(pid, amt) { const p = this.players.get(pid); if (p && !p.dead) p.hp = Math.min(p.maxhp, p.hp + Math.max(0, amt || 0)); }
+  dropLoot(pid, items, x, z) {                       // spawn a dead player's gear as ground loot
+    const now = Date.now();
+    const add = (k, n) => this.loot.push({ id: this.nid++, k, n, x: x + rnd(-2, 2), z: z + rnd(-2, 2), owner: pid, publicAt: now + 60000, despawnAt: now + 120000 });
+    add('bones', 1);
+    for (const it of (items || [])) if (it && it.k) add(it.k, it.n || 1);
+  }
 
   // returns events for the owner (xp / loot notices) keyed by pid
   tick(dt, now) {
     const events = [];
     const alive = [...this.players.entries()].filter(([, p]) => !p.dead);
 
-    // ---- player → enemy attacks ----
+    // ---- player → enemy attacks + out-of-combat regen ----
     for (const [pid, p] of this.players) {
       if (p.dead) { if (now >= p.respawnAt) { p.dead = false; p.hp = p.maxhp; p.x = 0; p.z = 40; } continue; }
+      if (now - p.lastHit > 3000 && p.hp < p.maxhp) p.hp = Math.min(p.maxhp, p.hp + dt * 1.2); // slow regen
       if (!p.attacking) continue;
       const e = this.enemies.find(e => e.id === p.attacking && !e.dead);
       if (!e) { p.attacking = null; continue; }
@@ -109,7 +118,8 @@ export class World {
             const acc = stats.aim + 8;
             if (Math.random() < acc / (acc + tgt.armour)) {
               let dmg = randint(stats.dmg[0], stats.dmg[1]); dmg = Math.max(1, dmg - Math.floor(tgt.armour * 0.12));
-              tgt.hp -= dmg;
+              tgt.hp -= dmg; tgt.lastHit = now;
+              events.push({ pid: near, t: 'hurt', dmg });
               if (tgt.hp <= 0) { tgt.hp = 0; tgt.dead = true; tgt.respawnAt = now + 4000; events.push({ pid: near, t: 'death' }); }
             }
           }

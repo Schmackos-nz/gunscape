@@ -1157,9 +1157,10 @@ function unequip(slot){
   player.equip[slot]=(slot==="weapon")?"fists":null; addItem(k,1);
   log(`You remove the ${ITEMS[k].name}.`); buildPlayerMesh(); refreshUI();
 }
+function applyHeal(amt){ if(NET.online)netSend({t:"heal",amt}); else player.hp=Math.min(maxHp(),player.hp+amt); }
 function useItem(k){const it=ITEMS[k];if(!it)return;
-  if(it.cat==="food"){if(player.hp>=maxHp()){log("Already at full health.");return;}
-    player.hp=Math.min(maxHp(),player.hp+it.heal);removeItem(k,1);
+  if(it.cat==="food"){if(!NET.online&&player.hp>=maxHp()){log("Already at full health.");return;}
+    applyHeal(it.heal);removeItem(k,1);
     floater(player.pos,"+"+it.heal,"#7fd06a");log(`You use the ${it.name}.`,"loot");}
   else if(it.cat==="potion"){ usePotion(k); }
   else if(it.bury){ buryBone(k); }
@@ -1169,7 +1170,7 @@ function useItem(k){const it=ITEMS[k];if(!it)return;
   else if(it.cat==="tool")log(`${it.name}: ${it.desc}`);
   refreshUI();}
 function usePotion(k){const it=ITEMS[k];
-  if(it.heal){player.hp=Math.min(maxHp(),player.hp+it.heal);floater(player.pos,"+"+it.heal,"#7fd06a");}
+  if(it.heal){applyHeal(it.heal);floater(player.pos,"+"+it.heal,"#7fd06a");}
   if(it.energy){player.energy=Math.min(100,player.energy+it.energy);floater(player.pos,"+stamina","#7fe0ff");}
   if(it.prayerPct){const a=Math.ceil(maxPrayer()*it.prayerPct);restorePrayer(a);floater(player.pos,"+prayer","#c9a6ff");}
   removeItem(k,1); sfxPickup(); log(`You drink the ${it.name}.`,"loot"); refreshUI();}
@@ -1226,9 +1227,10 @@ function cookFood(k){
 }
 function eatRaw(k){
   const fd=RAWFOOD[k]; if(!fd)return; removeItem(k,1);
-  player.hp=Math.min(maxHp(),player.hp+fd.rawHeal);
-  if(Math.random()<fd.sickChance){ const s=randint(3,8); player.hp=Math.max(1,player.hp-s);
-    floater(player.pos,"sick! -"+s,"#9bd04a"); log("Ugh — eating it raw makes you ill.","bad"); sfxSick(); }
+  const sick=Math.random()<fd.sickChance, s=randint(3,8);
+  if(NET.online){ applyHeal(sick?Math.max(0,fd.rawHeal-s):fd.rawHeal); }
+  else { player.hp=Math.min(maxHp(),player.hp+fd.rawHeal); if(sick)player.hp=Math.max(1,player.hp-s); }
+  if(sick){ floater(player.pos,"sick!","#9bd04a"); log("Ugh — eating it raw makes you ill.","bad"); sfxSick(); }
   else floater(player.pos,"+"+fd.rawHeal,"#7fd06a");
   refreshUI();
 }
@@ -1255,11 +1257,27 @@ function awardCombatXp(dmg){
   for(const k of ks) gainXp(k,pool/ks.length);     // same total; "all" splits it
   gainXp("vitality",Math.round(dmg*1.33));
 }
-function attack(e){player.dest=null;player.pickupTarget=null;player.talkTarget=null;player.chopTarget=null;player.doorTarget=null;player.altarTarget=null;
-  player.target=e;e.aggro=true;e.hpDirty=true;player.combatUntil=performance.now()+6000;
-  log(`You attack the ${e.name}.`,"cmb");}
+function attack(e){player.dest=null;player.pickupTarget=null;player.talkTarget=null;player.chopTarget=null;player.doorTarget=null;player.altarTarget=null;player.pvpTarget=null;
+  player.target=e;player.combatUntil=performance.now()+6000;
+  if(NET.online&&e.server){ netSend({t:"attack",enemyId:e.id});
+    log("You attack the "+(ENEMY_STATS[e.type]?ENEMY_STATS[e.type].name:"enemy")+".","cmb"); }
+  else { e.aggro=true;e.hpDirty=true; log(`You attack the ${e.name}.`,"cmb"); } }
+function playerShootOnline(now,e){
+  if(!serverEnemies.has(e.id)){player.target=null;player.dest=null;return;}
+  const w=curWeapon(), st=STYLES[attackStyle], engage=COMBAT_RANGE+st.rangeBonus;
+  const d=dist2(player.pos,{x:e.tx,z:e.tz});
+  if(d>engage){ player.dest=new THREE.Vector3(e.tx,0,e.tz); return; }
+  player.dest=null; faceTowards(player.mesh,e.tx,e.tz,player.pos.x,player.pos.z);
+  if(now<player.flinchUntil) return;
+  if(now-(player.lastShot||0)<w.fireRate*st.fireMul) return;
+  player.lastShot=now; netSend({t:"attack",enemyId:e.id});  // server resolves damage/xp
+  sfxShoot(player.equip.weapon);
+  tracer(muzzle(player.mesh,3.7),new THREE.Vector3(e.tx,2.2,e.tz),0xffe070);
+}
 function playerShoot(now){
-  const e=player.target; if(!e||e.dead){player.target=null;return;}
+  const e=player.target; if(!e){player.target=null;return;}
+  if(NET.online&&e.server) return playerShootOnline(now,e);
+  if(e.dead){player.target=null;return;}
   const w=curWeapon(); const st=STYLES[attackStyle];
   const engage=COMBAT_RANGE+st.rangeBonus; const d=dist2(player.pos,e.pos);
   if(d>engage){ player.dest=e.pos.clone(); return; } // path in to front-to-front
@@ -1334,6 +1352,7 @@ function enemyShoot(e,now){
   }else floater(player.pos,"miss","#aaaaaa");
 }
 function playerDeath(){
+  if(NET.online){onlineDeath();return;}   // server owns death/loot online
   log("Oh dear, you are dead!","bad");
   const dx=player.pos.x, dz=player.pos.z;
   const scatter=()=>[dx+rand(-2.5,2.5),dz+rand(-2.5,2.5)];
@@ -1352,6 +1371,18 @@ function playerDeath(){
   player.hp=maxHp();player.target=null;player.dest=null;player.pickupTarget=null;
   player.talkTarget=null;player.flinchUntil=0;clearPrayers();player.prayer=0;
   player.energy=100;player.pos.set(0,0,40);buildPlayerMesh();refreshUI();
+}
+// online death: server spawns your dropped gear as shared loot; client just clears
+function onlineDeath(){
+  log("Oh dear, you are dead!","bad");
+  const items=[];
+  for(const slot of ["weapon","head","body","legs"]){const k=player.equip[slot];if(k&&k!=="fists")items.push({k,n:1});}
+  for(const it of player.inv)items.push({k:it.k,n:it.n});
+  netSend({t:"droploot",items});
+  player.equip={weapon:"fists",head:null,body:null,legs:null}; player.inv=[];
+  clearActions(); player.flinchUntil=0; clearPrayers(); player.prayer=0;
+  player.energy=100; player.pos.set(0,0,40); buildPlayerMesh(); refreshUI();
+  log("Your gear dropped where you fell — run back for it!","bad");
 }
 
 /* ============================================================ *
@@ -1428,15 +1459,22 @@ function castAt(clientX,clientY){
   mouse.x=((clientX-r.left)/r.width)*2-1; mouse.y=-((clientY-r.top)/r.height)*2+1;
   raycaster.setFromCamera(mouse,camera);
   const res={enemy:null,npc:null,shop:false,drop:null,tree:null,door:null,altar:null,player:null,point:null};
-  const eh=raycaster.intersectObjects(enemies.filter(e=>!e.dead).map(e=>e.mesh),true);
-  if(eh.length){let o=eh[0].object;while(o&&!o.userData.enemy)o=o.parent;if(o)res.enemy=o.userData.enemy;}
+  if(NET.online){ // server-driven enemies + loot
+    const eh=raycaster.intersectObjects([...serverEnemies.values()].map(s=>s.mesh),true);
+    if(eh.length){let o=eh[0].object;while(o&&o.userData.serverEnemy==null)o=o.parent;if(o)res.enemy=serverEnemies.get(o.userData.serverEnemy);}
+    const dh=raycaster.intersectObjects([...serverLoot.values()].filter(s=>s.mesh.visible).map(s=>s.mesh),false);
+    if(dh.length)res.drop=serverLoot.get(dh[0].object.userData.serverLoot);
+  } else {
+    const eh=raycaster.intersectObjects(enemies.filter(e=>!e.dead).map(e=>e.mesh),true);
+    if(eh.length){let o=eh[0].object;while(o&&!o.userData.enemy)o=o.parent;if(o)res.enemy=o.userData.enemy;}
+    const dh=raycaster.intersectObjects(drops.filter(d=>d.mesh.visible).map(d=>d.mesh),false);
+    if(dh.length)res.drop=dh[0].object.userData.drop;
+  }
   const ph=raycaster.intersectObjects([...remotes.values()].map(r=>r.mesh),true);
   if(ph.length){let o=ph[0].object;while(o&&o.userData.remoteId==null)o=o.parent;if(o)res.player=remotes.get(o.userData.remoteId);}
   const nh=raycaster.intersectObjects(npcs.map(n=>n.mesh),true);
   if(nh.length){let o=nh[0].object;while(o&&!o.userData.npc)o=o.parent;if(o)res.npc=o.userData.npc;}
   if(raycaster.intersectObject(shopkeeper,true).length) res.shop=true;
-  const dh=raycaster.intersectObjects(drops.filter(d=>d.mesh.visible).map(d=>d.mesh),false);
-  if(dh.length)res.drop=dh[0].object.userData.drop;
   const dr=raycaster.intersectObjects(buildings.map(b=>b.door.mesh),false);
   if(dr.length)res.door=dr[0].object.userData.door;
   const th=raycaster.intersectObjects(trees.filter(t=>!t.depleted).map(t=>t.group),true);
@@ -1549,7 +1587,10 @@ function loop(now){
       if(player.dest&&moveToward(player.dest.x,player.dest.z,step))moving=true;
     }
     else if(player.pickupTarget){ const dp=player.pickupTarget;
-      if(drops.indexOf(dp)<0){player.pickupTarget=null;}
+      if(dp.server){ if(!serverLoot.has(dp.id)){player.pickupTarget=null;}
+        else if(dist2(player.pos,{x:dp.x,z:dp.z})>1.8){ if(moveToward(dp.x,dp.z,step))moving=true; }
+        else { netSend({t:"pickup",lootId:dp.id}); player.pickupTarget=null; } }
+      else if(drops.indexOf(dp)<0){player.pickupTarget=null;}
       else if(dist2(player.pos,{x:dp.x,z:dp.z})>1.8){ if(moveToward(dp.x,dp.z,step))moving=true; }
       else { pickUpDrop(dp); player.pickupTarget=null; }
     }
@@ -1608,12 +1649,13 @@ function loop(now){
   prayerIcon.visible=!!(player.activePrayers.protect&&PRAYER_BY_ID[player.activePrayers.protect].overhead);
   if(prayerIcon.visible)prayerIcon.position.set(player.pos.x,7.4,player.pos.z);
 
-  /* --- regen out of combat --- */
-  if(!player.target&&player.hp<maxHp()){player.regen+=dt;
+  /* --- regen out of combat (offline; server owns HP online) --- */
+  if(!NET.online&&!player.target&&player.hp<maxHp()){player.regen+=dt;
     if(player.regen>2.5){player.regen=0;player.hp=Math.min(maxHp(),player.hp+1);}}
 
-  /* --- enemies --- */
-  for(const e of enemies){
+  /* --- enemies (local sim only offline; server-driven online) --- */
+  if(NET.online){ updateServerWorld(dt,now); }
+  else for(const e of enemies){
     if(e.dead){ if(now>=e.respawnAt){e.dead=false;e.hp=e.maxhp;e.hpDirty=true;
       e.pos.copy(e.home);e.mesh.position.copy(e.home);e.mesh.visible=true;e.aggro=false;} continue; }
     const d=dist2(e.pos,player.pos);
@@ -1645,8 +1687,8 @@ function loop(now){
     if(e.hpDirty) drawPlate(e);
   }
 
-  /* --- ground loot: bob, owner-visibility (60s), despawn (120s) --- */
-  for(let i=drops.length-1;i>=0;i--){const dp=drops[i];
+  /* --- ground loot: bob, owner-visibility (60s), despawn (120s) — offline only --- */
+  if(!NET.online)for(let i=drops.length-1;i>=0;i--){const dp=drops[i];
     if(now>=dp.despawnAt){scene.remove(dp.mesh);drops.splice(i,1);continue;}
     const vis=dropVisible(dp); dp.mesh.visible=vis;
     if(vis)dp.mesh.position.y=dp.baseY+Math.sin(now/350+dp.x)*0.15;}
@@ -1716,11 +1758,17 @@ function updateMinimap(){
   // POIs (white squares)
   for(const p of POIS){if(!near(p))continue;const[a,b]=toMM(p.x,p.z);mmx.fillStyle="#ffffff";mmx.fillRect(a-2,b-2,4,4);}
   // ground loot
-  mmx.fillStyle="#ffe89a";for(const dp of drops){if(!near(dp))continue;const[a,b]=toMM(dp.x,dp.z);mmx.fillRect(a-1,b-1,2,2);}
+  mmx.fillStyle="#ffe89a";
+  const lootList=NET.online?[...serverLoot.values()].filter(s=>s.mesh.visible):drops;
+  for(const dp of lootList){if(!near(dp))continue;const[a,b]=toMM(dp.x,dp.z);mmx.fillRect(a-1,b-1,2,2);}
   // NPCs
   mmx.fillStyle="#ffd24a";for(const n of npcs){if(!near(n.pos))continue;const[a,b]=toMM(n.pos.x,n.pos.z);mmx.fillRect(a-2,b-2,4,4);}
+  // other players (online)
+  if(NET.online){mmx.fillStyle="#4ad0ff";for(const r of remotes.values()){const rp={x:r.tx,z:r.tz};if(!near(rp))continue;const[a,b]=toMM(rp.x,rp.z);mmx.fillRect(a-1.5,b-1.5,3,3);}}
   // enemies
-  for(const e of enemies){if(e.dead||!near(e.pos))continue;const[a,b]=toMM(e.pos.x,e.pos.z);
+  if(NET.online){ for(const se of serverEnemies.values()){const ep={x:se.tx,z:se.tz};if(!near(ep))continue;const[a,b]=toMM(ep.x,ep.z);
+      mmx.fillStyle="#d05040";mmx.fillRect(a-1.5,b-1.5,3,3);} }
+  else for(const e of enemies){if(e.dead||!near(e.pos))continue;const[a,b]=toMM(e.pos.x,e.pos.z);
     mmx.fillStyle=e.aggro?"#ff4030":"#d05040";mmx.fillRect(a-1.5,b-1.5,3,3);}
   // move-to marker (red X)
   if(player.clickMark&&near(player.clickMark)){const[a,b]=toMM(player.clickMark.x,player.clickMark.z);
@@ -1927,8 +1975,61 @@ function netTick(now){
   if(!NET.online)return;
   if(now-NET.lastSent>100){NET.lastSent=now;
     netSend({t:"state",x:player.pos.x,z:player.pos.z,ry:player.mesh.rotation.y,
-      hp:player.hp,maxhp:maxHp(),appearance:{body:player.equip.body,weapon:player.equip.weapon}});}
+      maxhp:maxHp(),armour:totalArmour(),aim:player.skills.aim.lv,
+      appearance:{body:player.equip.body,weapon:player.equip.weapon}});}
   if(now-NET.saveAt>15000){NET.saveAt=now;netSend({t:"save",profile:serializeProfile()});}
+}
+
+/* ============================================================ *
+ *  SERVER-AUTHORITATIVE WORLD (online): render server enemies +
+ *  loot, send attack/pickup intents, apply server HP & events.
+ * ============================================================ */
+const serverEnemies=new Map(); // id -> {mesh,type,tx,tz,ry,hp,maxhp,plate,shown}
+const serverLoot=new Map();    // id -> {mesh,k,n,x,z,owner,publicAt}
+function seDraw(se){const{cvs,tex}=se.plate.userData;const c=cvs.getContext("2d");
+  const st=ENEMY_STATS[se.type]||{name:se.type,cmb:1};
+  c.clearRect(0,0,256,64);c.font="bold 20px Trebuchet MS";c.textAlign="center";c.lineWidth=4;c.strokeStyle="#000";
+  c.fillStyle="#ff8a7a";c.strokeText(st.name+" ("+st.cmb+")",128,20);c.fillText(st.name+" ("+st.cmb+")",128,20);
+  const f=se.maxhp?se.hp/se.maxhp:1;
+  c.fillStyle="#000";c.fillRect(36,34,184,10);c.fillStyle="#5aa84c";c.fillRect(36,34,184*Math.max(0,f),10);
+  tex.needsUpdate=true;}
+function syncServerEnemies(list){
+  const seen=new Set();
+  for(const p of list){ seen.add(p.id); let se=serverEnemies.get(p.id);
+    if(!se){ const mesh=(ENEMY_BUILDERS[p.type]||ENEMY_BUILDERS.rat)(); addOutline(mesh);
+      mesh.userData.serverEnemy=p.id; scene.add(mesh);
+      const plate=makeNameBar(""); plate.position.y=(mesh.userData.baseHeight||3.6)+1.3; mesh.add(plate);
+      se={id:p.id,type:p.type,server:true,mesh,plate,tx:p.x,tz:p.z,ry:p.ry,hp:p.hp,maxhp:p.maxhp};
+      mesh.position.set(p.x,terrainHeight(p.x,p.z),p.z); serverEnemies.set(p.id,se); seDraw(se);}
+    if(se.hp!==p.hp){se.hp=p.hp;seDraw(se);}
+    se.tx=p.x;se.tz=p.z;se.ry=p.ry;se.maxhp=p.maxhp;
+  }
+  for(const id of [...serverEnemies.keys()])if(!seen.has(id)){scene.remove(serverEnemies.get(id).mesh);serverEnemies.delete(id);
+    if(player.target&&player.target.id===id&&player.target.server)player.target=null;}
+}
+function syncServerLoot(list){
+  const seen=new Set();
+  for(const l of list){ seen.add(l.id); let sl=serverLoot.get(l.id);
+    if(!sl){ const spr=new THREE.Sprite(new THREE.SpriteMaterial({map:iconTexture(l.k),transparent:true}));
+      spr.scale.set(1.8,1.8,1); spr.position.set(l.x,terrainHeight(l.x,l.z)+1,l.z); spr.userData.serverLoot=l.id;
+      scene.add(spr); sl={id:l.id,server:true,mesh:spr,k:l.k,n:l.n,x:l.x,z:l.z,owner:l.owner,publicAt:l.publicAt}; serverLoot.set(l.id,sl);}
+    sl.owner=l.owner; sl.publicAt=l.publicAt;
+    const vis=(l.owner===NET.id)||(Date.now()>=l.publicAt); sl.mesh.visible=vis;
+  }
+  for(const id of [...serverLoot.keys()])if(!seen.has(id)){scene.remove(serverLoot.get(id).mesh);serverLoot.delete(id);}
+}
+function clearServerWorld(){
+  for(const se of serverEnemies.values())scene.remove(se.mesh); serverEnemies.clear();
+  for(const sl of serverLoot.values())scene.remove(sl.mesh); serverLoot.clear();
+}
+function updateServerWorld(dt,now){
+  for(const se of serverEnemies.values()){
+    se.mesh.position.x+=(se.tx-se.mesh.position.x)*Math.min(1,dt*8);
+    se.mesh.position.z+=(se.tz-se.mesh.position.z)*Math.min(1,dt*8);
+    se.mesh.position.y=terrainHeight(se.mesh.position.x,se.mesh.position.z);
+    se.mesh.rotation.y=se.ry;
+  }
+  for(const sl of serverLoot.values())if(sl.mesh.visible)sl.mesh.position.y=terrainHeight(sl.x,sl.z)+1+Math.sin(now/350+sl.x)*0.15;
 }
 function netConnect(url,mode,user,pass){
   const msgEl=document.getElementById("lg-msg"); msgEl.className=""; msgEl.textContent="Connecting…";
@@ -1937,17 +2038,28 @@ function netConnect(url,mode,user,pass){
   ws.onopen=()=>ws.send(JSON.stringify({t:mode,user,pass}));
   ws.onerror=()=>{msgEl.textContent="Could not reach that server.";};
   ws.onclose=()=>{ if(NET.online){log("Disconnected from server.","bad");NET.online=false;
-    for(const id of [...remotes.keys()])removeRemote(id);} };
+    for(const id of [...remotes.keys()])removeRemote(id); clearServerWorld();} };
   ws.onmessage=(ev)=>{let m;try{m=JSON.parse(ev.data);}catch{return;}
     if(m.t==="authfail"){msgEl.className="";msgEl.textContent=m.why;}
     else if(m.t==="authok"){NET.id=m.id;NET.user=m.user;NET.online=true;
       applyProfile(m.profile); startGame(true); }
     else if(m.t==="snapshot"){const seen=new Set();
-      for(const p of m.players){if(p.id===NET.id)continue;seen.add(p.id);upsertRemote(p);}
-      for(const id of [...remotes.keys()])if(!seen.has(id))removeRemote(id);}
+      for(const p of m.players){ if(p.id===NET.id){ if(typeof p.hp==="number")player.hp=p.hp; continue; }
+        seen.add(p.id);upsertRemote(p);}
+      for(const id of [...remotes.keys()])if(!seen.has(id))removeRemote(id);
+      if(m.enemies)syncServerEnemies(m.enemies);
+      if(m.loot)syncServerLoot(m.loot);}
     else if(m.t==="join"){/* presence appears via snapshot */}
     else if(m.t==="leave"){removeRemote(m.id);}
     else if(m.t==="chat"){log(`${m.from}: ${m.msg}`, m.from===NET.user?"loot":"sys");}
+    else if(m.t==="xp"){ const ks=STYLES[attackStyle].xp; for(const k of ks)gainXp(k,m.xp*0.7/ks.length);
+      gainXp("vitality",m.xp*0.3); log("You killed the "+m.name+".","cmb"); sfxKill(); }
+    else if(m.t==="hurt"){ floater(player.pos,String(m.dmg),"#ff6a5a"); sfxHurt();
+      gainXp("armour",m.dmg*3); gainXp("composure",m.dmg*1.5); player.combatUntil=performance.now()+6000;
+      if(Math.random()>flinchResist())player.flinchUntil=performance.now()+450; }
+    else if(m.t==="death"){ onlineDeath(); }
+    else if(m.t==="looted"){ addItem(m.k,m.n); (m.k==="coins"?sfxCoin:sfxPickup)(); checkQuestProgress();
+      log(`You pick up ${m.n>1?m.n+" ":""}${ITEMS[m.k]?ITEMS[m.k].name:m.k}.`,"loot"); }
     else if(m.t==="p2p"){handleP2P(m);}
   };
 }
@@ -1959,7 +2071,11 @@ function startGame(online){
   gameStarted=true;
   document.getElementById("login").style.display="none";
   document.getElementById("chatinput").style.display="block";   // chat always available
-  if(online) log("Connected to server as "+NET.user+".","xp");
+  if(online){ // shared world: hide the local single-player sim, the server drives it
+    for(const e of enemies)e.mesh.visible=false;
+    for(const dp of drops)scene.remove(dp.mesh); drops.length=0;
+    player.target=null;player.pvpTarget=null;
+    log("Connected to server as "+NET.user+". You're in the shared world.","xp"); }
   else log("Playing offline (single-player). Press Enter to chat.","sys");
   refreshUI(); updateRunUI();
   requestAnimationFrame(loop);

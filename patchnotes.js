@@ -1,35 +1,17 @@
 window.PATCHNOTES={
- "version": "1.0.16",
+ "version": "1.0.17",
  "generated": "2026-06-21",
  "patches": [
   {
-   "version": "1.0.16",
+   "version": "1.0.17",
    "date": "2026-06-21",
-   "title": "Pin Cloudflare account_id in wrangler.toml (skip /memberships lookup)",
-   "notes": []
-  },
-  {
-   "version": "1.0.15",
-   "date": "2026-06-21",
-   "title": "Add CLAUDE.md; next change = full server-authoritative world",
-   "notes": []
-  },
-  {
-   "version": "1.0.14",
-   "date": "2026-06-21",
-   "title": "Add root package-lock.json so CI deploy (npm ci + setup-node cache) works",
+   "title": "Full server-authoritative online world: shared enemies, loot & combat",
    "notes": []
   },
   {
    "version": "1.0.13",
    "date": "2026-06-21",
    "title": "Login patch notes, player duels & trading, server picker that remembers",
-   "notes": []
-  },
-  {
-   "version": "1.0.12",
-   "date": "2026-06-21",
-   "title": "Changelog hook: regenerate patchnotes into the same commit (post-commit + amend)",
    "notes": []
   },
   {
@@ -42,12 +24,6 @@ window.PATCHNOTES={
    "version": "1.0.10",
    "date": "2026-06-21",
    "title": "Server-authoritative world sim foundation + shared data + terrain follow + camera/QoL",
-   "notes": []
-  },
-  {
-   "version": "1.0.9",
-   "date": "2026-06-21",
-   "title": "Multicombat zones+indicator, Protect Projectiles prayer, loot timers, deploy config",
    "notes": []
   },
   {

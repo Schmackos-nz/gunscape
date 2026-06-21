@@ -112,9 +112,11 @@ wss.on('connection', (ws) => {
         s.maxhp = +msg.maxhp || s.maxhp;
         if (msg.appearance) s.appearance = msg.appearance;
         world.input(session.id, { x: s.x, z: s.z, ry: s.ry, armour: +msg.armour || undefined,
-          aim: +msg.aim || undefined, weapon: msg.appearance && msg.appearance.weapon });
+          aim: +msg.aim || undefined, maxhp: +msg.maxhp || undefined, weapon: msg.appearance && msg.appearance.weapon });
         break;
       }
+      case 'heal': { if (session.authed) world.heal(session.id, +msg.amt || 0); break; }
+      case 'droploot': { if (session.authed) { const wp = world.players.get(session.id); if (wp) world.dropLoot(session.id, msg.items, wp.x, wp.z); } break; }
       case 'p2p': {   // relay a player-to-player message (duel/trade) to one target
         if (!session.authed) break;
         const tw = wsById(msg.to);
@@ -165,9 +167,11 @@ function login(ws, session, user) {
 setInterval(() => {
   const events = world.tick(TICK_MS / 1000, Date.now());
   const players = [];
-  for (const s of clients.values()) if (s.authed)
+  for (const s of clients.values()) if (s.authed) {
+    const wp = world.players.get(s.id);                 // server-authoritative HP
     players.push({ id: s.id, user: s.user, x: s.state.x, z: s.state.z, ry: s.state.ry,
-      hp: s.state.hp, maxhp: s.state.maxhp, appearance: s.state.appearance });
+      hp: wp ? Math.round(wp.hp) : s.state.hp, maxhp: wp ? wp.maxhp : s.state.maxhp, appearance: s.state.appearance });
+  }
   if (players.length) {
     const w = world.snapshot();
     broadcast({ t: 'snapshot', players, enemies: w.enemies, loot: w.loot });
