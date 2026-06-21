@@ -18,20 +18,20 @@ Single-combat is enforced server-side: outside the multi-combat zones an enemy i
 locked to one attacker (`e.engagedBy`), others get a `busy` event; multi-combat
 zones (in `shared/world-data.js` `MULTI_ZONES`/`inMulti`) allow piling on.
 
-## ⏭️ Next planned changes — DO THESE ALL IN ONE BATCH
-Implement together in a single pass (then commit once):
-1. **Loot respects single-combat** — enemy drops are lootable only by the player who
-   was engaged with it (its `engagedBy`/killer) until the public timer, outside
-   multi-combat zones. (Owner/`publicAt` already exist on loot; tie owner to the
-   engaged fighter and gate pickup server-side.)
-2. **Smart pathfinding** — route the player through open doors / around walls to the
-   clicked destination (today only `nearestOpen` retargets to a walkable spot; add
-   real path navigation, e.g. waypoints via the nearest open door of the building
-   you're in, or a grid A* over `blockers`/`wallBoxes`).
-3. **10s logout-linger + death-counts** — on disconnect the avatar stays in the
-   world for 10s; if it's killed during that window it counts as a real death (gear
-   drops). Server-side: keep the session's world player alive 10s after the socket
-   closes before removing it.
+Also done: **loot respects single-combat** (multi-zone drops public instantly, else
+killer-private 60s), **smart pathfinding** (`findPath` grid A* around walls/through
+open doors, click-to-move uses `player.path`), **10s logout-linger** (server keeps a
+disconnected avatar in-world 10s; dying then = real death, gear drops), **admin
+commands** (`/broadcast /announce /dm /kick /ban /unban /who`, `ADMINS` env),
+**buildings** (hinged doors via pivot group, windows + colour variety, two-storey
+houses with a stair hole + enclosed upstairs + floor-aware collision via
+`player.floor`/`wall.floor`), and a **quest tracker HUD** (`#questtracker`).
+
+## Hosting (dedicated server)
+- Cloudflare serves the static client (HTTPS) → the client connects via **`wss://`**
+  on a secure page (see `normSrv`); enter just the hostname (no `:port`).
+- Server runs on **Fly.io**: `Dockerfile` + `fly.toml` (app `gunscape-game`), persistent
+  volume at `/data` via `ACCOUNTS_FILE`. Deploy: `fly deploy`. Also serves the client.
 
 ## Run it
 - **Single-player:** open `index.html`, choose **Play Offline**.
