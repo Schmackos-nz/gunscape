@@ -1,0 +1,14 @@
+{
+  "name": "gunscape-classic",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Gunscape Classic — RuneScape Classic, but with guns. 3D browser game.",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "deploy": "node scripts/build.mjs && npx wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^3.90.0"
+  }
+}

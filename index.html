@@ -93,6 +93,9 @@
     background:rgba(0,0,0,.6);color:#ffd24a;font-weight:bold;font-size:13px;
     padding:5px 0;border-radius:8px;cursor:pointer;border:2px solid #5a5142;}
   #runtoggle.on{border-color:#4ad0ff;color:#bfe9ff;box-shadow:0 0 8px rgba(74,208,255,.5);}
+  #multicombat{position:absolute;top:196px;right:8px;width:150px;text-align:center;display:none;
+    background:rgba(40,0,0,.6);color:#ff8a6a;font-weight:bold;font-size:12px;padding:4px 0;
+    border-radius:8px;border:2px solid #b23b2e;}
   #hint{position:absolute;bottom:8px;right:8px;width:46%;text-align:center;
     color:#cdbf9a;font-size:12px;background:rgba(0,0,0,.4);padding:5px;
     border-radius:6px;pointer-events:none;}
@@ -174,6 +177,7 @@
     <div id="hpwrap" class="hudbox"><div class="lab">Vitality</div><div id="hpbar"><i></i></div></div>
     <canvas id="minimap" width="150" height="150"></canvas>
     <div id="runtoggle" title="Toggle run (run uses energy)">🏃 100%</div>
+    <div id="multicombat">⚠ Multicombat</div>
     <div id="chat"></div>
     <div id="hint">Click to move · click monster = auto-fight · click trees to chop · hold Tab for attack style · right-click = options · right-drag turn · wheel zoom</div>
   </div>
@@ -303,6 +307,7 @@ const PRAYERS=[
   {id:"iron_will",  name:"Iron Will",   lvl:14, type:"comp",   drain:3,   flinch:0.22,desc:"+22% flinch resist"},
   {id:"evasion",    name:"Evasion",     lvl:20, type:"dodge",  drain:4,   dodge:0.12, desc:"+12% dodge"},
   {id:"stone_skin", name:"Stone Skin",  lvl:26, type:"protect",drain:5,   soak:0.20,  desc:"-20% damage taken"},
+  {id:"protect_proj",name:"Protect Projectiles",lvl:30,type:"protect",drain:30,soak:0.40,overhead:"proj",desc:"-40% projectile damage (huge drain)"},
   {id:"eagle_eye",  name:"Eagle Eye",   lvl:32, type:"aim",    drain:6,   aim:0.25,   desc:"+25% accuracy"},
   {id:"stone_nerve",name:"Stone Nerve", lvl:32, type:"comp",   drain:6,   flinch:0.40,desc:"+40% flinch resist"},
   {id:"savagery",   name:"Savagery",    lvl:38, type:"power",  drain:8,   dmg:0.25,   desc:"+25% damage"},
@@ -675,6 +680,15 @@ addPOI("Forest Outpost",OUTPOST.x,OUTPOST.z);
 makeAltar(TOWN.x-12,TOWN.z-12);
 makeAltar(OUTPOST.x+10,OUTPOST.z+10);
 
+// Multi-combat zones: inside these, more than one attacker can pile on a
+// single target. Everywhere else is single-combat (1 attacker per target).
+const MULTI_ZONES=[
+  {x:180,z:80,r:60,name:"Bandit Camp"},      // around the bandit camp
+  {x:-180,z:-150,r:90,name:"The Scarlands"}, // badlands / warlord country
+  {x:120,z:150,r:55,name:"Crash Site"},
+];
+function inMultiCombat(x,z){for(const z2 of MULTI_ZONES)if(Math.hypot(x-z2.x,z-z2.z)<z2.r)return z2;return null;}
+
 /* ============================================================ *
  *  NPCs & QUESTS
  * ============================================================ */
@@ -866,12 +880,21 @@ function iconTexture(k){ if(_iconCache[k])return _iconCache[k];
   const c=document.createElement("canvas");c.width=c.height=64;const g=c.getContext("2d");
   g.font="48px serif";g.textAlign="center";g.textBaseline="middle";g.fillText(ITEMS[k].ic||"?",32,36);
   const t=new THREE.CanvasTexture(c);t.encoding=THREE.sRGBEncoding;_iconCache[k]=t;return t;}
-function makeDrop(k,n,x,z){
+function makeDrop(k,n,x,z,owner){
   const spr=new THREE.Sprite(new THREE.SpriteMaterial({map:iconTexture(k),transparent:true}));
   spr.scale.set(1.8,1.8,1); spr.position.set(x,1.0,z);
   scene.add(spr);
-  const dp={k,n,mesh:spr,x,z}; spr.userData.drop=dp;
+  const t=performance.now();
+  // loot is private to its owner for 60s, public after, despawns at 120s
+  const dp={k,n,mesh:spr,x,z,owner:owner||(NET.online?NET.id:"me"),
+    publicAt:t+60000, despawnAt:t+120000}; spr.userData.drop=dp;
   drops.push(dp); return dp;
+}
+function dropVisible(dp){
+  if(dp.publicAt&&performance.now()<dp.publicAt){ // still private to owner
+    const me=NET.online?NET.id:"me"; return dp.owner===me;
+  }
+  return true;
 }
 function removeDrop(dp){const i=drops.indexOf(dp);if(i>=0){scene.remove(dp.mesh);drops.splice(i,1);}}
 function pickUpDrop(dp){
@@ -906,6 +929,15 @@ const playerPlate=(()=>{const cvs=document.createElement("canvas");cvs.width=256
   const tex=new THREE.CanvasTexture(cvs);
   const spr=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,depthTest:false,transparent:true}));
   spr.scale.set(6,1.7,1); spr.visible=false; scene.add(spr); spr.userData={cvs,tex}; return spr;})();
+// overhead prayer icon (e.g. Protect Projectiles = a bullet with a red X)
+const prayerIcon=(()=>{const cvs=document.createElement("canvas");cvs.width=cvs.height=64;
+  const c=cvs.getContext("2d");
+  c.fillStyle="#2a2a2a";c.beginPath();c.ellipse(32,34,12,20,0,0,7);c.fill();      // bullet body
+  c.fillStyle="#caa84a";c.beginPath();c.ellipse(32,18,12,12,0,Math.PI,0);c.fill();// brass tip
+  c.strokeStyle="#ff2a2a";c.lineWidth=8;c.beginPath();c.moveTo(8,8);c.lineTo(56,56);c.moveTo(56,8);c.lineTo(8,56);c.stroke();
+  const tex=new THREE.CanvasTexture(cvs);
+  const spr=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,depthTest:false,transparent:true}));
+  spr.scale.set(2,2,1);spr.visible=false;scene.add(spr);return spr;})();
 function bar(c,x,y,w,h,frac,fill,back){c.fillStyle="#000";c.fillRect(x-2,y-2,w+4,h+4);
   c.fillStyle=back;c.fillRect(x,y,w,h);c.fillStyle=fill;c.fillRect(x,y,w*Math.max(0,frac),h);}
 function drawPlayerPlate(){const{cvs,tex}=playerPlate.userData;const c=cvs.getContext("2d");
@@ -1309,7 +1341,7 @@ function castAt(clientX,clientY){
   const nh=raycaster.intersectObjects(npcs.map(n=>n.mesh),true);
   if(nh.length){let o=nh[0].object;while(o&&!o.userData.npc)o=o.parent;if(o)res.npc=o.userData.npc;}
   if(raycaster.intersectObject(shopkeeper,true).length) res.shop=true;
-  const dh=raycaster.intersectObjects(drops.map(d=>d.mesh),false);
+  const dh=raycaster.intersectObjects(drops.filter(d=>d.mesh.visible).map(d=>d.mesh),false);
   if(dh.length)res.drop=dh[0].object.userData.drop;
   const dr=raycaster.intersectObjects(buildings.map(b=>b.door.mesh),false);
   if(dr.length)res.door=dr[0].object.userData.door;
@@ -1362,9 +1394,11 @@ const runEl=document.getElementById("runtoggle");
 runEl.addEventListener("click",()=>{player.running=!player.running;sfxClick();updateRunUI();});
 function agiDrainFactor(){return 1+0.03*(player.skills.agility.lv-1);}      // higher agi = lasts longer
 function energyRegen(){return 1+3*(player.skills.agility.lv-1)/98;}         // 1/s @lv1 .. 4/s @lv99
+const multiEl=document.getElementById("multicombat");
 function updateRunUI(){const on=player.running&&player.energy>0.5;
   runEl.classList.toggle("on",on);
-  runEl.textContent="🏃 "+Math.round(player.energy)+"%";}
+  runEl.textContent="🏃 "+Math.round(player.energy)+"%";
+  multiEl.style.display=inMultiCombat(player.pos.x,player.pos.z)?"block":"none";}
 
 // right-click world context menu
 function openWorldMenu(cx,cy){
@@ -1459,6 +1493,9 @@ function loop(now){
   const inCombat=(player.target&&!player.target.dead)||now<(player.combatUntil||0);
   playerPlate.visible=inCombat;
   if(inCombat){playerPlate.position.set(player.pos.x,5.6,player.pos.z);drawPlayerPlate();}
+  /* --- overhead prayer icon (Protect Projectiles etc) --- */
+  prayerIcon.visible=!!(player.activePrayers.protect&&PRAYER_BY_ID[player.activePrayers.protect].overhead);
+  if(prayerIcon.visible)prayerIcon.position.set(player.pos.x,7.4,player.pos.z);
 
   /* --- regen out of combat --- */
   if(!player.target&&player.hp<maxHp()){player.regen+=dt;
@@ -1495,8 +1532,11 @@ function loop(now){
     if(e.hpDirty) drawPlate(e);
   }
 
-  /* --- ground loot bob (pick up by clicking) --- */
-  for(const dp of drops){dp.mesh.position.y=1.0+Math.sin(now/350+dp.x)*0.15;}
+  /* --- ground loot: bob, owner-visibility (60s), despawn (120s) --- */
+  for(let i=drops.length-1;i>=0;i--){const dp=drops[i];
+    if(now>=dp.despawnAt){scene.remove(dp.mesh);drops.splice(i,1);continue;}
+    const vis=dropVisible(dp); dp.mesh.visible=vis;
+    if(vis)dp.mesh.position.y=1.0+Math.sin(now/350+dp.x)*0.15;}
 
   /* --- trees respawn --- */
   for(const tr of trees){ if(tr.depleted&&now>=tr.respawnAt){tr.depleted=false;tr.foliage.visible=true;} }
