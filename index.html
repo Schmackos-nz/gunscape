@@ -212,6 +212,7 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="shared/world-data.js"></script>
 <script>
 "use strict";
 /* ============================================================ *
@@ -227,16 +228,18 @@ const XP_TABLE=(()=>{const t=[0];let p=0;for(let lv=1;lv<99;lv++){p+=Math.floor(
 function levelForXp(xp){let lv=1;for(let i=1;i<XP_TABLE.length;i++){if(xp>=XP_TABLE[i])lv=i+1;else break;}return Math.min(lv,99);}
 function xpForLevel(lv){return XP_TABLE[lv-1]||0;}
 
-/* ---------------- Items (ranges are in world units now) ------ */
+/* ---------------- Items (combat numbers come from shared/world-data.js) --- */
 // Equip requirements: reqLvl=combat level, reqAim/reqComp (weapons), reqArm (armour)
+// dmgMin/dmgMax/fireRate/range/bloom are spread in from WEAPON_COMBAT (shared).
+const wc=WEAPON_COMBAT;
 const WEAPONS={
-  fists:    {name:"Bare Fists",   ic:"👊",reqLvl:1, reqAim:1, reqComp:1, fireRate:1100,bloom:30,dmgMin:1, dmgMax:3, range:3, price:0,    cat:"weapon",grade:"none",  desc:"Your knuckles. Find a gun, fast."},
-  zip:      {name:"Zip Pistol",   ic:"🔫",reqLvl:1, reqAim:1, reqComp:1, fireRate:900, bloom:26,dmgMin:2, dmgMax:6, range:16,price:40,   cat:"weapon",grade:"Bronze",desc:"A crude homemade pistol."},
-  revolver: {name:"Revolver",     ic:"🔫",reqLvl:5, reqAim:5, reqComp:3, fireRate:850, bloom:20,dmgMin:4, dmgMax:9, range:20,price:160,  cat:"weapon",grade:"Steel", desc:"Reliable iron sidearm."},
-  smg:      {name:"SMG",          ic:"🧨",reqLvl:12,reqAim:15,reqComp:10,fireRate:380, bloom:22,dmgMin:3, dmgMax:8, range:20,price:650,  cat:"weapon",grade:"Mithril",desc:"Fast but it sprays."},
-  shotgun:  {name:"Shotgun",      ic:"💥",reqLvl:20,reqAim:25,reqComp:20,fireRate:1000,bloom:14,dmgMin:8, dmgMax:18,range:13,price:1800, cat:"weapon",grade:"Adamant",desc:"Devastating up close."},
-  rifle:    {name:"Hunting Rifle",ic:"🎯",reqLvl:30,reqAim:35,reqComp:25,fireRate:1200,bloom:6, dmgMin:14,dmgMax:26,range:38,price:4200, cat:"weapon",grade:"Rune",   desc:"Pinpoint long-range punch."},
-  ak:       {name:"AK-47",        ic:"⭐",reqLvl:40,reqAim:45,reqComp:40,fireRate:300, bloom:10,dmgMin:12,dmgMax:24,range:28,price:12000,cat:"weapon",grade:"Dragon", desc:"The legend. Fast and brutal."},
+  fists:    {name:"Bare Fists",   ic:"👊",reqLvl:1, reqAim:1, reqComp:1, price:0,    cat:"weapon",grade:"none",  desc:"Your knuckles. Find a gun, fast.",...wc.fists},
+  zip:      {name:"Zip Pistol",   ic:"🔫",reqLvl:1, reqAim:1, reqComp:1, price:40,   cat:"weapon",grade:"Bronze",desc:"A crude homemade pistol.",...wc.zip},
+  revolver: {name:"Revolver",     ic:"🔫",reqLvl:5, reqAim:5, reqComp:3, price:160,  cat:"weapon",grade:"Steel", desc:"Reliable iron sidearm.",...wc.revolver},
+  smg:      {name:"SMG",          ic:"🧨",reqLvl:12,reqAim:15,reqComp:10,price:650,  cat:"weapon",grade:"Mithril",desc:"Fast but it sprays.",...wc.smg},
+  shotgun:  {name:"Shotgun",      ic:"💥",reqLvl:20,reqAim:25,reqComp:20,price:1800, cat:"weapon",grade:"Adamant",desc:"Devastating up close.",...wc.shotgun},
+  rifle:    {name:"Hunting Rifle",ic:"🎯",reqLvl:30,reqAim:35,reqComp:25,price:4200, cat:"weapon",grade:"Rune",   desc:"Pinpoint long-range punch.",...wc.rifle},
+  ak:       {name:"AK-47",        ic:"⭐",reqLvl:40,reqAim:45,reqComp:40,price:12000,cat:"weapon",grade:"Dragon", desc:"The legend. Fast and brutal.",...wc.ak},
 };
 const ARMOUR={
   cloth_hood:{name:"Cloth Hood",ic:"🧢",slot:"head",armour:1,reqLvl:1,reqArm:1,price:15,cat:"armour",mat:"Cloth",desc:"Stops nothing, really."},
@@ -283,16 +286,7 @@ const MISC={
   dog_tags:{name:"Dog Tags",ic:"🪖",price:18,cat:"misc",desc:"Mercenary identification tags."},
 };
 const ITEMS=Object.assign({},WEAPONS,ARMOUR,CONSUMABLES,POTIONS,RAWFOOD,TOOLS,MISC,{coins:{name:"Coins",ic:"⛁",cat:"coins",desc:"Shiny money."}});
-// loot tiers (index = strength). Used by enemy drop tables.
-const GUN_TIERS=[["zip"],["zip","revolver"],["revolver","smg"],["smg","shotgun"],["shotgun","rifle"],["rifle","ak"]];
-const ARMOUR_TIERS=[
-  ["cloth_hood","cloth_shirt","cloth_pants"],
-  ["cloth_shirt","card_helm","card_legs"],
-  ["card_helm","card_vest","card_legs"],
-  ["card_vest","metal_helm","metal_legs"],
-  ["metal_helm","metal_plate","metal_legs"],
-  ["metal_plate","kev_helm","kev_vest","kev_legs"],
-];
+// loot tiers GUN_TIERS / ARMOUR_TIERS come from shared/world-data.js
 const ARMOUR_TINT={Cloth:0xb9a37a,Cardboard:0xb98a4a,Metal:0x8d96a0,Kevlar:0x2e3b34};
 
 // Prayers (RuneScape-like). Only ONE prayer per `type` may be active at once.
@@ -370,18 +364,18 @@ rim.position.set(-80,40,-60);scene.add(rim);
 /* ---------------- Cartoon outline helper -------------------- */
 function addOutline(group,scale){
   scale=scale||1.07; const targets=[];
-  group.traverse(o=>{if(o.isMesh&&!o.userData.noOutline)targets.push(o);});
+  group.traverse(o=>{if(o.isMesh&&!o.userData.noOutline&&!o.userData.isOutline)targets.push(o);});
   for(const m of targets){
     const o=new THREE.Mesh(m.geometry,new THREE.MeshBasicMaterial({color:0x14100c,side:THREE.BackSide}));
-    o.scale.setScalar(scale); o.position.copy(m.position); o.rotation.copy(m.rotation);
-    o.userData.noOutline=true; m.parent.add(o);
+    o.scale.setScalar(scale); o.userData.noOutline=true; o.userData.isOutline=true;
+    m.add(o); // CHILD of the part so it inherits the limb's animation (no static silhouette)
   }
 }
 
 /* ---------------- World constants ---------------------------- */
-const HALF=300;                       // world spans -300..300
-const TOWN=new THREE.Vector3(0,0,0);  // main town centre
-const OUTPOST=new THREE.Vector3(150,0,-150);
+const HALF=MAP.HALF;                                   // from shared/world-data.js
+const TOWN=new THREE.Vector3(MAP.TOWN.x,0,MAP.TOWN.z);
+const OUTPOST=new THREE.Vector3(MAP.OUTPOST.x,0,MAP.OUTPOST.z);
 const blockers=[];                    // {x,z,r} solid round obstacles
 function addBlocker(x,z,r){blockers.push({x,z,r});}
 const wallBoxes=[];                   // {x,z,hw,hd,door} axis-aligned wall segments
@@ -410,6 +404,15 @@ const BIOMES={
   badlands:{name:"The Scarlands",   ground:0x7a5a48,spawns:["brute","sniper","warlord"]},
 };
 
+/* ---------------- Terrain height (single source) ------------ */
+// 0 inside towns (flat for paths/floors), gentle rolling hills in the wild.
+function _flatFactor(d,r){return d<r?0:Math.min(1,(d-r)/22);}
+function terrainHeight(x,z){
+  const h=Math.sin(x*0.05)*Math.cos(z*0.05)*1.2+Math.sin(x*0.13+z*0.07)*0.5;
+  const f=Math.min(_flatFactor(Math.hypot(x-TOWN.x,z-TOWN.z),40),
+                   _flatFactor(Math.hypot(x-OUTPOST.x,z-OUTPOST.z),26));
+  return h*f;
+}
 /* ---------------- Terrain ----------------------------------- */
 function buildTerrain(){
   const SEG=120, geo=new THREE.PlaneGeometry(HALF*2,HALF*2,SEG,SEG);
@@ -418,8 +421,7 @@ function buildTerrain(){
   const c=new THREE.Color();
   for(let i=0;i<pos.count;i++){
     const x=pos.getX(i),z=pos.getZ(i);
-    // gentle rolling bumps (movement ignores height; purely visual)
-    const y=Math.sin(x*0.05)*Math.cos(z*0.05)*1.2+Math.sin(x*0.13+z*0.07)*0.5;
+    const y=terrainHeight(x,z);
     pos.setY(i,y);
     const b=biomeAt(x,z);
     c.setHex(b.ground);
@@ -438,7 +440,7 @@ const ground=buildTerrain();
 function addLake(x,z,r){
   const m=new THREE.Mesh(new THREE.CircleGeometry(r,40),
     new THREE.MeshToonMaterial({color:0x2f6fb0,gradientMap:gradMap,transparent:true,opacity:0.82}));
-  m.rotation.x=-Math.PI/2; m.position.set(x,0.6,z); m.userData.noOutline=true; scene.add(m);
+  m.rotation.x=-Math.PI/2; m.position.set(x,terrainHeight(x,z)+0.5,z); m.userData.noOutline=true; scene.add(m);
   addBlocker(x,z,r*0.85);
 }
 addLake(-70,70,18); addLake(80,90,15); addLake(-110,-90,22);
@@ -516,11 +518,12 @@ function makeScorpion(o){
 // Enterable building: 4 walls with a doorway gap, a toggle door, a hideable
 // roof and an interior floor. Walls collide as AABBs so you walk in the door.
 function makeHouse(x,z,w,d,color){
-  const g=new THREE.Group(); g.position.set(x,0,z);
+  const g=new THREE.Group(); g.position.set(x,terrainHeight(x,z),z);
   const h=5, t=0.4;            // wall height / thickness
   const hw=w/2, hd=d/2, gap=4; // doorway width
-  // floor
-  const floor=box(w,0.3,d,0x6b5640); floor.position.y=0.15; floor.userData.noOutline=true; g.add(floor);
+  // wooden floor (plank-toned)
+  const floor=box(w,0.3,d,0x8a5a2e); floor.position.y=0.16; floor.userData.noOutline=true; g.add(floor);
+  for(let px=-w/2+0.6;px<w/2;px+=1.2){const pl=box(0.08,0.32,d-0.4,0x6e441f);pl.position.set(px,0.18,0);pl.userData.noOutline=true;g.add(pl);}
   function wall(cx,cz,ww,dd){const m=box(ww,h,dd,color);m.position.set(cx,h/2,cz);g.add(m);
     addWall(x+cx,z+cz,ww/2,dd/2);}
   // back + sides (solid)
@@ -549,7 +552,7 @@ function makeHouse(x,z,w,d,color){
 }
 // trees register for woodcutting
 function makeTree(x,z,kind){
-  const g=new THREE.Group(); g.position.set(x,0,z);
+  const g=new THREE.Group(); g.position.set(x,terrainHeight(x,z),z);
   const foliage=new THREE.Group();
   if(kind==="cactus"){
     const t=cyl(0.4,0.5,3.2,0x3d7a3a); t.position.y=1.6; g.add(t);
@@ -566,10 +569,10 @@ function makeTree(x,z,kind){
 }
 function makeRock(x,z,s){
   const r=new THREE.Mesh(new THREE.DodecahedronGeometry(s),toonMat({color:0x8a8378}));
-  r.position.set(x,s*0.5,z); scene.add(r); addBlocker(x,z,s*0.8);
+  r.position.set(x,terrainHeight(x,z)+s*0.5,z); scene.add(r); addBlocker(x,z,s*0.8);
 }
 function makeAltar(x,z){
-  const g=new THREE.Group(); g.position.set(x,0,z);
+  const g=new THREE.Group(); g.position.set(x,terrainHeight(x,z),z);
   const base=box(3,1.2,2,0x8d96a0); base.position.y=0.6; g.add(base);
   const top=box(3.4,0.4,2.4,0xb0bac4); top.position.y=1.4; g.add(top);
   const glow=new THREE.Mesh(new THREE.ConeGeometry(0.7,1.4,6),toonMat({color:0xc9a6ff}));
@@ -580,15 +583,24 @@ function makeAltar(x,z){
   altars.push(altar); addPOI("Altar",x,z); return altar;
 }
 
+// flat dirt/cobble path quad laid just above the (flattened) town ground
+function makePath(cx,cz,w,d,rot){
+  const m=new THREE.Mesh(new THREE.PlaneGeometry(w,d),toonMat({color:0xb09a6a}));
+  m.rotation.x=-Math.PI/2; if(rot)m.rotation.z=rot;
+  m.position.set(cx,terrainHeight(cx,cz)+0.06,cz); m.userData.noOutline=true; scene.add(m);
+}
 function buildTown(center,houses,name){
   const palette=[0xd8c89a,0xc7b07a,0xbfa98c,0xa8967a];
+  // ring road + spokes to each house
   for(let i=0;i<houses;i++){
     const a=(i/houses)*Math.PI*2, rad=22+Math.random()*8;
     const x=center.x+Math.cos(a)*rad, z=center.z+Math.sin(a)*rad;
+    makePath(center.x+Math.cos(a)*rad*0.5, center.z+Math.sin(a)*rad*0.5, 3, rad, -a); // spoke
     makeHouse(x,z,8+Math.random()*2,8+Math.random()*2,palette[i%palette.length]);
   }
+  makePath(center.x,center.z,46,46); // town square base
   // central well / fountain
-  const well=cyl(2,2.4,1.2,0x7a7066); well.position.set(center.x,0.6,center.z); scene.add(well);
+  const well=cyl(2,2.4,1.2,0x7a7066); well.position.set(center.x,terrainHeight(center.x,center.z)+0.6,center.z); scene.add(well);
   addBlocker(center.x,center.z,2.4);
 }
 buildTown(TOWN,8,"Riverside");
@@ -597,7 +609,7 @@ buildTown(OUTPOST,5,"Forest Outpost");
 // shopkeeper lives inside a shop building in the main town
 makeHouse(6,11,10,9,0xb98a5a);
 const shopkeeper=makeHumanoid({height:3.6,shirt:0x9c5a2a,skin:0xd0a878,gun:false});
-addOutline(shopkeeper); shopkeeper.position.set(6,0,11); scene.add(shopkeeper);
+addOutline(shopkeeper); shopkeeper.position.set(6,terrainHeight(6,11),11); scene.add(shopkeeper);
 const shopSign=box(2.4,1,0.2,0xffd24a); shopSign.position.set(6,6.4,15.6); scene.add(shopSign);
 
 // scatter biome flora
@@ -628,20 +640,20 @@ function buildGasStation(x,z){
   const canopy=box(14,0.6,9,0xc23b2e); canopy.position.set(0,6.4,7); g.add(canopy);
   for(const px of[-5,5]){const p=cyl(0.4,0.4,6.4,0x888);p.position.set(px,3.2,11);g.add(p);}
   const pump=box(1.2,2,1,0xdddddd); pump.position.set(0,1,7); g.add(pump);
-  g.position.set(x,0,z); scene.add(g); addBlocker(x,z,7); addPOI("Gas Station",x,z);
+  g.position.set(x,terrainHeight(x,z),z); scene.add(g); addBlocker(x,z,7); addPOI("Gas Station",x,z);
 }
 function buildCrashedPlane(x,z){
   const g=new THREE.Group();
   const fuse=cyl(2,2,16,0xb8bcc0,12); fuse.rotation.z=Math.PI/2; fuse.rotation.y=0.3; fuse.position.y=2; g.add(fuse);
   const wing=box(20,0.5,4,0xa8acb0); wing.position.y=2; wing.rotation.y=0.3; g.add(wing);
   const tail=box(0.5,5,4,0xa8acb0); tail.position.set(-7,3.5,1.5); g.add(tail);
-  g.position.set(x,0,z); scene.add(g); addBlocker(x,z,8); addPOI("Crash Site",x,z);
+  g.position.set(x,terrainHeight(x,z),z); scene.add(g); addBlocker(x,z,8); addPOI("Crash Site",x,z);
 }
 function buildRadioTower(x,z){
   const g=new THREE.Group();
   for(let i=0;i<5;i++){const seg=box(3-i*0.4,5,3-i*0.4,0x777);seg.position.y=2.5+i*5;g.add(seg);}
   const dish=cyl(0,2.4,1,0xcccccc); dish.rotation.x=1.2; dish.position.y=27; g.add(dish);
-  g.position.set(x,0,z); scene.add(g); addBlocker(x,z,3); addPOI("Radio Tower",x,z);
+  g.position.set(x,terrainHeight(x,z),z); scene.add(g); addBlocker(x,z,3); addPOI("Radio Tower",x,z);
 }
 function buildBunker(x,z){
   const g=new THREE.Group();
@@ -649,14 +661,14 @@ function buildBunker(x,z){
     toonMat({color:0x5a5e52}));
   g.add(dome);
   const door=box(2.5,3,0.5,0x2a2a2a); door.position.set(0,1.5,6); g.add(door);
-  g.position.set(x,0,z); scene.add(g); addBlocker(x,z,6); addPOI("Old Bunker",x,z);
+  g.position.set(x,terrainHeight(x,z),z); scene.add(g); addBlocker(x,z,6); addPOI("Old Bunker",x,z);
 }
 function buildGraveyard(x,z){
   const g=new THREE.Group();
   for(let i=0;i<10;i++){const s=box(0.8,1.2,0.2,0x8a8378);
     s.position.set(rand(-7,7),0.6,rand(-7,7));s.rotation.y=rand(-0.3,0.3);g.add(s);}
   const gate=box(6,4,0.5,0x4a4438); gate.position.set(0,2,-8); g.add(gate);
-  g.position.set(x,0,z); scene.add(g); addPOI("Old Graveyard",x,z);
+  g.position.set(x,terrainHeight(x,z),z); scene.add(g); addPOI("Old Graveyard",x,z);
 }
 function buildBanditCamp(x,z){
   const g=new THREE.Group();
@@ -666,7 +678,7 @@ function buildBanditCamp(x,z){
   const fire=cyl(1.2,1.4,0.4,0x3a2a1a); fire.position.y=0.2; g.add(fire);
   const flame=new THREE.Mesh(new THREE.ConeGeometry(0.8,1.6,6),toonMat({color:0xff7a2a}));
   flame.position.y=1; g.add(flame);
-  g.position.set(x,0,z); scene.add(g); addBlocker(x,z,2); addPOI("Bandit Camp",x,z);
+  g.position.set(x,terrainHeight(x,z),z); scene.add(g); addBlocker(x,z,2); addPOI("Bandit Camp",x,z);
 }
 buildGasStation(70,30);
 buildCrashedPlane(120,150);
@@ -714,7 +726,7 @@ function spawnNpc(questId,x,z,shirt){
   const q=QUESTS[questId];
   makeHouse(x,z-2.2,10,9,0xbfa98c); // each quest-giver has their own house
   const mesh=makeHumanoid({height:3.6,shirt:shirt||0x6a6acc,skin:0xd0a878,gun:false});
-  addOutline(mesh); mesh.position.set(x,0,z); scene.add(mesh);
+  addOutline(mesh); mesh.position.set(x,terrainHeight(x,z),z); scene.add(mesh);
   // name tag
   const tag=makePlate({mesh:{userData:{baseHeight:3.6}}});
   const npc={questId,name:q.giver,mesh,pos:new THREE.Vector3(x,0,z)};
@@ -786,23 +798,25 @@ function completeQuest(id){const q=QUESTS[id];
 /* ============================================================ *
  *  MONSTERS
  * ============================================================ */
-// tier = loot tier (0-5). coins=[min,max]. quest = collectable drop key.
-// gunChance/armChance = chance to roll a tier-appropriate gun / armour.
-const ENEMY_TYPES={
-  rat:    {name:"Sewer Rat",   cmb:2, hp:6,  aim:2, dmg:[1,2],  armour:1, fireRate:1400,range:9, xp:14, speed:9, aggro:13, tier:0,coins:[2,10],  quest:"rat_tail",     gunChance:.03,armChance:.06, build:()=>makeBeast({color:0x7a6a55,size:0.7})},
-  wolf:   {name:"Mutant Hound",cmb:9, hp:24, aim:10,dmg:[3,7],  armour:3, fireRate:850, range:7, xp:48, speed:16,aggro:18, tier:1,coins:[6,22],  quest:"hound_fang",   gunChance:.05,armChance:.08, build:()=>makeBeast({color:0x6a6a72,size:1.05})},
-  thug:   {name:"Street Thug", cmb:7, hp:18, aim:6, dmg:[2,5],  armour:4, fireRate:1100,range:16,xp:34, speed:10,aggro:16, tier:1,coins:[8,30],  quest:null,           gunChance:.08,armChance:.1,  build:()=>makeHumanoid({height:3.5,shirt:0x8a4b3a,gunColor:0x333,gunLen:1.0})},
-  raider: {name:"Raider",      cmb:18,hp:36, aim:14,dmg:[4,9],  armour:10,fireRate:900, range:18,xp:80, speed:10,aggro:18, tier:2,coins:[20,70], quest:null,           gunChance:.1, armChance:.12, build:()=>makeHumanoid({height:3.7,shirt:0x44597a,pants:0x2a2f3a,gunLen:1.3})},
-  scorpion:{name:"Dust Scorpion",cmb:20,hp:42,aim:16,dmg:[5,11],armour:14,fireRate:1100,range:7,xp:98, speed:12,aggro:16, tier:2,coins:[15,55], quest:"scorpion_tail",gunChance:.08,armChance:.12, build:()=>makeScorpion({color:0x9a6a3a,size:1.4})},
-  mercenary:{name:"Mercenary", cmb:38,hp:62, aim:28,dmg:[7,15], armour:20,fireRate:700, range:20,xp:165,speed:11,aggro:20, tier:3,coins:[50,150],quest:"dog_tags",     gunChance:.14,armChance:.14, build:()=>makeHumanoid({height:3.9,shirt:0x3a7a4a,pants:0x223322,gunColor:0x111,gunLen:1.6})},
-  sniper: {name:"Marksman",    cmb:40,hp:46, aim:42,dmg:[16,30],armour:12,fireRate:1900,range:42,xp:185,speed:9, aggro:48, tier:4,coins:[60,170],quest:"dog_tags",     gunChance:.18,armChance:.12, build:()=>makeHumanoid({height:3.9,shirt:0x55503a,pants:0x33301f,gunColor:0x000,gunLen:2.4})},
-  brute:  {name:"Scrap Brute", cmb:60,hp:120,aim:22,dmg:[10,20],armour:30,fireRate:800, range:12,xp:360,speed:9, aggro:18, tier:4,coins:[100,260],quest:null,          gunChance:.2, armChance:.2,  build:()=>makeHumanoid({height:4.8,shirt:0x6a4a3a,pants:0x3a2a22,skin:0xa07a5a,gunColor:0x222,gunLen:1.4})},
-  warlord:{name:"Warlord",     cmb:85,hp:170,aim:50,dmg:[12,26],armour:40,fireRate:550, range:24,xp:620,speed:10,aggro:26, tier:5,coins:[250,600],quest:null,          gunChance:.45,armChance:.4,  build:()=>makeHumanoid({height:5.2,shirt:0x7a2a6a,pants:0x3a173a,skin:0xb88,gunColor:0x000,gunLen:2.0})},
+// stats/loot params come from ENEMY_STATS (shared/world-data.js); the client
+// only adds the Three.js model builders, so server & client share one source.
+const ENEMY_BUILDERS={
+  rat:      ()=>makeBeast({color:0x7a6a55,size:0.7}),
+  wolf:     ()=>makeBeast({color:0x6a6a72,size:1.05}),
+  thug:     ()=>makeHumanoid({height:3.5,shirt:0x8a4b3a,gunColor:0x333,gunLen:1.0}),
+  raider:   ()=>makeHumanoid({height:3.7,shirt:0x44597a,pants:0x2a2f3a,gunLen:1.3}),
+  scorpion: ()=>makeScorpion({color:0x9a6a3a,size:1.4}),
+  mercenary:()=>makeHumanoid({height:3.9,shirt:0x3a7a4a,pants:0x223322,gunColor:0x111,gunLen:1.6}),
+  sniper:   ()=>makeHumanoid({height:3.9,shirt:0x55503a,pants:0x33301f,gunColor:0x000,gunLen:2.4}),
+  brute:    ()=>makeHumanoid({height:4.8,shirt:0x6a4a3a,pants:0x3a2a22,skin:0xa07a5a,gunColor:0x222,gunLen:1.4}),
+  warlord:  ()=>makeHumanoid({height:5.2,shirt:0x7a2a6a,pants:0x3a173a,skin:0xb88,gunColor:0x000,gunLen:2.0}),
 };
+const ENEMY_TYPES={};
+for(const k in ENEMY_STATS) ENEMY_TYPES[k]=Object.assign({},ENEMY_STATS[k],{build:ENEMY_BUILDERS[k]});
 const enemies=[];
 function spawnEnemy(type,x,z){
   const t=ENEMY_TYPES[type];
-  const mesh=t.build(); addOutline(mesh); mesh.position.set(x,0,z); scene.add(mesh);
+  const mesh=t.build(); addOutline(mesh); mesh.position.set(x,terrainHeight(x,z),z); scene.add(mesh);
   const e={type,name:t.name,cmb:t.cmb,maxhp:t.hp,hp:t.hp,aim:t.aim,dmg:t.dmg,
     armour:t.armour,fireRate:t.fireRate,range:t.range,xp:t.xp,speed:t.speed,
     aggroR:t.aggro,tier:t.tier,coins:t.coins,quest:t.quest,gunChance:t.gunChance,
@@ -827,6 +841,8 @@ function populateWorld(){
     if(blockedSpot) continue;
     let type=b.spawns[Math.floor(Math.random()*b.spawns.length)];
     if(type==="warlord"&&Math.random()>0.4) type="brute"; // warlords rarer
+    // keep the lvl-85 Warlord far from the starting town
+    if(type==="warlord"&&Math.hypot(x-TOWN.x,z-TOWN.z)<200) type="brute";
     spawnEnemy(type,x,z); placed++;
   }
 }
@@ -882,11 +898,12 @@ function iconTexture(k){ if(_iconCache[k])return _iconCache[k];
   const t=new THREE.CanvasTexture(c);t.encoding=THREE.sRGBEncoding;_iconCache[k]=t;return t;}
 function makeDrop(k,n,x,z,owner){
   const spr=new THREE.Sprite(new THREE.SpriteMaterial({map:iconTexture(k),transparent:true}));
-  spr.scale.set(1.8,1.8,1); spr.position.set(x,1.0,z);
+  const baseY=terrainHeight(x,z)+1.0;
+  spr.scale.set(1.8,1.8,1); spr.position.set(x,baseY,z);
   scene.add(spr);
   const t=performance.now();
   // loot is private to its owner for 60s, public after, despawns at 120s
-  const dp={k,n,mesh:spr,x,z,owner:owner||(NET.online?NET.id:"me"),
+  const dp={k,n,mesh:spr,x,z,baseY,owner:owner||(NET.online?NET.id:"me"),
     publicAt:t+60000, despawnAt:t+120000}; spr.userData.drop=dp;
   drops.push(dp); return dp;
 }
@@ -924,6 +941,13 @@ function buildPlayerMesh(){
 }
 buildPlayerMesh();
 
+// click-to-move marker: a little red X laid on the ground at your destination
+const moveMarker=(()=>{const g=new THREE.Group();
+  const a=box(1.5,0.08,0.3,0xff3030), b=box(1.5,0.08,0.3,0xff3030);
+  a.rotation.y=Math.PI/4; b.rotation.y=-Math.PI/4;
+  a.userData.noOutline=b.userData.noOutline=true; g.add(a,b);
+  g.visible=false; scene.add(g); return g;})();
+
 // floating health + prayer bars shown above the player while in combat
 const playerPlate=(()=>{const cvs=document.createElement("canvas");cvs.width=256;cvs.height=72;
   const tex=new THREE.CanvasTexture(cvs);
@@ -958,8 +982,9 @@ let camYaw=0, camPitch=0.62, camDist=26;
 function updateCamera(){
   const hx=Math.sin(camYaw)*Math.cos(camPitch), hz=Math.cos(camYaw)*Math.cos(camPitch);
   const hy=Math.sin(camPitch);
-  camera.position.set(player.pos.x+hx*camDist, player.pos.y+hy*camDist+2, player.pos.z+hz*camDist);
-  camera.lookAt(player.pos.x,player.pos.y+2.5,player.pos.z);
+  const ph=terrainHeight(player.pos.x,player.pos.z);
+  camera.position.set(player.pos.x+hx*camDist, ph+hy*camDist+2, player.pos.z+hz*camDist);
+  camera.lookAt(player.pos.x,ph+2.5,player.pos.z);
 }
 
 /* ============================================================ *
@@ -1112,7 +1137,7 @@ function depleteTree(tr){tr.depleted=true; tr.foliage.visible=false; tr.respawnA
 
 /* ---------------- Cooking & campfires ----------------------- */
 function makeFire(x,z){
-  const g=new THREE.Group(); g.position.set(x,0,z);
+  const g=new THREE.Group(); g.position.set(x,terrainHeight(x,z),z);
   const lg=cyl(1.2,1.4,0.4,0x3a2a1a); lg.position.y=0.2; lg.userData.noOutline=true; g.add(lg);
   const flame=new THREE.Mesh(new THREE.ConeGeometry(0.8,1.9,6),toonMat({color:0xff7a2a}));
   flame.position.y=1.2; flame.userData.noOutline=true; g.add(flame);
@@ -1281,6 +1306,14 @@ function tryMove(nx,nz){
     if(Math.abs(nx-w.x)<w.hw+PR && Math.abs(nz-w.z)<w.hd+PR) return false; }
   return true;
 }
+// nearest walkable point to (x,z) — used so click-to-move never targets a wall
+function nearestOpen(x,z){
+  if(tryMove(x,z))return{x,z};
+  for(let r=2;r<=24;r+=2)for(let a=0;a<12;a++){
+    const nx=x+Math.cos(a/12*6.283)*r, nz=z+Math.sin(a/12*6.283)*r;
+    if(tryMove(nx,nz))return{x:nx,z:nz};}
+  return{x,z};
+}
 function moveToward(tx,tz,step){
   const dx=tx-player.pos.x, dz=tz-player.pos.z, len=Math.hypot(dx,dz);
   if(len<0.001) return false;
@@ -1356,11 +1389,13 @@ function castAt(clientX,clientY){
 function toggleDoor(ds){ds.open=!ds.open;sfxClick();log(ds.open?"You open the door.":"You close the door.");}
 function clearActions(){player.target=null;player.dest=null;player.pickupTarget=null;
   player.talkTarget=null;player.chopTarget=null;player.doorTarget=null;player.altarTarget=null;
+  player.clickMark=null;
   if(dialogOpen)closeDialog();}
 
-renderer.domElement.addEventListener("contextmenu",e=>e.preventDefault());
+// right-click ALWAYS opens the in-game context menu (never moves the camera)
+renderer.domElement.addEventListener("contextmenu",e=>{e.preventDefault();openWorldMenu(e.clientX,e.clientY);});
 renderer.domElement.addEventListener("mousedown",e=>{
-  if(e.button===2){dragging=true;didDrag=false;lastX=e.clientX;lastY=e.clientY;return;}
+  if(e.button===1){dragging=true;lastX=e.clientX;lastY=e.clientY;e.preventDefault();return;} // middle = orbit
   if(e.button!==0)return;
   ctxEl.style.display="none";
   const h=castAt(e.clientX,e.clientY);
@@ -1371,22 +1406,23 @@ renderer.domElement.addEventListener("mousedown",e=>{
   if(h.altar){clearActions();player.altarTarget=h.altar;return;}
   if(h.drop){clearActions();player.pickupTarget=h.drop;return;}
   if(h.tree){clearActions();player.chopTarget=h.tree;return;}
-  if(h.point){clearActions();player.dest=h.point;}
+  if(h.point){clearActions();const t=nearestOpen(h.point.x,h.point.z);
+    player.dest=new THREE.Vector3(t.x,0,t.z);player.clickMark=t;}
 });
-addEventListener("mouseup",e=>{
-  if(e.button===2){
-    dragging=false;
-    if(!didDrag) openWorldMenu(e.clientX,e.clientY); // right-click (no drag) = menu
-  }
-});
-addEventListener("mousemove",e=>{
+addEventListener("mouseup",e=>{ if(e.button===1)dragging=false; });
+addEventListener("mousemove",e=>{               // middle-drag orbits the camera
   if(!dragging)return;
-  if(Math.abs(e.clientX-lastX)+Math.abs(e.clientY-lastY)>4) didDrag=true;
   camYaw-=(e.clientX-lastX)*0.005; camPitch+=(e.clientY-lastY)*0.004;
   camPitch=Math.max(0.18,Math.min(1.3,camPitch)); lastX=e.clientX;lastY=e.clientY;
 });
 renderer.domElement.addEventListener("wheel",e=>{e.preventDefault();
   camDist=Math.max(10,Math.min(70,camDist+e.deltaY*0.03));},{passive:false});
+// WASD orbits the camera around the player (A/D yaw, W/S pitch up/down)
+function cameraKeys(dt){
+  const r=2.0*dt;
+  if(keys["a"])camYaw+=r; if(keys["d"])camYaw-=r;
+  if(keys["w"])camPitch=Math.min(1.3,camPitch+r); if(keys["s"])camPitch=Math.max(0.18,camPitch-r);
+}
 
 /* ---------------- Running / agility ------------------------- */
 const WALK_SPEED=12, RUN_SPEED=21;
@@ -1410,7 +1446,8 @@ function openWorldMenu(cx,cy){
   if(h.altar) opts.push(["Pray at altar",()=>{clearActions();player.altarTarget=h.altar;}]);
   if(h.tree) opts.push(["Chop down tree",()=>{clearActions();player.chopTarget=h.tree;}]);
   if(h.drop) opts.push(["Take "+ITEMS[h.drop.k].name+(h.drop.n>1?" x"+h.drop.n:""),()=>{clearActions();player.pickupTarget=h.drop;}]);
-  if(h.point) opts.push(["Walk here",()=>{clearActions();player.dest=h.point;}]);
+  if(h.point) opts.push(["Walk here",()=>{clearActions();const t=nearestOpen(h.point.x,h.point.z);
+    player.dest=new THREE.Vector3(t.x,0,t.z);player.clickMark=t;}]);
   opts.push(["Cancel",()=>{}]);
   ctxEl.innerHTML="";
   for(const[label,fn]of opts){const d=document.createElement("div");d.textContent=label;
@@ -1468,12 +1505,16 @@ function loop(now){
     }
     else if(player.dest){
       if(dist2(player.pos,player.dest)>0.6){ if(moveToward(player.dest.x,player.dest.z,step))moving=true; }
-      else player.dest=null;
+      else { player.dest=null; player.clickMark=null; }
     }
   }
+  // click-to-move marker (red X on ground)
+  if(player.clickMark){moveMarker.visible=true;
+    moveMarker.position.set(player.clickMark.x,terrainHeight(player.clickMark.x,player.clickMark.z)+0.12,player.clickMark.z);}
+  else moveMarker.visible=false;
   player.walk+=moving?dt*(isRunning?15:10):0; if(!moving)player.walk*=0.8;
   animateLegs(player.mesh,player.walk,moving?0.6:0.05);
-  player.mesh.position.set(player.pos.x,0,player.pos.z);
+  player.mesh.position.set(player.pos.x,terrainHeight(player.pos.x,player.pos.z),player.pos.z);
 
   /* --- run energy: drain while running, regen always, agility xp --- */
   if(moving&&isRunning){
@@ -1507,9 +1548,11 @@ function loop(now){
       e.pos.copy(e.home);e.mesh.position.copy(e.home);e.mesh.visible=true;e.aggro=false;} continue; }
     const d=dist2(e.pos,player.pos);
     const wasAggro=e.aggro;
+    // low-level mobs near the starting town are passive (only retaliate)
+    const peaceful=e.tier<=1 && Math.hypot(e.pos.x-TOWN.x,e.pos.z-TOWN.z)<100;
     if(player.target===e) e.aggro=true;
     if(e.aggro&&d>e.aggroR+10&&player.target!==e) e.aggro=false;
-    else if(!e.aggro&&d<e.aggroR) e.aggro=true;
+    else if(!e.aggro&&!peaceful&&d<e.aggroR) e.aggro=true;
     if(e.aggro!==wasAggro) e.hpDirty=true;
     let emoving=false;
     if(e.aggro){
@@ -1526,7 +1569,7 @@ function loop(now){
         if(l>0.5){const s=e.speed*0.4*dt;e.pos.x+=dx/l*s;e.pos.z+=dz/l*s;emoving=true;
           faceTowards(e.mesh,e.wanderTo.x,e.wanderTo.z,e.pos.x,e.pos.z);}}
     }
-    e.mesh.position.set(e.pos.x,0,e.pos.z);
+    e.mesh.position.set(e.pos.x,terrainHeight(e.pos.x,e.pos.z),e.pos.z);
     e.walk+=emoving?dt*12:0; if(!emoving)e.walk*=0.8;
     animateLegs(e.mesh,e.walk,emoving?0.7:0.04);
     if(e.hpDirty) drawPlate(e);
@@ -1536,7 +1579,7 @@ function loop(now){
   for(let i=drops.length-1;i>=0;i--){const dp=drops[i];
     if(now>=dp.despawnAt){scene.remove(dp.mesh);drops.splice(i,1);continue;}
     const vis=dropVisible(dp); dp.mesh.visible=vis;
-    if(vis)dp.mesh.position.y=1.0+Math.sin(now/350+dp.x)*0.15;}
+    if(vis)dp.mesh.position.y=dp.baseY+Math.sin(now/350+dp.x)*0.15;}
 
   /* --- trees respawn --- */
   for(const tr of trees){ if(tr.depleted&&now>=tr.respawnAt){tr.depleted=false;tr.foliage.visible=true;} }
@@ -1567,6 +1610,7 @@ function loop(now){
 
   updateRemotes(dt);
   netTick(now);
+  cameraKeys(dt);
   updateCamera();
   renderer.render(scene,camera);
 
@@ -1608,6 +1652,10 @@ function updateMinimap(){
   // enemies
   for(const e of enemies){if(e.dead||!near(e.pos))continue;const[a,b]=toMM(e.pos.x,e.pos.z);
     mmx.fillStyle=e.aggro?"#ff4030":"#d05040";mmx.fillRect(a-1.5,b-1.5,3,3);}
+  // move-to marker (red X)
+  if(player.clickMark&&near(player.clickMark)){const[a,b]=toMM(player.clickMark.x,player.clickMark.z);
+    mmx.strokeStyle="#ff3030";mmx.lineWidth=1.5;mmx.beginPath();
+    mmx.moveTo(a-3,b-3);mmx.lineTo(a+3,b+3);mmx.moveTo(a+3,b-3);mmx.lineTo(a-3,b+3);mmx.stroke();}
   // player (always centre) with facing tick
   mmx.fillStyle="#4ad0ff";mmx.beginPath();mmx.arc(MMR,MMR,3.5,0,7);mmx.fill();
   mmx.restore();
@@ -1785,6 +1833,7 @@ function updateRemotes(dt){
   for(const r of remotes.values()){
     r.mesh.position.x+=(r.tx-r.mesh.position.x)*Math.min(1,dt*8);
     r.mesh.position.z+=(r.tz-r.mesh.position.z)*Math.min(1,dt*8);
+    r.mesh.position.y=terrainHeight(r.mesh.position.x,r.mesh.position.z);
     r.mesh.rotation.y=r.ry;
     const f=r.maxhp?r.hp/r.maxhp:1; if(Math.abs(f-r.plate.userData.hp)>0.01){r.plate.userData.hp=f;drawNameBar(r.plate);}
   }
@@ -1835,9 +1884,9 @@ function startGame(online){
   if(gameStarted){document.getElementById("login").style.display="none";return;}
   gameStarted=true;
   document.getElementById("login").style.display="none";
-  if(online){document.getElementById("chatinput").style.display="block";
-    log("Connected to server as "+NET.user+".","xp");}
-  else log("Playing offline (single-player).","sys");
+  document.getElementById("chatinput").style.display="block";   // chat always available
+  if(online) log("Connected to server as "+NET.user+".","xp");
+  else log("Playing offline (single-player). Press Enter to chat.","sys");
   refreshUI(); updateRunUI();
   requestAnimationFrame(loop);
 }
@@ -1853,8 +1902,12 @@ function startGame(online){
   // chat input (online)
   const cb=document.getElementById("chatbox");
   cb.addEventListener("keydown",e=>{e.stopPropagation();
-    if(e.key==="Enter"){const v=cb.value.trim();if(v&&NET.online)netSend({t:"chat",msg:v});cb.value="";cb.blur();}
+    if(e.key==="Enter"){const v=cb.value.trim();
+      if(v){ if(NET.online)netSend({t:"chat",msg:v}); else log("You: "+v,"loot"); }
+      cb.value="";cb.blur();}
     if(e.key==="Escape"){cb.value="";cb.blur();}});
+  // Enter focuses the chat box when not already typing
+  addEventListener("keydown",e=>{ if(e.key==="Enter"&&gameStarted&&document.activeElement!==cb) cb.focus(); });
 })();
 
 /* ============================================================ *

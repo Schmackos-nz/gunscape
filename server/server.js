@@ -18,6 +18,7 @@ import { readFileSync, writeFileSync, existsSync, createReadStream, statSync } f
 import { fileURLToPath } from 'node:url';
 import { dirname, join, normalize, extname } from 'node:path';
 import { WebSocketServer } from 'ws';
+import { World } from './world.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');              // static client lives one level up
@@ -58,6 +59,8 @@ const httpServer = http.createServer((req, res) => {
 const wss = new WebSocketServer({ server: httpServer });
 const clients = new Map();          // ws -> session {id, user, state}
 let nextId = 1;
+const world = new World();           // authoritative enemy/loot/combat simulation
+function wsById(id) { for (const [w, s] of clients) if (s.id === id) return w; return null; }
 
 function send(ws, obj) { if (ws.readyState === 1) ws.send(JSON.stringify(obj)); }
 function broadcast(obj, except) { const s = JSON.stringify(obj);
@@ -108,8 +111,12 @@ wss.on('connection', (ws) => {
         s.hp = Math.max(0, Math.min(s.maxhp, +msg.hp || s.hp));
         s.maxhp = +msg.maxhp || s.maxhp;
         if (msg.appearance) s.appearance = msg.appearance;
+        world.input(session.id, { x: s.x, z: s.z, ry: s.ry, armour: +msg.armour || undefined,
+          aim: +msg.aim || undefined, weapon: msg.appearance && msg.appearance.weapon });
         break;
       }
+      case 'attack': { if (session.authed) world.attackIntent(session.id, msg.enemyId); break; }
+      case 'pickup': { if (session.authed) { const got = world.pickup(session.id, msg.lootId); if (got) send(ws, { t: 'looted', k: got.k, n: got.n }); } break; }
       case 'chat': {
         if (!session.authed) return;
         const text = String(msg.msg || '').slice(0, 120);
@@ -130,6 +137,7 @@ wss.on('connection', (ws) => {
     if (s && s.authed) {
       const acc = accounts[s.user];
       if (acc) { acc.profile = Object.assign(acc.profile, s.state); saveAccounts(); }
+      world.removePlayer(s.id);
       broadcast({ t: 'leave', id: s.id });
       console.log(`- ${s.user} left (${clients.size - 1} online)`);
     }
@@ -141,18 +149,24 @@ function clamp(v) { return Math.max(-(WORLD_HALF - 4), Math.min(WORLD_HALF - 4, 
 function login(ws, session, user) {
   session.user = user; session.authed = true;
   session.state = Object.assign(defaultProfile(), accounts[user].profile, { name: user });
+  world.addPlayer(session.id, session.state);
   send(ws, { t: 'authok', id: session.id, user, profile: accounts[user].profile });
   broadcast({ t: 'join', id: session.id, user }, ws);
   console.log(`+ ${user} joined (${clients.size} online)`);
 }
 
-// periodic authoritative snapshot of everyone's presence
+// periodic authoritative tick: presence + world simulation
 setInterval(() => {
+  const events = world.tick(TICK_MS / 1000, Date.now());
   const players = [];
   for (const s of clients.values()) if (s.authed)
     players.push({ id: s.id, user: s.user, x: s.state.x, z: s.state.z, ry: s.state.ry,
       hp: s.state.hp, maxhp: s.state.maxhp, appearance: s.state.appearance });
-  if (players.length) broadcast({ t: 'snapshot', players });
+  if (players.length) {
+    const w = world.snapshot();
+    broadcast({ t: 'snapshot', players, enemies: w.enemies, loot: w.loot });
+  }
+  for (const ev of events) { const w = wsById(ev.pid); if (w) send(w, ev); } // xp / death notices
 }, TICK_MS);
 
 httpServer.listen(PORT, HOST, () => {
