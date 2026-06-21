@@ -475,6 +475,12 @@ const TEX={
     for(let y=0;y<s;y+=2){c.fillStyle="rgba(0,0,0,"+(0.04+Math.random()*0.06)+")";c.fillRect(0,y,s,1);}},[1,1]),
   bark:makeTex((c,s)=>{c.fillStyle="#cbcbcb";c.fillRect(0,0,s,s);
     for(let k=0;k<70;k++){c.fillStyle="rgba(0,0,0,"+(0.06+Math.random()*0.10)+")";c.fillRect(Math.random()*s,0,1+Math.random()*2,s);}},[1,2]),
+  path:makeTex((c,s)=>{c.fillStyle="#cdc3ad";c.fillRect(0,0,s,s);   // cobblestones
+    const g=4,cw=s/g;
+    for(let r=0;r<g;r++)for(let col=0;col<g;col++){const off=(r%2)*cw/2,x=col*cw+off+1,y=r*cw+1,w=cw-2;
+      const sh=0.10+Math.random()*0.12;c.fillStyle="rgba(0,0,0,"+sh+")";c.fillRect(x,y,w,w);
+      c.fillStyle="rgba(255,255,255,0.10)";c.fillRect(x+1,y+1,w-2,2);
+      c.strokeStyle="rgba(0,0,0,0.30)";c.strokeRect(x,y,w,w);}},[4,4]),
 };
 
 // --- gradient sky ---
@@ -919,14 +925,38 @@ function doCraft(r){ if(!canCraft(r)){log("You can't make that yet.","bad");retu
   renderCraft(); refreshUI();
 }
 
-// flat dirt/cobble path quad laid just above the (flattened) town ground
+// flat cobblestone path quad laid just above the (flattened) town ground
 function makePath(cx,cz,w,d,rot){
-  const m=new THREE.Mesh(new THREE.PlaneGeometry(w,d),toonMat({color:0xb09a6a}));
+  const m=new THREE.Mesh(new THREE.PlaneGeometry(w,d),toonMat({color:0xbfb091,map:TEX.path}));
   m.rotation.x=-Math.PI/2; if(rot)m.rotation.z=rot;
   m.position.set(cx,terrainHeight(cx,cz)+0.06,cz); m.userData.noOutline=true; scene.add(m);
 }
+// little homely props
+function makeFlower(x,z){const g=new THREE.Group(); g.position.set(x,terrainHeight(x,z),z);
+  const stem=box(0.05,0.5,0.05,0x3f7a3a); stem.position.y=0.25; stem.userData.noOutline=true; g.add(stem);
+  const col=[0xff5a7a,0xffd24a,0xc06aff,0xffffff,0xff8a3a][Math.floor(Math.random()*5)];
+  for(let i=0;i<4;i++){const p=box(0.16,0.06,0.16,col);const a=i/4*6.283;p.position.set(Math.cos(a)*0.11,0.52,Math.sin(a)*0.11);p.userData.noOutline=true;g.add(p);}
+  const c=box(0.1,0.1,0.1,0xffe070); c.position.y=0.55; c.userData.noOutline=true; g.add(c);
+  scene.add(g);}
+function makeSignpost(x,z,text){const g=new THREE.Group(); g.position.set(x,terrainHeight(x,z),z);
+  const post=box(0.2,2.4,0.2,0x6b4a2a,TEX.wood); post.position.y=1.2; g.add(post);
+  const board=box(2.5,0.85,0.14,0x8a5a2e,TEX.wood); board.position.y=2.0; g.add(board);
+  const cv=document.createElement("canvas"); cv.width=256; cv.height=80; const c=cv.getContext("2d");
+  c.fillStyle="#5a3c1e"; c.fillRect(0,0,256,80); c.fillStyle="#ffe9b0"; c.font="bold 32px Trebuchet MS"; c.textAlign="center"; c.fillText(text,128,52);
+  const tex=new THREE.CanvasTexture(cv);
+  for(const zz of [0.09,-0.09]){const face=new THREE.Mesh(new THREE.PlaneGeometry(2.35,0.74),new THREE.MeshBasicMaterial({map:tex,transparent:true}));
+    face.position.set(0,2.0,zz); if(zz<0)face.rotation.y=Math.PI; face.userData.noOutline=true; g.add(face);}
+  scene.add(g); addBlocker(x,z,0.5);}
+function nearBlocker(x,z,pad){for(const b of blockers)if(Math.hypot(x-b.x,z-b.z)<b.r+pad)return true;return false;}
 function overlapsBuilding(cx,cz,hw,hd){for(const b of buildings)if(Math.abs(cx-b.fx)<hw+b.hw+2.5&&Math.abs(cz-b.fz)<hd+b.hd+2.5)return true;return false;}
 function buildTown(center,houses,name){
+  // textured village ground (cobble plaza) so towns read as "homely" and pathed
+  const plaza=new THREE.Mesh(new THREE.CircleGeometry(40,44),toonMat({color:0xb8a884,map:TEX.path}));
+  plaza.rotation.x=-Math.PI/2; plaza.position.set(center.x,terrainHeight(center.x,center.z)+0.03,center.z); plaza.userData.noOutline=true; scene.add(plaza);
+  // ring road around the plaza
+  for(let i=0;i<28;i++){const a=i/28*6.283,a2=(i+1)/28*6.283,r=30;
+    const mx=center.x+Math.cos((a+a2)/2)*r, mz=center.z+Math.sin((a+a2)/2)*r;
+    makePath(mx,mz,3.4,r*6.283/28+1.2,-(a+a2)/2);}
   // ring of houses, kept clear of each other and of the central quest-giver houses
   for(let i=0;i<houses;i++){
     const a=(i/houses)*Math.PI*2, rad=27+Math.random()*9;
@@ -941,9 +971,13 @@ function buildTown(center,houses,name){
       addOutline(r); r.position.set(x,terrainHeight(x,z)+FLOOR_H,z); scene.add(r);
     }
   }
-  makePath(center.x,center.z,46,46); // town square base
-  const well=cyl(2,2.4,1.2,0x7a7066); well.position.set(center.x,terrainHeight(center.x,center.z)+0.6,center.z); scene.add(well);
+  const well=cyl(2,2.4,1.2,0x7a7066,8,TEX.plaster); well.position.set(center.x,terrainHeight(center.x,center.z)+0.6,center.z); scene.add(well);
   addBlocker(center.x,center.z,2.4);
+  // homely touches: a name signpost at the south entrance + scattered flowers
+  makeSignpost(center.x, center.z+38, name);
+  for(let i=0;i<16;i++){const a=Math.random()*6.283, r=14+Math.random()*22;
+    const fx=center.x+Math.cos(a)*r, fz=center.z+Math.sin(a)*r;
+    if(!nearBlocker(fx,fz,1.5)&&!overlapsBuilding(fx,fz,0.5,0.5)) makeFlower(fx,fz);}
 }
 buildTown(TOWN,8,"Riverside");
 buildTown(OUTPOST,5,"Forest Outpost");

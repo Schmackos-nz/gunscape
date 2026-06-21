@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.19",
+ "version": "1.0.20",
  "generated": "2026-06-21",
  "patches": [
+  {
+   "version": "1.0.20",
+   "date": "2026-06-21",
+   "title": "Make townships homely: cobble plazas, ring roads, flowers and signposts",
+   "notes": []
+  },
   {
    "version": "1.0.19",
    "date": "2026-06-21",
