@@ -1,7 +1,7 @@
 # Fly.io config for the Gunscape dedicated server.
 # Pick a globally-unique name below, then: fly deploy
-app = "gunscape-server"          # CHANGE ME to your own unique app name
-primary_region = "iad"           # pick a region near you (e.g. iad, lhr, syd) — `fly platform regions`
+app = "gunscape-game"            # your Fly app name (matches gunscape-game.fly.dev)
+primary_region = "syd"           # pick a region near you — `fly platform regions`
 
 [build]
   dockerfile = "Dockerfile"
