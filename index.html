@@ -2259,9 +2259,13 @@ function startGame(online){
 function lsGet(k,d){try{const v=localStorage.getItem(k);return v==null?d:v;}catch{return d;}}
 function lsSet(k,v){try{localStorage.setItem(k,v);}catch{}}
 function loadServers(){try{return JSON.parse(lsGet("gs_servers","[]"))||[];}catch{return[];}}
-function defaultSrv(){return "localhost:8787";}        // shown without scheme
+// when the page is served over https, default to this same host (e.g. your fly.dev)
+function defaultSrv(){return location.protocol.startsWith("http")?stripScheme(location.host):"localhost:8787";}
 function stripScheme(s){return (s||"").trim().replace(/^wss?:\/\//i,"").replace(/^https?:\/\//i,"");}
-function normSrv(s){s=stripScheme(s); return s?("ws://"+s):"";}  // add ws:// only when connecting
+function normSrv(s){s=stripScheme(s); if(!s)return "";
+  const sec=(typeof location!=="undefined"&&location.protocol==="https:");
+  if(sec) s=s.replace(/:\d+$/,"");        // https hosts (fly.dev/Cloudflare) expose 443 — drop any :port
+  return (sec?"wss://":"ws://")+s; }       // secure page → wss:// (insecure ws:// is blocked)
 function rememberSrv(disp){disp=stripScheme(disp); let list=loadServers().filter(s=>s!==disp); list.unshift(disp);
   lsSet("gs_servers",JSON.stringify(list.slice(0,12))); lsSet("gs_lastServer",disp); populateServers();}
 function populateServers(){document.getElementById("lg-servers").innerHTML=

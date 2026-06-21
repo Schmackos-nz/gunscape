@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.9",
+ "version": "1.0.11",
  "generated": "2026-06-21",
  "patches": [
+  {
+   "version": "1.0.11",
+   "date": "2026-06-21",
+   "title": "Use wss:// on secure pages and drop the port so hosted servers connect",
+   "notes": []
+  },
   {
    "version": "1.0.9",
    "date": "2026-06-21",
