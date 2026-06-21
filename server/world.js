@@ -51,9 +51,15 @@ export class World {
     const p = profile || {};
     this.players.set(pid, { x: p.x ?? 0, z: p.z ?? 40, ry: 0,
       hp: p.hp ?? p.maxhp ?? 100, maxhp: p.maxhp ?? 100, armour: p.armour ?? 1, aim: p.aim ?? 1,
-      weapon: p.weapon || 'zip', attacking: null, lastShot: 0, lastHit: 0, dead: false, respawnAt: 0 });
+      weapon: p.weapon || 'zip', attacking: null, lastShot: 0, lastHit: 0, dead: false, respawnAt: 0,
+      duelWith: null, pvpTarget: null, lastPvp: 0 });
   }
-  removePlayer(pid) { this.players.delete(pid); for (const e of this.enemies) if (e.target === pid) e.target = null; }
+  removePlayer(pid) { this.endDuelFor(pid); this.players.delete(pid);
+    for (const e of this.enemies) if (e.target === pid) e.target = null; }
+  setDuel(pid, opp) { const p = this.players.get(pid); if (p) p.duelWith = opp; }
+  pvpAttack(pid, target) { const p = this.players.get(pid); if (p && p.duelWith === target) { p.pvpTarget = target; p.attacking = null; } }
+  endDuelFor(pid) { const p = this.players.get(pid); if (p) { p.duelWith = null; p.pvpTarget = null; }
+    for (const o of this.players.values()) if (o.duelWith === pid || o.pvpTarget === pid) { o.duelWith = null; o.pvpTarget = null; } }
 
   input(pid, msg) {
     const p = this.players.get(pid); if (!p || p.dead) return;
@@ -98,6 +104,29 @@ export class World {
         const dmg = randint(wc.dmgMin, wc.dmgMax); e.hp -= dmg;
         fx.push({ k: 'ehit', x: e.x, z: e.z, dmg });
         if (e.hp <= 0) { this.killEnemy(e, pid, now); events.push({ pid, t: 'xp', xp: stats.xp, name: stats.name }); fx.push({ k: 'kill', pid, x: e.x, z: e.z }); }
+      }
+    }
+
+    // ---- player vs player (duels, authoritative) ----
+    for (const [pid, p] of this.players) {
+      if (p.dead || !p.pvpTarget) continue;
+      const tgt = this.players.get(p.pvpTarget);
+      if (!tgt || tgt.dead || p.duelWith !== p.pvpTarget) { p.pvpTarget = null; continue; }
+      const wc = WEAPON_COMBAT[p.weapon] || WEAPON_COMBAT.zip;
+      if (dist(p, tgt) > COMBAT_RANGE + 0.5) continue;
+      if (now - p.lastPvp < wc.fireRate) continue;
+      p.lastPvp = now;
+      fx.push({ k: 'shot', pid, sx: p.x, sz: p.z, tx: tgt.x, tz: tgt.z, w: p.weapon });
+      const acc = 100 / (1 + wc.bloom * 0.06) * (1 + p.aim / 99);
+      if (Math.random() < acc / (acc + tgt.armour + 10)) {   // +10: players are harder to hit than mobs
+        const dmg = randint(wc.dmgMin, wc.dmgMax); tgt.hp -= dmg; tgt.lastHit = now;
+        fx.push({ k: 'phit', x: tgt.x, z: tgt.z, dmg });
+        events.push({ pid: p.pvpTarget, t: 'hurt', dmg });
+        events.push({ pid, t: 'pvpxp', dmg });
+        if (tgt.hp <= 0) { tgt.hp = 0; tgt.dead = true; tgt.respawnAt = now + 4000;
+          events.push({ pid: p.pvpTarget, t: 'death' });
+          events.push({ pid, t: 'duelwin' });
+          this.endDuelFor(pid); this.endDuelFor(p.pvpTarget); }
       }
     }
 

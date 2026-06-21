@@ -115,6 +115,9 @@ wss.on('connection', (ws) => {
           aim: +msg.aim || undefined, maxhp: +msg.maxhp || undefined, weapon: msg.appearance && msg.appearance.weapon });
         break;
       }
+      case 'duelstart': { if (session.authed) world.setDuel(session.id, msg.opponent); break; }
+      case 'duelattack': { if (session.authed) world.pvpAttack(session.id, msg.target); break; }
+      case 'duelend': { if (session.authed) world.endDuelFor(session.id); break; }
       case 'heal': { if (session.authed) world.heal(session.id, +msg.amt || 0); break; }
       case 'droploot': { if (session.authed) { const wp = world.players.get(session.id); if (wp) world.dropLoot(session.id, msg.items, wp.x, wp.z); } break; }
       case 'p2p': {   // relay a player-to-player message (duel/trade) to one target

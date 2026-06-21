@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.2",
+ "version": "1.0.3",
  "generated": "2026-06-21",
  "patches": [
+  {
+   "version": "1.0.3",
+   "date": "2026-06-21",
+   "title": "Server-authoritative PvP duels with networked gunfire",
+   "notes": []
+  },
   {
    "version": "1.0.2",
    "date": "2026-06-21",

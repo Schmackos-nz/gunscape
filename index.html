@@ -1391,7 +1391,7 @@ function onlineDeath(){
   for(const it of player.inv)items.push({k:it.k,n:it.n});
   netSend({t:"droploot",items});
   player.equip={weapon:"fists",head:null,body:null,legs:null}; player.inv=[];
-  clearActions(); player.flinchUntil=0; clearPrayers(); player.prayer=0;
+  clearActions(); player.duel=null; player.flinchUntil=0; clearPrayers(); player.prayer=0;
   player.energy=100; player.pos.set(0,0,40); buildPlayerMesh(); refreshUI();
   log("Your gear dropped where you fell — run back for it!","bad");
 }
@@ -2102,6 +2102,8 @@ function netConnect(url,mode,user,pass){
       else if(f.k==="kill"){ if(f.pid!==NET.id) killSoundAt(audVol(f.x,f.z)); }
     } }
     else if(m.t==="death"){ onlineDeath(); }
+    else if(m.t==="duelwin"){ endDuel(); log("You won the duel!","cmb"); sfxLevel(); }
+    else if(m.t==="pvpxp"){ awardCombatXp(m.dmg); }
     else if(m.t==="looted"){ addItem(m.k,m.n); (m.k==="coins"?sfxCoin:sfxPickup)(); checkQuestProgress();
       log(`You pick up ${m.n>1?m.n+" ":""}${ITEMS[m.k]?ITEMS[m.k].name:m.k}.`,"loot"); }
     else if(m.t==="p2p"){handleP2P(m);}
@@ -2184,24 +2186,16 @@ function handleP2P(m){
       ()=>netSend({t:"p2p",to:m.from,kind:"decline"})); break;
     case "tradeaccept": openTrade(m.from,nm); break;
     case "decline": log(nm+" declined.","sys"); break;
-    case "duelend": endDuel(); log("You won the duel!","cmb"); break;
-    case "pvphit": applyPvpDamage(m.dmg||0,nm); break;
     case "tradeoffer": if(trade.open&&m.from===trade.withId){trade.theirs=m.items||[];trade.iConfirm=false;trade.theyConfirm=false;renderTrade();} break;
     case "tradeconfirm": if(trade.open&&m.from===trade.withId){trade.theyConfirm=true;renderTrade();maybeCompleteTrade();} break;
     case "tradecancel": if(trade.open&&m.from===trade.withId)closeTrade(nm+" cancelled the trade.",true); break;
   }
 }
-/* ---- duels ---- */
+/* ---- duels (server-authoritative PvP) ---- */
 function startDuel(id,name){player.duel=id;player.duelName=name;player.pvpTarget=null;
+  netSend({t:"duelstart",opponent:id});   // register the duel with the server
   log("Duel started against "+name+"! Right-click them and Attack.","cmb");}
-function endDuel(){player.duel=null;player.pvpTarget=null;}
-function applyPvpDamage(dmg,name){
-  if(Math.random()<STYLES[attackStyle].dodge+prayerEffect("dodge")){floater(player.pos,"dodge","#7fe0ff");return;}
-  dmg=Math.max(1,Math.round(dmg*(1-prayerEffect("soak"))-Math.floor(totalArmour()*0.12)));
-  player.hp-=dmg; player.combatUntil=performance.now()+6000; floater(player.pos,String(dmg),"#ff6a5a"); sfxHurt();
-  if(player.hp<=0){ if(player.duel)netSend({t:"p2p",to:player.duel,kind:"duelend"});
-    log("You were defeated by "+name+"!","bad"); endDuel(); playerDeath(); }
-}
+function endDuel(){ if(player.duel)netSend({t:"duelend"}); player.duel=null;player.pvpTarget=null;}
 function pvpShoot(now){
   const r=player.pvpTarget;
   if(!r||player.duel!==r.id||!remotes.has(r.id)){player.pvpTarget=null;return false;}
@@ -2210,11 +2204,10 @@ function pvpShoot(now){
   if(d>engage){player.dest=new THREE.Vector3(r.tx,0,r.tz);return true;}
   player.dest=null; faceTowards(player.mesh,r.tx,r.tz,player.pos.x,player.pos.z);
   if(now-(player.lastPvp||0)<w.fireRate*st.fireMul)return false;
-  player.lastPvp=now; player.combatUntil=now+6000; sfxShoot(player.equip.weapon);
+  player.lastPvp=now; player.combatUntil=now+6000;
+  netSend({t:"duelattack",target:r.id});            // server resolves the hit/damage
+  sfxShoot(player.equip.weapon);                     // local immediate feedback (server skips our own fx)
   tracer(muzzle(player.mesh,3.7),new THREE.Vector3(r.tx,2.2,r.tz),0xffe070);
-  const dmg=Math.round(randint(w.dmgMin,w.dmgMax)*(1+prayerEffect("dmg")));
-  netSend({t:"p2p",to:r.id,kind:"pvphit",dmg});
-  awardCombatXp(dmg);
   return false;
 }
 /* ---- trading ---- */
