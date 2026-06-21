@@ -3,20 +3,18 @@
 RuneScape Classic, but with guns. A 3D browser RPG (Three.js, no build step for
 the client) plus an optional standalone dedicated server for online multiplayer.
 
-## ⏭️ Next planned change (do this next)
-**Move to a FULL server-authoritative world.** Today the server already simulates
-enemies/loot/combat (`server/world.js`) and broadcasts them, but the **client does
-not consume them** — online play still runs the client's local enemy/loot sim, and
-HP/PvP are decided client-side. The next change makes the world truly shared &
-authoritative:
-- Online mode: stop the local enemy/loot simulation; render & lerp enemies and loot
-  from the server `{t:"snapshot", enemies, loot}` (reuse `ENEMY_BUILDERS` by `type`).
-- Send intents instead of resolving locally: `{t:"attack", enemyId}` on click,
-  `{t:"pickup", lootId}` for loot; use server-owned HP and the `xp`/`death` events.
-- Make PvP server-authoritative (replaces the current attacker-reported `pvphit`).
-- Keep **offline mode** running the existing local sim unchanged.
-- Then layer on the still-open items: smart pathfinding through doors, single-combat
-  enforcement outside multi-combat zones, and the 10s logout-linger / death-counts.
+## Status
+**Server-authoritative world is DONE.** Online play renders enemies/loot from the
+server `{t:"snapshot", enemies, loot}` (via `serverEnemies`/`serverLoot`), sends
+`{t:"attack"}`/`{t:"pickup"}`/`{t:"heal"}`/`{t:"droploot"}` intents, and uses
+server-owned HP + `xp`/`hurt`/`death` events. Offline still runs the local sim.
+
+## ⏭️ Next planned changes
+- **Server-authoritative PvP** — duels still use attacker-reported `pvphit`; move PvP
+  damage into `server/world.js` like PvE.
+- **Smart pathfinding** through open doors/around walls (only `nearestOpen` exists).
+- **Single-combat enforcement** outside the multi-combat zones (server-side).
+- **10s logout-linger** with death-counts.
 
 ## Run it
 - **Single-player:** open `index.html`, choose **Play Offline**.
