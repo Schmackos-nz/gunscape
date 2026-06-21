@@ -2,6 +2,7 @@
 # Build first (`npm run build` → dist/), then `npx wrangler deploy`.
 # account_id is intentionally omitted — wrangler infers it from CLOUDFLARE_API_TOKEN.
 name = "gunscape"
+account_id = "e7d11ba6912733c42e1da5aa01a6258f"
 compatibility_date = "2025-06-01"
 
 [assets]
