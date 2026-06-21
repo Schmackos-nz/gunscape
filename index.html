@@ -114,8 +114,12 @@
   #dialog .prog{color:#7fbfff;font-size:12px;margin-bottom:10px;}
   #dialog .acts{display:flex;gap:8px;justify-content:flex-end;}
   #styleMenu{position:absolute;left:50%;top:46%;transform:translate(-50%,-50%);z-index:75;
-    background:rgba(13,10,7,.95);border:2px solid var(--gold);border-radius:10px;
-    padding:14px 16px;display:none;width:340px;box-shadow:0 6px 24px rgba(0,0,0,.7);}
+    background:rgba(13,10,7,.96);border:2px solid var(--gold);border-radius:10px;
+    padding:14px 16px;display:none;box-shadow:0 6px 24px rgba(0,0,0,.7);
+    gap:14px;}
+  #styleMenu{display:none;}
+  #styleMenu.show{display:flex;}
+  #styleMenu .sm-col{width:260px;}
   #styleMenu .sm-title{color:var(--gold);font-weight:bold;text-align:center;margin-bottom:10px;font-size:15px;}
   #styleMenu .sm-opt{display:block;width:100%;text-align:left;margin:5px 0;padding:8px 10px;
     background:var(--panel2);color:var(--txt);border:1px solid var(--frame);border-radius:6px;
@@ -123,6 +127,14 @@
   #styleMenu .sm-opt small{display:block;color:var(--dim);font-weight:normal;font-size:11px;margin-top:2px;}
   #styleMenu .sm-opt.on{border-color:var(--gold);background:#46371d;}
   #styleMenu .sm-opt:hover{border-color:var(--gold);}
+  #styleMenu .sm-scroll{max-height:320px;overflow-y:auto;}
+  #styleMenu .sm-pray{display:block;width:100%;text-align:left;margin:4px 0;padding:6px 9px;
+    background:var(--panel2);color:var(--txt);border:1px solid var(--frame);border-radius:6px;
+    cursor:pointer;font-size:12px;}
+  #styleMenu .sm-pray b{color:#c9a6ff;} #styleMenu .sm-pray i{float:right;color:var(--dim);font-style:normal;font-size:10px;}
+  #styleMenu .sm-pray small{display:block;color:var(--dim);font-size:10px;margin-top:2px;}
+  #styleMenu .sm-pray.on{border-color:#9a6fe0;background:#2c2247;}
+  #styleMenu .sm-pray.lock{opacity:.45;cursor:not-allowed;}
   #loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
     background:#0a0a12;color:var(--gold);font-size:20px;z-index:80;}
   ::-webkit-scrollbar{width:8px;}
@@ -205,6 +217,12 @@ const CONSUMABLES={
   cooked_meat:{name:"Cooked Meat",ic:"🍖",price:8,heal:16,cat:"food",desc:"Nicely cooked. Heals 16, always safe."},
   cooked_steak:{name:"Cooked Steak",ic:"🥩",price:18,heal:34,cat:"food",desc:"A hearty steak. Heals 34."},
 };
+// potions — occasionally found as loot. potion effect handled in useItem()
+const POTIONS={
+  health_potion:{name:"Health Potion",ic:"🧪",price:80,cat:"potion",heal:55,desc:"Restores 55 vitality."},
+  stamina_potion:{name:"Stamina Potion",ic:"🥤",price:70,cat:"potion",energy:60,desc:"Restores 60 run energy."},
+  prayer_potion:{name:"Prayer Potion",ic:"⚗️",price:120,cat:"potion",prayerPct:0.25,desc:"Restores 25% of your prayer."},
+};
 // raw foods (cook on a campfire). rawHeal=heal if eaten raw, sickChance=odds it sickens you
 const RAWFOOD={
   raw_meat:{name:"Raw Meat",ic:"🥓",price:2,cat:"raw",cook:"cooked_meat",burnt:"burnt_meat",cookLvl:1,stopBurn:24,cookXp:30,rawHeal:3,sickChance:.45,desc:"Raw and risky. Cook it first!"},
@@ -215,7 +233,7 @@ const TOOLS={
 };
 const MISC={
   scrap:{name:"Scrap",ic:"⚙️",price:4,cat:"misc",desc:"Salvaged junk. Sells for coins."},
-  bones:{name:"Bones",ic:"🦴",price:1,cat:"misc",desc:"The remains of the fallen. Grim."},
+  bones:{name:"Bones",ic:"🦴",price:1,cat:"misc",bury:true,desc:"Right-click to Bury for Prayer XP."},
   logs:{name:"Logs",ic:"🪵",price:3,cat:"misc",light:true,desc:"Right-click to light a campfire."},
   burnt_meat:{name:"Burnt Meat",ic:"🌑",price:0,cat:"misc",desc:"Charred and inedible. Whoops."},
   rat_tail:{name:"Rat Tail",ic:"🐀",price:3,cat:"misc",desc:"A scrawny rat tail."},
@@ -223,7 +241,7 @@ const MISC={
   scorpion_tail:{name:"Scorpion Tail",ic:"🦂",price:10,cat:"misc",desc:"A venomous stinger."},
   dog_tags:{name:"Dog Tags",ic:"🪖",price:18,cat:"misc",desc:"Mercenary identification tags."},
 };
-const ITEMS=Object.assign({},WEAPONS,ARMOUR,CONSUMABLES,RAWFOOD,TOOLS,MISC,{coins:{name:"Coins",ic:"⛁",cat:"coins",desc:"Shiny money."}});
+const ITEMS=Object.assign({},WEAPONS,ARMOUR,CONSUMABLES,POTIONS,RAWFOOD,TOOLS,MISC,{coins:{name:"Coins",ic:"⛁",cat:"coins",desc:"Shiny money."}});
 // loot tiers (index = strength). Used by enemy drop tables.
 const GUN_TIERS=[["zip"],["zip","revolver"],["revolver","smg"],["smg","shotgun"],["shotgun","rifle"],["rifle","ak"]];
 const ARMOUR_TIERS=[
@@ -236,17 +254,38 @@ const ARMOUR_TIERS=[
 ];
 const ARMOUR_TINT={Cloth:0xb9a37a,Cardboard:0xb98a4a,Metal:0x8d96a0,Kevlar:0x2e3b34};
 
+// Prayers (RuneScape-like). Only ONE prayer per `type` may be active at once.
+// drain = prayer points per minute (ramps with required level). Effects:
+//  aim=accuracy %, flinch=flinch-resist %, dodge=dodge chance, dmg=damage %, soak=damage reduction %
+const PRAYERS=[
+  {id:"sharp_eye",  name:"Sharp Eye",   lvl:1,  type:"aim",    drain:1.2, aim:0.06,   desc:"+6% accuracy"},
+  {id:"steady",     name:"Steady Hands",lvl:1,  type:"comp",   drain:1.2, flinch:0.10,desc:"+10% flinch resist"},
+  {id:"light_step", name:"Light Step",  lvl:4,  type:"dodge",  drain:1.8, dodge:0.05, desc:"+5% dodge"},
+  {id:"brutality",  name:"Brutality",   lvl:8,  type:"power",  drain:2.4, dmg:0.10,   desc:"+10% damage"},
+  {id:"keen_aim",   name:"Keen Aim",    lvl:14, type:"aim",    drain:3,   aim:0.14,   desc:"+14% accuracy"},
+  {id:"iron_will",  name:"Iron Will",   lvl:14, type:"comp",   drain:3,   flinch:0.22,desc:"+22% flinch resist"},
+  {id:"evasion",    name:"Evasion",     lvl:20, type:"dodge",  drain:4,   dodge:0.12, desc:"+12% dodge"},
+  {id:"stone_skin", name:"Stone Skin",  lvl:26, type:"protect",drain:5,   soak:0.20,  desc:"-20% damage taken"},
+  {id:"eagle_eye",  name:"Eagle Eye",   lvl:32, type:"aim",    drain:6,   aim:0.25,   desc:"+25% accuracy"},
+  {id:"stone_nerve",name:"Stone Nerve", lvl:32, type:"comp",   drain:6,   flinch:0.40,desc:"+40% flinch resist"},
+  {id:"savagery",   name:"Savagery",    lvl:38, type:"power",  drain:8,   dmg:0.25,   desc:"+25% damage"},
+  {id:"phantom",    name:"Phantom Step",lvl:44, type:"dodge",  drain:9,   dodge:0.22, desc:"+22% dodge"},
+  {id:"bulwark",    name:"Bulwark",     lvl:50, type:"protect",drain:11,  soak:0.40,  desc:"-40% damage taken"},
+];
+const PRAYER_BY_ID={}; for(const p of PRAYERS) PRAYER_BY_ID[p.id]=p;
+
 /* ---------------- Player state ------------------------------ */
 const player={
   pos:new THREE.Vector3(0,0,40), dest:null, target:null,
   speed:18, hp:100, lastShot:0, flinchUntil:0, walk:0, regen:0,
   skills:{aim:{xp:0,lv:1},composure:{xp:0,lv:1},armour:{xp:0,lv:1},vitality:{xp:xpForLevel(10),lv:10},
-          woodcutting:{xp:0,lv:1},cooking:{xp:0,lv:1},agility:{xp:0,lv:1}},
+          woodcutting:{xp:0,lv:1},cooking:{xp:0,lv:1},agility:{xp:0,lv:1},prayer:{xp:0,lv:1}},
   equip:{weapon:"zip",head:null,body:"cloth_shirt",legs:"cloth_pants"},
   inv:[{k:"bandage",n:5},{k:"cloth_hood",n:1},{k:"hatchet",n:1},{k:"coins",n:40}],
-  mesh:null, pickupTarget:null, talkTarget:null, chopTarget:null, doorTarget:null,
+  mesh:null, pickupTarget:null, talkTarget:null, chopTarget:null, doorTarget:null, altarTarget:null,
   lastChop:0, lastCook:0, quests:{},
   running:true, energy:100, runTimer:0,
+  prayer:1, activePrayers:{}, autoRetaliate:true,
 };
 
 /* ============================================================ *
@@ -308,6 +347,7 @@ function addWall(x,z,hw,hd,door){const w={x,z,hw,hd,door:door||null};wallBoxes.p
 const buildings=[];                   // {fx,fz,hw,hd,roof} for roof hiding
 const trees=[];                       // choppable trees
 const fires=[];                       // active campfires
+const altars=[];                      // prayer-recharge altars
 
 /* ---------------- Biomes ------------------------------------ */
 // Region by position. Returns {name, ground(hex), spawns[], aggro}
@@ -486,6 +526,17 @@ function makeRock(x,z,s){
   const r=new THREE.Mesh(new THREE.DodecahedronGeometry(s),toonMat({color:0x8a8378}));
   r.position.set(x,s*0.5,z); scene.add(r); addBlocker(x,z,s*0.8);
 }
+function makeAltar(x,z){
+  const g=new THREE.Group(); g.position.set(x,0,z);
+  const base=box(3,1.2,2,0x8d96a0); base.position.y=0.6; g.add(base);
+  const top=box(3.4,0.4,2.4,0xb0bac4); top.position.y=1.4; g.add(top);
+  const glow=new THREE.Mesh(new THREE.ConeGeometry(0.7,1.4,6),toonMat({color:0xc9a6ff}));
+  glow.position.y=2.2; glow.userData.noOutline=true; g.add(glow);
+  const light=new THREE.PointLight(0xc9a6ff,1.0,14); light.position.y=2.4; g.add(light);
+  scene.add(g); addBlocker(x,z,2);
+  const altar={mesh:g,glow,pos:new THREE.Vector3(x,0,z)}; g.userData.altar=altar;
+  altars.push(altar); addPOI("Altar",x,z); return altar;
+}
 
 function buildTown(center,houses,name){
   const palette=[0xd8c89a,0xc7b07a,0xbfa98c,0xa8967a];
@@ -583,6 +634,9 @@ buildGraveyard(-40,-120);
 buildBanditCamp(180,80);
 addPOI("Riverside",TOWN.x,TOWN.z);
 addPOI("Forest Outpost",OUTPOST.x,OUTPOST.z);
+// prayer altars in both towns
+makeAltar(TOWN.x-12,TOWN.z-12);
+makeAltar(OUTPOST.x+10,OUTPOST.z+10);
 
 /* ============================================================ *
  *  NPCs & QUESTS
@@ -810,19 +864,22 @@ function buildPlayerMesh(){
 }
 buildPlayerMesh();
 
-// floating health bar shown above the player while in combat
-const playerPlate=(()=>{const cvs=document.createElement("canvas");cvs.width=256;cvs.height=44;
+// floating health + prayer bars shown above the player while in combat
+const playerPlate=(()=>{const cvs=document.createElement("canvas");cvs.width=256;cvs.height=72;
   const tex=new THREE.CanvasTexture(cvs);
   const spr=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,depthTest:false,transparent:true}));
-  spr.scale.set(6,1.05,1); spr.visible=false; scene.add(spr); spr.userData={cvs,tex}; return spr;})();
+  spr.scale.set(6,1.7,1); spr.visible=false; scene.add(spr); spr.userData={cvs,tex}; return spr;})();
+function bar(c,x,y,w,h,frac,fill,back){c.fillStyle="#000";c.fillRect(x-2,y-2,w+4,h+4);
+  c.fillStyle=back;c.fillRect(x,y,w,h);c.fillStyle=fill;c.fillRect(x,y,w*Math.max(0,frac),h);}
 function drawPlayerPlate(){const{cvs,tex}=playerPlate.userData;const c=cvs.getContext("2d");
-  c.clearRect(0,0,256,44); const f=Math.max(0,player.hp/maxHp());
-  const bw=240,bx=8,by=14,bh=18;
-  c.fillStyle="#000";c.fillRect(bx-2,by-2,bw+4,bh+4);
-  c.fillStyle="#3a0f0c";c.fillRect(bx,by,bw,bh);
-  c.fillStyle=f>0.3?"#5fd04a":"#d04a3a";c.fillRect(bx,by,bw*f,bh);
-  c.fillStyle="#fff";c.font="bold 15px Trebuchet MS";c.textAlign="center";c.textBaseline="middle";
-  c.fillText(Math.ceil(player.hp)+" / "+maxHp(),128,by+bh/2+1);
+  c.clearRect(0,0,256,72); const bw=240,bx=8;
+  const hf=Math.max(0,player.hp/maxHp());
+  bar(c,bx,8,bw,18,hf,hf>0.3?"#5fd04a":"#d04a3a","#3a0f0c");
+  c.fillStyle="#fff";c.font="bold 14px Trebuchet MS";c.textAlign="center";c.textBaseline="middle";
+  c.fillText(Math.ceil(player.hp)+" / "+maxHp(),128,18);
+  const pf=maxPrayer()>0?player.prayer/maxPrayer():0;
+  bar(c,bx,38,bw,16,pf,"#9a6fe0","#241a3a");
+  c.fillStyle="#e8dcff";c.fillText("Prayer "+Math.ceil(player.prayer)+" / "+maxPrayer(),128,46);
   tex.needsUpdate=true;}
 
 /* ============================================================ *
@@ -894,8 +951,25 @@ function combatLevel(){const s=player.skills;return Math.max(3,Math.floor((s.aim
 function maxHp(){return player.skills.vitality.lv*10;}
 function curWeapon(){return WEAPONS[player.equip.weapon]||WEAPONS.fists;}
 function effectiveBloom(){const w=curWeapon();const reduce=player.skills.aim.lv/99*0.7;return Math.max(2,w.bloom*(1-reduce));}
-function flinchResist(){return player.skills.composure.lv/(player.skills.composure.lv+45);}
+function flinchResist(){return Math.min(0.95,player.skills.composure.lv/(player.skills.composure.lv+45)+prayerEffect("flinch"));}
 function totalArmour(){let a=player.skills.armour.lv;for(const s of["head","body","legs"]){const k=player.equip[s];if(k)a+=ITEMS[k].armour;}return a;}
+
+/* ---------------- Prayer ------------------------------------ */
+function maxPrayer(){return player.skills.prayer.lv;}              // RuneScape-style: 1 point per level
+function prayerActive(id){return player.activePrayers[PRAYER_BY_ID[id].type]===id;}
+// summed effect of currently-active prayers for a given field
+function prayerEffect(field){let v=0;
+  for(const type in player.activePrayers){const p=PRAYER_BY_ID[player.activePrayers[type]];if(p&&p[field])v+=p[field];}
+  return v;}
+function prayerDrain(){let d=0;for(const type in player.activePrayers){d+=PRAYER_BY_ID[player.activePrayers[type]].drain;}return d;}
+function togglePrayer(id){const p=PRAYER_BY_ID[id];if(!p)return;
+  if(player.skills.prayer.lv<p.lvl){log(`You need Prayer ${p.lvl} for ${p.name}.`,"bad");sfxClick();return;}
+  if(player.activePrayers[p.type]===id){delete player.activePrayers[p.type];log(`${p.name} deactivated.`);}
+  else{ if(player.prayer<=0){log("You have no prayer points. Recharge at an altar.","bad");return;}
+    player.activePrayers[p.type]=id;log(`${p.name} activated.`,"xp"); }
+  sfxClick();}
+function clearPrayers(){player.activePrayers={};}
+function restorePrayer(amt){player.prayer=Math.min(maxPrayer(),player.prayer+amt);}
 
 /* ---------------- Inventory --------------------------------- */
 const INV_MAX=30;
@@ -934,11 +1008,20 @@ function useItem(k){const it=ITEMS[k];if(!it)return;
   if(it.cat==="food"){if(player.hp>=maxHp()){log("Already at full health.");return;}
     player.hp=Math.min(maxHp(),player.hp+it.heal);removeItem(k,1);
     floater(player.pos,"+"+it.heal,"#7fd06a");log(`You use the ${it.name}.`,"loot");}
+  else if(it.cat==="potion"){ usePotion(k); }
+  else if(it.bury){ buryBone(k); }
   else if(it.cat==="raw"){ nearFire()?cookFood(k):eatRaw(k); }
   else if(it.light){ lightFire(); }
   else if(it.cat==="weapon"||it.cat==="armour")equipItem(k);
   else if(it.cat==="tool")log(`${it.name}: ${it.desc}`);
   refreshUI();}
+function usePotion(k){const it=ITEMS[k];
+  if(it.heal){player.hp=Math.min(maxHp(),player.hp+it.heal);floater(player.pos,"+"+it.heal,"#7fd06a");}
+  if(it.energy){player.energy=Math.min(100,player.energy+it.energy);floater(player.pos,"+stamina","#7fe0ff");}
+  if(it.prayerPct){const a=Math.ceil(maxPrayer()*it.prayerPct);restorePrayer(a);floater(player.pos,"+prayer","#c9a6ff");}
+  removeItem(k,1); sfxPickup(); log(`You drink the ${it.name}.`,"loot"); refreshUI();}
+function buryBone(k){removeItem(k,1); gainXp("prayer",14); floater(player.pos,"+prayer xp","#c9a6ff");
+  tone(220,0.18,"sine",0.16,140); log("You bury the bones.","loot"); refreshUI();}
 function sellValue(k){return Math.max(1,Math.floor((ITEMS[k].price||5)*0.4));}
 function sell(k){const v=sellValue(k);removeItem(k,1);addItem("coins",v);log(`Sold ${ITEMS[k].name} for ⛁${v}.`,"loot");refreshUI();}
 function dropItem(k){removeItem(k,1);makeDrop(k,1,player.pos.x,player.pos.z);log(`You drop the ${ITEMS[k].name}.`);}
@@ -1019,7 +1102,7 @@ function awardCombatXp(dmg){
   for(const k of ks) gainXp(k,pool/ks.length);     // same total; "all" splits it
   gainXp("vitality",Math.round(dmg*1.33));
 }
-function attack(e){player.dest=null;player.pickupTarget=null;player.talkTarget=null;player.chopTarget=null;player.doorTarget=null;
+function attack(e){player.dest=null;player.pickupTarget=null;player.talkTarget=null;player.chopTarget=null;player.doorTarget=null;player.altarTarget=null;
   player.target=e;e.aggro=true;e.hpDirty=true;player.combatUntil=performance.now()+6000;
   log(`You attack the ${e.name}.`,"cmb");}
 function playerShoot(now){
@@ -1034,10 +1117,11 @@ function playerShoot(now){
   player.lastShot=now; sfxShoot(player.equip.weapon);
   tracer(muzzle(player.mesh,3.7),new THREE.Vector3(e.pos.x,2.2,e.pos.z),0xffe070);
   const bloom=effectiveBloom();
-  const acc=100/(1+bloom*0.06)*st.accMul;
+  const acc=100/(1+bloom*0.06)*st.accMul*(1+prayerEffect("aim"));
   const hit=acc/(acc+e.armour);
   if(Math.random()<hit){
-    const dmg=randint(w.dmgMin,w.dmgMax); e.hp-=dmg; e.hpDirty=true;
+    let dmg=randint(w.dmgMin,w.dmgMax); dmg=Math.round(dmg*(1+prayerEffect("dmg")));
+    e.hp-=dmg; e.hpDirty=true;
     floater(e.pos,String(dmg),"#ffd24a"); sfxHit(); awardCombatXp(dmg);
     if(e.hp<=0) killEnemy(e);
   }else{ floater(e.pos,"miss","#cccccc"); }
@@ -1072,18 +1156,24 @@ function rollDrops(e){
   }
   // armour roll
   if(Math.random()<e.armChance) makeDrop(pick(ARMOUR_TIERS[e.tier]),1,sx(),sz());
+  // rare potion drop (more likely from tougher foes)
+  if(Math.random()<0.04+e.tier*0.012) makeDrop(pick(["health_potion","stamina_potion","prayer_potion"]),1,sx(),sz());
 }
 function enemyShoot(e,now){
   if(now-e.lastShot<e.fireRate)return; e.lastShot=now; player.combatUntil=now+6000;
+  // auto-retaliate: start fighting back if idle
+  if(player.autoRetaliate&&(!player.target||player.target.dead)){player.target=e;player.dest=null;}
   tracer(muzzle(e.mesh,e.mesh.userData.baseHeight),new THREE.Vector3(player.pos.x,2.2,player.pos.z),0xff5040);
   // faint report if nearby
   if(dist2(e.pos,player.pos)<60) noise(0.04,0.08,1800);
   const acc=e.aim+8, hit=acc/(acc+totalArmour());
-  // Defense style: chance to fully dodge the incoming shot
-  if(Math.random()<STYLES[attackStyle].dodge){
+  // dodge: defense style + Evasion-type prayers
+  const dodge=STYLES[attackStyle].dodge+prayerEffect("dodge");
+  if(Math.random()<dodge){
     floater(player.pos,"dodge","#7fe0ff"); gainXp("armour",4); gainXp("agility",12); return; }
   if(Math.random()<hit){
-    let dmg=randint(e.dmg[0],e.dmg[1]); dmg=Math.max(1,dmg-Math.floor(totalArmour()*0.12));
+    let dmg=randint(e.dmg[0],e.dmg[1]); dmg=dmg-Math.floor(totalArmour()*0.12);
+    dmg=Math.max(1,Math.round(dmg*(1-prayerEffect("soak"))));   // Stone Skin / Bulwark soak
     player.hp-=dmg; floater(player.pos,String(dmg),"#ff6a5a"); sfxHurt();
     gainXp("armour",dmg*3);gainXp("composure",dmg*1.5);
     if(Math.random()>flinchResist()){player.flinchUntil=now+450;floater(player.pos,"flinch!","#ff9b5a");}
@@ -1107,7 +1197,7 @@ function playerDeath(){
   player.inv=[];
   log("Your gear scattered across the ground. Run back to reclaim it!","bad");
   player.hp=maxHp();player.target=null;player.dest=null;player.pickupTarget=null;
-  player.talkTarget=null;player.flinchUntil=0;
+  player.talkTarget=null;player.flinchUntil=0;clearPrayers();player.prayer=0;
   player.energy=100;player.pos.set(0,0,40);buildPlayerMesh();refreshUI();
 }
 
@@ -1138,9 +1228,9 @@ function moveToward(tx,tz,step){
 /* ---------------- Input ------------------------------------- */
 const keys={};
 addEventListener("keydown",e=>{keys[e.key.toLowerCase()]=true;
-  if(e.key==="Tab"){e.preventDefault(); if(!styleMenuOpen){styleMenuOpen=true;styleMenu.style.display="block";renderStyleMenu();}}});
+  if(e.key==="Tab"){e.preventDefault(); if(!styleMenuOpen){styleMenuOpen=true;styleMenu.classList.add("show");renderStyleMenu();}}});
 addEventListener("keyup",e=>{keys[e.key.toLowerCase()]=false;
-  if(e.key==="Tab"){styleMenuOpen=false;styleMenu.style.display="none";}});
+  if(e.key==="Tab"){styleMenuOpen=false;styleMenu.classList.remove("show");}});
 /* ---------------- Attack-style overlay (hold Tab) ---------- */
 const styleMenu=document.getElementById("styleMenu"); let styleMenuOpen=false;
 const STYLE_DESC={
@@ -1150,10 +1240,22 @@ const STYLE_DESC={
   all:"A weaker blend of all three. XP split across them.",
 };
 function renderStyleMenu(){
-  styleMenu.innerHTML=`<div class="sm-title">⚔ Attack Style</div>`+
+  const styleCol=`<div class="sm-col"><div class="sm-title">⚔ Attack Style</div>`+
     Object.keys(STYLES).map(s=>`<button class="sm-opt ${s===attackStyle?'on':''}" data-s="${s}">
-      ${STYLES[s].label}<small>${STYLE_DESC[s]}</small></button>`).join("");
-  styleMenu.querySelectorAll(".sm-opt").forEach(b=>b.onclick=()=>setStyle(b.dataset.s));
+      ${STYLES[s].label}<small>${STYLE_DESC[s]}</small></button>`).join("")+
+    `<button class="sm-opt ${player.autoRetaliate?'on':''}" data-retal="1">
+      Auto-Retaliate: ${player.autoRetaliate?"ON":"OFF"}<small>Fight back automatically when attacked.</small></button></div>`;
+  const plv=player.skills.prayer.lv;
+  const prayCol=`<div class="sm-col"><div class="sm-title">✦ Prayers (${Math.ceil(player.prayer)}/${maxPrayer()})</div>
+    <div class="sm-scroll">`+PRAYERS.map(p=>{
+      const locked=plv<p.lvl, on=player.activePrayers[p.type]===p.id;
+      return `<button class="sm-pray ${on?'on':''} ${locked?'lock':''}" data-pray="${p.id}">
+        <b>${p.name}</b> <i>Lv${p.lvl}</i><small>${p.desc} · ${p.drain}/min</small></button>`;
+    }).join("")+`</div></div>`;
+  styleMenu.innerHTML=styleCol+prayCol;
+  styleMenu.querySelectorAll(".sm-opt[data-s]").forEach(b=>b.onclick=()=>setStyle(b.dataset.s));
+  styleMenu.querySelectorAll("[data-retal]").forEach(b=>b.onclick=()=>{player.autoRetaliate=!player.autoRetaliate;sfxClick();renderStyleMenu();});
+  styleMenu.querySelectorAll(".sm-pray").forEach(b=>b.onclick=()=>{togglePrayer(b.dataset.pray);renderStyleMenu();});
 }
 function setStyle(s){attackStyle=s;sfxClick();log("Attack style set to "+STYLES[s].label+".","sys");
   renderStyleMenu(); if(activeTab==="skills")refreshUI();}
@@ -1164,7 +1266,7 @@ function castAt(clientX,clientY){
   const r=renderer.domElement.getBoundingClientRect();
   mouse.x=((clientX-r.left)/r.width)*2-1; mouse.y=-((clientY-r.top)/r.height)*2+1;
   raycaster.setFromCamera(mouse,camera);
-  const res={enemy:null,npc:null,shop:false,drop:null,tree:null,door:null,point:null};
+  const res={enemy:null,npc:null,shop:false,drop:null,tree:null,door:null,altar:null,point:null};
   const eh=raycaster.intersectObjects(enemies.filter(e=>!e.dead).map(e=>e.mesh),true);
   if(eh.length){let o=eh[0].object;while(o&&!o.userData.enemy)o=o.parent;if(o)res.enemy=o.userData.enemy;}
   const nh=raycaster.intersectObjects(npcs.map(n=>n.mesh),true);
@@ -1176,13 +1278,16 @@ function castAt(clientX,clientY){
   if(dr.length)res.door=dr[0].object.userData.door;
   const th=raycaster.intersectObjects(trees.filter(t=>!t.depleted).map(t=>t.group),true);
   if(th.length){let o=th[0].object;while(o&&!o.userData.tree)o=o.parent;if(o)res.tree=o.userData.tree;}
+  const ah=raycaster.intersectObjects(altars.map(a=>a.mesh),true);
+  if(ah.length){let o=ah[0].object;while(o&&!o.userData.altar)o=o.parent;if(o)res.altar=o.userData.altar;}
   const gh=raycaster.intersectObject(ground);
   if(gh.length)res.point=new THREE.Vector3(gh[0].point.x,0,gh[0].point.z);
   return res;
 }
 function toggleDoor(ds){ds.open=!ds.open;sfxClick();log(ds.open?"You open the door.":"You close the door.");}
 function clearActions(){player.target=null;player.dest=null;player.pickupTarget=null;
-  player.talkTarget=null;player.chopTarget=null;player.doorTarget=null; if(dialogOpen)closeDialog();}
+  player.talkTarget=null;player.chopTarget=null;player.doorTarget=null;player.altarTarget=null;
+  if(dialogOpen)closeDialog();}
 
 renderer.domElement.addEventListener("contextmenu",e=>e.preventDefault());
 renderer.domElement.addEventListener("mousedown",e=>{
@@ -1194,6 +1299,7 @@ renderer.domElement.addEventListener("mousedown",e=>{
   if(h.shop){openShop();return;}
   if(h.npc){clearActions();player.talkTarget=h.npc;return;}
   if(h.door){clearActions();player.doorTarget=h.door;return;}
+  if(h.altar){clearActions();player.altarTarget=h.altar;return;}
   if(h.drop){clearActions();player.pickupTarget=h.drop;return;}
   if(h.tree){clearActions();player.chopTarget=h.tree;return;}
   if(h.point){clearActions();player.dest=h.point;}
@@ -1230,6 +1336,7 @@ function openWorldMenu(cx,cy){
   if(h.npc) opts.push(["Talk to "+h.npc.name,()=>{clearActions();player.talkTarget=h.npc;}]);
   if(h.shop) opts.push(["Trade with Shopkeeper",()=>openShop()]);
   if(h.door) opts.push([h.door.open?"Close door":"Open door",()=>{clearActions();player.doorTarget=h.door;}]);
+  if(h.altar) opts.push(["Pray at altar",()=>{clearActions();player.altarTarget=h.altar;}]);
   if(h.tree) opts.push(["Chop down tree",()=>{clearActions();player.chopTarget=h.tree;}]);
   if(h.drop) opts.push(["Take "+ITEMS[h.drop.k].name+(h.drop.n>1?" x"+h.drop.n:""),()=>{clearActions();player.pickupTarget=h.drop;}]);
   if(h.point) opts.push(["Walk here",()=>{clearActions();player.dest=h.point;}]);
@@ -1282,6 +1389,12 @@ function loop(now){
       if(dist2(player.pos,dp)>3){ if(moveToward(dp.x,dp.z,step))moving=true; } // only toggle when beside it
       else { toggleDoor(ds); player.doorTarget=null; }
     }
+    else if(player.altarTarget){ const al=player.altarTarget;
+      if(dist2(player.pos,al.pos)>3.5){ if(moveToward(al.pos.x,al.pos.z,step))moving=true; }
+      else { if(player.prayer<maxPrayer()){player.prayer=maxPrayer();
+          floater(player.pos,"prayer restored","#c9a6ff");log("You recharge your prayer at the altar.","xp");
+          tone(660,0.5,"sine",0.18,990);} player.altarTarget=null; }
+    }
     else if(player.dest){
       if(dist2(player.pos,player.dest)>0.6){ if(moveToward(player.dest.x,player.dest.z,step))moving=true; }
       else player.dest=null;
@@ -1299,6 +1412,11 @@ function loop(now){
     while(player.runTimer>=5){player.runTimer-=5;gainXp("agility",8);} // xp per 5s of running
   }
   player.energy=Math.min(100,player.energy+energyRegen()*dt);
+
+  /* --- prayer drain (no passive regen; recharge at altars/potions) --- */
+  const pd=prayerDrain();
+  if(pd>0){ player.prayer-=pd/60*dt;
+    if(player.prayer<=0){player.prayer=0;clearPrayers();log("You have run out of prayer points.","bad");} }
 
   /* --- player combat health bar over head --- */
   const inCombat=(player.target&&!player.target.dead)||now<(player.combatUntil||0);
@@ -1442,9 +1560,10 @@ function renderSkills(){panel.innerHTML=`<h2>Combat Skills</h2><div class="skill
     ${skillRow("armour","Armour")}${skillRow("vitality","Vitality")}</div>
   <h2 style="margin-top:14px">Gathering & Skilling</h2><div class="skillgrid">
     ${skillRow("woodcutting","Woodcut")}${skillRow("cooking","Cooking")}
-    ${skillRow("agility","Agility")}</div>
+    ${skillRow("agility","Agility")}${skillRow("prayer","Prayer")}</div>
   <h2 style="margin-top:14px">Derived</h2>
   <div class="statline"><b>Attack style</b><span>${STYLES[attackStyle].label}</span></div>
+  <div class="statline"><b>Prayer points</b><span>${Math.ceil(player.prayer)} / ${maxPrayer()}</span></div>
   <div class="statline"><b>Combat level</b><span>${combatLevel()}</span></div>
   <div class="statline"><b>Vitality</b><span>${player.hp} / ${maxHp()}</span></div>
   <div class="statline"><b>Weapon bloom</b><span>${effectiveBloom().toFixed(1)} (lower=tighter)</span></div>
@@ -1495,7 +1614,8 @@ function renderShop(){const cats=[["weapon","Guns"],["armour","Armour"],["food",
   for(const[c,l]of cats)tabs+=`<button class="btn" data-cat="${c}" style="${shopFilter===c?"":"background:#5a5142;color:#cdbf9a"}">${l}</button>`;
   tabs+=`</div>`;
   const pool=shopFilter==="weapon"?WEAPONS:shopFilter==="armour"?ARMOUR:
-    shopFilter==="food"?{bandage:CONSUMABLES.bandage,medkit:CONSUMABLES.medkit}:
+    shopFilter==="food"?{bandage:CONSUMABLES.bandage,medkit:CONSUMABLES.medkit,
+      health_potion:POTIONS.health_potion,stamina_potion:POTIONS.stamina_potion,prayer_potion:POTIONS.prayer_potion}:
     {hatchet:TOOLS.hatchet,logs:MISC.logs,raw_meat:RAWFOOD.raw_meat,raw_steak:RAWFOOD.raw_steak};
   let list="";
   for(const k in pool){const it=pool[k];if(!it.price)continue;
@@ -1544,6 +1664,8 @@ const ctxEl=document.getElementById("ctx");
 function showItemCtx(ev,k){const it=ITEMS[k];let opts=[];
   if(it.cat==="weapon"||it.cat==="armour")opts.push(["Equip",()=>equipItem(k)]);
   if(it.cat==="food")opts.push(["Eat",()=>useItem(k)]);
+  if(it.cat==="potion")opts.push(["Drink",()=>usePotion(k)]);
+  if(it.bury)opts.push(["Bury",()=>buryBone(k)]);
   if(it.cat==="raw"){opts.push(["Cook",()=>cookFood(k)]);opts.push(["Eat raw",()=>eatRaw(k)]);}
   if(it.light)opts.push(["Light fire",()=>lightFire()]);
   if(k!=="coins")opts.push(["Sell ("+sellValue(k)+")",()=>sell(k)]);
