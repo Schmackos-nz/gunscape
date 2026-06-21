@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.22",
+ "version": "1.0.23",
  "generated": "2026-06-21",
  "patches": [
+  {
+   "version": "1.0.23",
+   "date": "2026-06-22",
+   "title": "Mobile support: touch controls, landscape fullscreen, responsive HUD",
+   "notes": []
+  },
   {
    "version": "1.0.22",
    "date": "2026-06-22",
