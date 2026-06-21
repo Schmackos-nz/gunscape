@@ -1,0 +1,13 @@
+{
+  "name": "gunscape-server",
+  "version": "1.0.0",
+  "description": "Standalone dedicated server for Gunscape Classic — accounts + authoritative player sync.",
+  "type": "module",
+  "bin": { "gunscape-server": "server.js" },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

@@ -135,6 +135,28 @@
   #styleMenu .sm-pray small{display:block;color:var(--dim);font-size:10px;margin-top:2px;}
   #styleMenu .sm-pray.on{border-color:#9a6fe0;background:#2c2247;}
   #styleMenu .sm-pray.lock{opacity:.45;cursor:not-allowed;}
+  /* login screen */
+  #login{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(circle at 50% 30%,#2a2417,#0d0a07 70%);}
+  .loginbox{width:360px;max-width:90%;background:rgba(13,10,7,.85);border:2px solid var(--gold);
+    border-radius:14px;padding:26px 28px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.7);}
+  .lg-logo{font-size:30px;font-weight:bold;color:var(--gold);letter-spacing:2px;margin-bottom:4px;
+    text-shadow:2px 2px 0 #000;}
+  .lg-logo span{display:block;font-size:15px;color:#cdbf9a;letter-spacing:6px;}
+  .loginbox input{display:block;width:100%;margin:8px 0;padding:10px 12px;border-radius:7px;
+    border:1px solid var(--frame);background:#1c1712;color:var(--txt);font-size:14px;}
+  .loginbox input:focus{outline:2px solid var(--gold);}
+  .lg-row{display:flex;gap:8px;margin-top:6px;}
+  .loginbox button{flex:1;padding:11px;border:none;border-radius:7px;background:var(--gold);
+    color:#1c1712;font-weight:bold;font-size:14px;cursor:pointer;}
+  .loginbox button:hover{background:#f0cf6b;}
+  .loginbox .offline{width:100%;margin-top:10px;background:#5a5142;color:#f0e0b0;}
+  .loginbox .offline:hover{background:#6f6450;}
+  #lg-msg{min-height:18px;margin-top:10px;font-size:12px;color:#ff8a7a;}
+  #lg-msg.ok{color:#7fd06a;}
+  #chatinput{position:absolute;left:8px;bottom:144px;width:46%;z-index:40;display:none;}
+  #chatinput input{width:100%;padding:7px 10px;border-radius:6px;border:1px solid var(--gold);
+    background:rgba(0,0,0,.75);color:var(--txt);font-size:13px;}
   #loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
     background:#0a0a12;color:var(--gold);font-size:20px;z-index:80;}
   ::-webkit-scrollbar{width:8px;}
@@ -169,6 +191,21 @@
 <div id="ctx"></div>
 <div id="dialog"></div>
 <div id="styleMenu"></div>
+<div id="chatinput"><input id="chatbox" maxlength="120" placeholder="Press Enter to chat…" /></div>
+<div id="login">
+  <div class="loginbox">
+    <div class="lg-logo">GUNSCAPE<span>CLASSIC</span></div>
+    <input id="lg-user" placeholder="Username" autocomplete="username" />
+    <input id="lg-pass" type="password" placeholder="Password" autocomplete="current-password" />
+    <input id="lg-server" placeholder="Server address (ws://host:port)" />
+    <div class="lg-row">
+      <button id="lg-login">Login</button>
+      <button id="lg-register">Register</button>
+    </div>
+    <button id="lg-offline" class="offline">Play Offline (single-player)</button>
+    <div id="lg-msg"></div>
+  </div>
+</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
@@ -1488,6 +1525,8 @@ function loop(now){
   for(let i=tracers.length-1;i>=0;i--){const t=tracers[i];t.t+=dt;t.l.material.opacity=Math.max(0,0.9-t.t*7);
     if(t.t>0.13){scene.remove(t.l);tracers.splice(i,1);}}
 
+  updateRemotes(dt);
+  netTick(now);
   updateCamera();
   renderer.render(scene,camera);
 
@@ -1677,6 +1716,108 @@ function showItemCtx(ev,k){const it=ITEMS[k];let opts=[];
 document.addEventListener("click",e=>{if(e.target.closest("#ctx"))return;ctxEl.style.display="none";});
 
 /* ============================================================ *
+ *  MULTIPLAYER (server-authoritative presence) + LOGIN
+ * ============================================================ */
+const NET={ws:null,id:null,online:false,user:null,lastSent:0,saveAt:0};
+const remotes=new Map();   // id -> {mesh, plate, tx, tz, ry, hp, maxhp}
+function makeRemoteMesh(ap){ap=ap||{};
+  const body=ap.body?ARMOUR_TINT[ITEMS[ap.body]?.mat]:0x9a5acc;
+  const m=makeHumanoid({height:3.7,shirt:body,skin:0xc8a07a,pants:0x33384a,
+    gun:ap.weapon&&ap.weapon!=="fists",gunLen:1.2,gunColor:0x222});
+  addOutline(m); scene.add(m); return m;}
+function makeNameBar(name){const cvs=document.createElement("canvas");cvs.width=256;cvs.height=64;
+  const tex=new THREE.CanvasTexture(cvs);
+  const spr=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,depthTest:false,transparent:true}));
+  spr.scale.set(6,1.5,1); spr.position.y=5.2; spr.userData={cvs,tex,name,hp:1}; return spr;}
+function drawNameBar(spr){const{cvs,tex,name,hp}=spr.userData;const c=cvs.getContext("2d");
+  c.clearRect(0,0,256,64);c.font="bold 20px Trebuchet MS";c.textAlign="center";c.lineWidth=4;c.strokeStyle="#000";
+  c.fillStyle="#8fe0ff";c.strokeText(name,128,20);c.fillText(name,128,20);
+  c.fillStyle="#000";c.fillRect(38,34,180,10);c.fillStyle="#5fd04a";c.fillRect(38,34,180*Math.max(0,hp),10);
+  tex.needsUpdate=true;}
+function upsertRemote(p){
+  let r=remotes.get(p.id);
+  if(!r){const mesh=makeRemoteMesh(p.appearance);const plate=makeNameBar(p.user);mesh.add(plate);
+    r={mesh,plate,tx:p.x,tz:p.z,ry:p.ry,hp:p.hp,maxhp:p.maxhp};remotes.set(p.id,r);
+    log(`${p.user} is here.`,"sys");}
+  r.tx=p.x;r.tz=p.z;r.ry=p.ry;r.hp=p.hp;r.maxhp=p.maxhp||100;}
+function removeRemote(id){const r=remotes.get(id);if(r){scene.remove(r.mesh);remotes.delete(id);}}
+function updateRemotes(dt){
+  for(const r of remotes.values()){
+    r.mesh.position.x+=(r.tx-r.mesh.position.x)*Math.min(1,dt*8);
+    r.mesh.position.z+=(r.tz-r.mesh.position.z)*Math.min(1,dt*8);
+    r.mesh.rotation.y=r.ry;
+    const f=r.maxhp?r.hp/r.maxhp:1; if(Math.abs(f-r.plate.userData.hp)>0.01){r.plate.userData.hp=f;drawNameBar(r.plate);}
+  }
+}
+function netSend(o){if(NET.ws&&NET.ws.readyState===1)NET.ws.send(JSON.stringify(o));}
+function serializeProfile(){return {x:player.pos.x,z:player.pos.z,hp:player.hp,maxhp:maxHp(),
+  skills:player.skills,inv:player.inv,equip:player.equip,prayer:player.prayer,quests:player.quests};}
+function applyProfile(p){if(!p)return;
+  if(p.skills)player.skills=Object.assign(player.skills,p.skills);
+  if(p.inv&&p.inv.length)player.inv=p.inv;
+  if(p.equip)player.equip=Object.assign(player.equip,p.equip);
+  if(typeof p.prayer==="number")player.prayer=p.prayer;
+  if(p.quests)player.quests=p.quests;
+  if(typeof p.x==="number"){player.pos.set(p.x,0,p.z);}
+  if(typeof p.hp==="number")player.hp=p.hp;
+  buildPlayerMesh();}
+function netTick(now){
+  if(!NET.online)return;
+  if(now-NET.lastSent>100){NET.lastSent=now;
+    netSend({t:"state",x:player.pos.x,z:player.pos.z,ry:player.mesh.rotation.y,
+      hp:player.hp,maxhp:maxHp(),appearance:{body:player.equip.body,weapon:player.equip.weapon}});}
+  if(now-NET.saveAt>15000){NET.saveAt=now;netSend({t:"save",profile:serializeProfile()});}
+}
+function netConnect(url,mode,user,pass){
+  const msgEl=document.getElementById("lg-msg"); msgEl.className=""; msgEl.textContent="Connecting…";
+  let ws; try{ws=new WebSocket(url);}catch(e){msgEl.textContent="Bad server address.";return;}
+  NET.ws=ws;
+  ws.onopen=()=>ws.send(JSON.stringify({t:mode,user,pass}));
+  ws.onerror=()=>{msgEl.textContent="Could not reach that server.";};
+  ws.onclose=()=>{ if(NET.online){log("Disconnected from server.","bad");NET.online=false;
+    for(const id of [...remotes.keys()])removeRemote(id);} };
+  ws.onmessage=(ev)=>{let m;try{m=JSON.parse(ev.data);}catch{return;}
+    if(m.t==="authfail"){msgEl.className="";msgEl.textContent=m.why;}
+    else if(m.t==="authok"){NET.id=m.id;NET.user=m.user;NET.online=true;
+      applyProfile(m.profile); startGame(true); }
+    else if(m.t==="snapshot"){const seen=new Set();
+      for(const p of m.players){if(p.id===NET.id)continue;seen.add(p.id);upsertRemote(p);}
+      for(const id of [...remotes.keys()])if(!seen.has(id))removeRemote(id);}
+    else if(m.t==="join"){/* presence appears via snapshot */}
+    else if(m.t==="leave"){removeRemote(m.id);}
+    else if(m.t==="chat"){log(`${m.from}: ${m.msg}`, m.from===NET.user?"loot":"sys");}
+  };
+}
+
+/* ---------------- Login screen wiring ---------------------- */
+let gameStarted=false;
+function startGame(online){
+  if(gameStarted){document.getElementById("login").style.display="none";return;}
+  gameStarted=true;
+  document.getElementById("login").style.display="none";
+  if(online){document.getElementById("chatinput").style.display="block";
+    log("Connected to server as "+NET.user+".","xp");}
+  else log("Playing offline (single-player).","sys");
+  refreshUI(); updateRunUI();
+  requestAnimationFrame(loop);
+}
+(function initLogin(){
+  const srv=document.getElementById("lg-server");
+  srv.value = location.protocol.startsWith("http") ? ("ws://"+location.host) : "ws://localhost:8787";
+  const u=()=>document.getElementById("lg-user").value, p=()=>document.getElementById("lg-pass").value;
+  const needCreds=()=>{const ok=u().trim()&&p();if(!ok)document.getElementById("lg-msg").textContent="Enter a username and password.";return ok;};
+  document.getElementById("lg-login").onclick=()=>{if(needCreds())netConnect(srv.value.trim(),"login",u().trim(),p());};
+  document.getElementById("lg-register").onclick=()=>{if(needCreds())netConnect(srv.value.trim(),"register",u().trim(),p());};
+  document.getElementById("lg-offline").onclick=()=>startGame(false);
+  document.getElementById("lg-pass").addEventListener("keydown",e=>{if(e.key==="Enter")document.getElementById("lg-login").click();});
+  // chat input (online)
+  const cb=document.getElementById("chatbox");
+  cb.addEventListener("keydown",e=>{e.stopPropagation();
+    if(e.key==="Enter"){const v=cb.value.trim();if(v&&NET.online)netSend({t:"chat",msg:v});cb.value="";cb.blur();}
+    if(e.key==="Escape"){cb.value="";cb.blur();}});
+})();
+
+/* ============================================================ *
  *  BOOT
  * ============================================================ */
 resize();
@@ -1685,12 +1826,9 @@ updateMarkers();
 log("Welcome to Gunscape Classic 3D!","sys");
 log("Explore: Greenfields (N), Mistwood (E), Dust Reach (S), Scarlands (W).","sys");
 log("Talk to townsfolk with a ! above their head for quests. Click the shopkeeper to trade.","sys");
-log("Click a monster to auto-fight it. Right-click for options. Don't die — you drop everything!","sys");
-log("Chop trees with your hatchet, light logs for a campfire, then cook raw meat on it.","sys");
-log("Hold Tab to pick an attack style. Toggle run by the minimap (it burns energy).","sys");
-log("Goal: reach the mighty AK-47 (Aim 45) and topple the Warlords.","sys");
-refreshUI(); updateRunUI();
-requestAnimationFrame(loop);
+log("Chop trees, cook on campfires, bury bones for Prayer, recharge at altars.","sys");
+log("Hold Tab for attack style & prayers. Toggle run by the minimap.","sys");
+// game loop is started by the login screen (Login / Register / Play Offline)
 </script>
 </body>
 </html>
