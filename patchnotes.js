@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.14",
+ "version": "1.0.15",
  "generated": "2026-06-21",
  "patches": [
+  {
+   "version": "1.0.15",
+   "date": "2026-06-21",
+   "title": "Add CLAUDE.md; next change = full server-authoritative world",
+   "notes": []
+  },
   {
    "version": "1.0.14",
    "date": "2026-06-21",
