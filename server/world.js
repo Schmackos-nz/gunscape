@@ -9,7 +9,15 @@
  *  rewrite — the client renderer consumes `snapshot()`.
  * ============================================================ */
 import '../shared/world-data.js';   // UMD: under ESM `module` is undefined → assigns to globalThis
-const { MAP, BIOME_SPAWNS, biomeKind, WEAPON_COMBAT, ENEMY_STATS, GUN_TIERS, ARMOUR_TIERS, COMBAT_RANGE, inMulti } = globalThis;
+const { MAP, BIOME_SPAWNS, biomeKind, townAt, WEAPON_COMBAT, ENEMY_STATS, GUN_TIERS, ARMOUR_TIERS, COMBAT_RANGE, inMulti } = globalThis;
+// pick an enemy from a biome list, biased harder the further from the start town
+function pickByDist(list, dT) {
+  const cap = dT < 140 ? 40 : dT < 200 ? 78 : 999;
+  let pool = list.filter(t => ENEMY_STATS[t].cmb < cap); if (!pool.length) pool = list.slice();
+  const a = pool[Math.floor(Math.random() * pool.length)], b = pool[Math.floor(Math.random() * pool.length)];
+  const hi = ENEMY_STATS[a].cmb >= ENEMY_STATS[b].cmb ? a : b, lo = (hi === a) ? b : a;
+  return dT > 200 ? hi : (Math.random() < 0.55 ? hi : lo);
+}
 
 const rnd = (a, b) => a + Math.random() * (b - a);
 const randint = (a, b) => Math.floor(rnd(a, b + 1));
@@ -34,17 +42,11 @@ export class World {
       const kind = biomeKind(x, z);
       const list = BIOME_SPAWNS[kind];
       if (!list) continue;
-      if (Math.hypot(x - MAP.TOWN.x, z - MAP.TOWN.z) < MAP.TOWN_SAFE) continue;
-      if (Math.hypot(x - MAP.OUTPOST.x, z - MAP.OUTPOST.z) < MAP.OUTPOST_SAFE) continue;
-      if (Math.hypot(x - MAP.TOWN2.x, z - MAP.TOWN2.z) < MAP.TOWN2_SAFE) continue;
+      if (townAt(x, z)) continue;                       // no spawns in any town
+      const dT = Math.hypot(x - MAP.TOWN.x, z - MAP.TOWN.z);
       let type;
-      if (Math.hypot(x - MAP.TOWN.x, z - MAP.TOWN.z) < MAP.STARTER_R) {
-        type = Math.random() < 0.6 ? 'rat' : 'thug';   // starter zone: cmb 2 & 7 only
-      } else {
-        type = pick(list);
-        if (type === 'warlord' && Math.random() > 0.4) type = 'brute';
-        if (type === 'warlord' && Math.hypot(x - MAP.TOWN.x, z - MAP.TOWN.z) < 200) type = 'brute';
-      }
+      if (dT < MAP.STARTER_R) type = Math.random() < 0.6 ? 'rat' : 'thug';  // starter zone: cmb 2 & 7 only
+      else type = pickByDist(list, dT);                 // harder the further out
       const s = ENEMY_STATS[type];
       this.enemies.push({ id: this.nid++, type, x, z, ry: 0, hx: x, hz: z,
         hp: s.hp, maxhp: s.hp, dead: false, respawnAt: 0, lastShot: 0,

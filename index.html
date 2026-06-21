@@ -526,9 +526,7 @@ const altars=[];                      // prayer-recharge altars
 /* ---------------- Biomes ------------------------------------ */
 // Region by position. Returns {name, ground(hex), spawns[], aggro}
 function biomeAt(x,z){
-  if(Math.hypot(x-TOWN.x,z-TOWN.z)<34) return BIOMES.town;
-  if(Math.hypot(x-OUTPOST.x,z-OUTPOST.z)<22) return BIOMES.town;
-  if(Math.hypot(x-TOWN2.x,z-TOWN2.z)<34) return BIOMES.town;
+  for(const t of MAP.TOWNS){ if(Math.hypot(x-t.x,z-t.z)<t.r) return BIOMES.town; }
   if(z<-55) return BIOMES.grass;
   if(x>55)  return BIOMES.forest;
   if(z>55)  return BIOMES.desert;
@@ -536,11 +534,11 @@ function biomeAt(x,z){
   return BIOMES.grass;
 }
 const BIOMES={
-  town:    {name:"Riverside (safe)",ground:0x6a8f4a,spawns:[]},
-  grass:   {name:"Greenfields",     ground:0x5f8a3e,spawns:["rat","wolf"]},
-  forest:  {name:"Mistwood",        ground:0x3f6b35,spawns:["thug","raider","wolf"]},
-  desert:  {name:"Dust Reach",      ground:0xc6ab68,spawns:["scorpion","mercenary"]},
-  badlands:{name:"The Scarlands",   ground:0x7a5a48,spawns:["brute","sniper","warlord"]},
+  town:    {name:"Town (safe)",     ground:0x6a8f4a,spawns:[]},
+  grass:   {name:"Greenfields",     ground:0x5f8a3e,spawns:["rat","wolf","coyote"]},
+  forest:  {name:"Mistwood",        ground:0x3f6b35,spawns:["thug","raider","wolf","bandit","drone"]},
+  desert:  {name:"Dust Reach",      ground:0xc6ab68,spawns:["scorpion","mercenary","gunslinger","marauder"]},
+  badlands:{name:"The Scarlands",   ground:0x7a5a48,spawns:["brute","sniper","warlord","ironclad","reaver","behemoth"]},
 };
 
 /* ---------------- Terrain height (single source) ------------ */
@@ -548,8 +546,8 @@ const BIOMES={
 function _flatFactor(d,r){return d<r?0:Math.min(1,(d-r)/22);}
 function terrainHeight(x,z){
   const h=Math.sin(x*0.05)*Math.cos(z*0.05)*1.2+Math.sin(x*0.13+z*0.07)*0.5;
-  const f=Math.min(_flatFactor(Math.hypot(x-TOWN.x,z-TOWN.z),40),
-                   _flatFactor(Math.hypot(x-OUTPOST.x,z-OUTPOST.z),26));
+  let f=1;                                   // flatten the ground inside every town
+  for(const t of MAP.TOWNS) f=Math.min(f,_flatFactor(Math.hypot(x-t.x,z-t.z),t.r-6));
   return h*f;
 }
 /* ---------------- Terrain ----------------------------------- */
@@ -822,7 +820,7 @@ function populateOres(){
   let n=0,guard=0;
   while(n<46 && guard<5000){ guard++;
     const x=(Math.random()*2-1)*(HALF-14), z=(Math.random()*2-1)*(HALF-14);
-    if(Math.hypot(x-TOWN.x,z-TOWN.z)<30||Math.hypot(x-OUTPOST.x,z-OUTPOST.z)<24||Math.hypot(x-TOWN2.x,z-TOWN2.z)<30) continue;
+    if(townAtClient(x,z)) continue;
     let blocked=false; for(const bl of blockers){ if(Math.hypot(x-bl.x,z-bl.z)<bl.r+2){blocked=true;break;} } if(blocked) continue;
     const dT=Math.hypot(x-TOWN.x,z-TOWN.z), r=Math.random();
     let ore;
@@ -982,6 +980,7 @@ function buildTown(center,houses,name){
 buildTown(TOWN,8,"Riverside");
 buildTown(OUTPOST,5,"Forest Outpost");
 buildTown(TOWN2,6,"Tinhollow");        // new quest-giver village (Hunter Bex & Joss live here now)
+for(let i=3;i<MAP.TOWNS.length;i++){const t=MAP.TOWNS[i]; buildTown(new THREE.Vector3(t.x,0,t.z),6,t.name);}  // 5 more villages
 
 // shopkeeper lives inside a shop building in the main town
 makeHouse(6,11,10,9,0xb98a5a);
@@ -1069,8 +1068,11 @@ addPOI("Forest Outpost",OUTPOST.x,OUTPOST.z);
 makeAltar(TOWN.x-12,TOWN.z-12);
 makeAltar(OUTPOST.x+10,OUTPOST.z+10);
 makeWorkshop(TOWN2.x, TOWN2.z+15);     // rare gunsmithing forge + workbench (only Tinhollow has one)
-makeFurnace(TOWN.x+14, TOWN.z-12);     // refining furnaces in the main towns
+makeFurnace(TOWN.x+14, TOWN.z-12);     // refining furnaces across the towns
 makeFurnace(TOWN2.x-13, TOWN2.z+4);
+makeFurnace(MAP.TOWNS[3].x+13, MAP.TOWNS[3].z);   // Greenreach
+makeFurnace(MAP.TOWNS[5].x-13, MAP.TOWNS[5].z);   // Ironcross
+makeFurnace(MAP.TOWNS[6].x+13, MAP.TOWNS[6].z);   // Mistvale
 populateOres();                         // scatter mineable ore rocks across the wild
 
 // Multi-combat zones come from shared/world-data.js (MULTI_ZONES / inMulti).
@@ -1194,6 +1196,14 @@ const ENEMY_BUILDERS={
   sniper:   ()=>makeHumanoid({height:3.9,shirt:0x55503a,pants:0x33301f,gunColor:0x000,gunType:"rifle"}),
   brute:    ()=>makeHumanoid({height:4.8,shirt:0x6a4a3a,pants:0x3a2a22,skin:0xa07a5a,gunColor:0x222,gunType:"shotgun"}),
   warlord:  ()=>makeHumanoid({height:5.2,shirt:0x7a2a6a,pants:0x3a173a,skin:0xb88,gunColor:0x3a2a18,gunType:"ak"}),
+  coyote:   ()=>makeBeast({color:0xb08a4a,size:0.95}),
+  bandit:   ()=>makeHumanoid({height:3.6,shirt:0x6a5a3a,pants:0x2a2a2a,gunType:"revolver"}),
+  drone:    ()=>makeHumanoid({height:3.0,shirt:0x4a5a6a,pants:0x33384a,skin:0x8aa0b0,gunColor:0x222,gunType:"smg"}),
+  gunslinger:()=>makeHumanoid({height:3.8,shirt:0x7a5a2a,pants:0x3a2a1a,gunType:"revolver"}),
+  marauder: ()=>makeHumanoid({height:4.0,shirt:0x5a3a2a,pants:0x2a1a12,skin:0xa07a5a,gunType:"shotgun"}),
+  ironclad: ()=>makeHumanoid({height:4.6,shirt:0x6a6e72,pants:0x44484c,skin:0x9a8a7a,gunColor:0x222,gunType:"shotgun"}),
+  reaver:   ()=>makeHumanoid({height:4.4,shirt:0x5a2a4a,pants:0x2a142a,gunType:"ak"}),
+  behemoth: ()=>makeHumanoid({height:5.6,shirt:0x3a2a3a,pants:0x1a121a,skin:0x9a7a6a,gunColor:0x111,gunType:"ak"}),
 };
 const ENEMY_TYPES={};
 for(const k in ENEMY_STATS) ENEMY_TYPES[k]=Object.assign({},ENEMY_STATS[k],{build:ENEMY_BUILDERS[k]});
@@ -1211,27 +1221,27 @@ function spawnEnemy(type,x,z){
   e.plate=makePlate(e); mesh.add(e.plate);
   enemies.push(e); return e;
 }
+function townAtClient(x,z){for(const t of MAP.TOWNS)if(Math.hypot(x-t.x,z-t.z)<t.r)return t;return null;}
+function pickByDist(list,dT){
+  const cap=dT<140?40:dT<200?78:999;
+  let pool=list.filter(t=>ENEMY_STATS[t].cmb<cap); if(!pool.length)pool=list.slice();
+  const a=pool[Math.floor(Math.random()*pool.length)], b=pool[Math.floor(Math.random()*pool.length)];
+  const hi=ENEMY_STATS[a].cmb>=ENEMY_STATS[b].cmb?a:b, lo=(hi===a)?b:a;
+  return dT>200?hi:(Math.random()<0.55?hi:lo);
+}
 function populateWorld(){
   let placed=0, guard=0;
-  while(placed<130 && guard<8000){
+  while(placed<150 && guard<9000){
     guard++;
     const x=(Math.random()*2-1)*(HALF-12), z=(Math.random()*2-1)*(HALF-12);
     const b=biomeAt(x,z);
     if(!b.spawns.length) continue;
-    if(Math.hypot(x-TOWN.x,z-TOWN.z)<42) continue;
-    if(Math.hypot(x-OUTPOST.x,z-OUTPOST.z)<26) continue;
-    if(Math.hypot(x-TOWN2.x,z-TOWN2.z)<40) continue;
+    if(townAtClient(x,z)) continue;
     let blockedSpot=false;
     for(const bl of blockers){ if(Math.hypot(x-bl.x,z-bl.z)<bl.r+1.5){blockedSpot=true;break;} }
     if(blockedSpot) continue;
-    let type;
-    if(Math.hypot(x-TOWN.x,z-TOWN.z)<MAP.STARTER_R){
-      type=Math.random()<0.6?"rat":"thug";              // starter zone: low-level only (cmb 2 & 7)
-    } else {
-      type=b.spawns[Math.floor(Math.random()*b.spawns.length)];
-      if(type==="warlord"&&Math.random()>0.4) type="brute"; // warlords rarer
-      if(type==="warlord"&&Math.hypot(x-TOWN.x,z-TOWN.z)<200) type="brute";
-    }
+    const dT=Math.hypot(x-TOWN.x,z-TOWN.z);
+    const type=dT<MAP.STARTER_R ? (Math.random()<0.6?"rat":"thug") : pickByDist(b.spawns,dT);
     spawnEnemy(type,x,z); placed++;
   }
 }

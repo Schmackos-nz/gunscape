@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.20",
+ "version": "1.0.21",
  "generated": "2026-06-21",
  "patches": [
+  {
+   "version": "1.0.21",
+   "date": "2026-06-22",
+   "title": "Expand the world: 8 towns, 8 new monsters, difficulty gradient",
+   "notes": []
+  },
   {
    "version": "1.0.20",
    "date": "2026-06-21",
