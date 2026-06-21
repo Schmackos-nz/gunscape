@@ -361,9 +361,15 @@ const RAWFOOD={
 };
 const TOOLS={
   hatchet:{name:"Hatchet",ic:"🪓",price:45,cat:"tool",desc:"Chop trees for logs. Keep it in your pack."},
+  pickaxe:{name:"Pickaxe",ic:"⛏️",price:60,cat:"tool",desc:"Mine rocks for ore. Keep it in your pack."},
 };
 const MISC={
   scrap:{name:"Scrap",ic:"⚙️",price:4,cat:"misc",desc:"Salvaged junk. Forge it with metal into gun parts."},
+  // Mining ores (mine rocks, smelt at a furnace into metal bits)
+  stone:{name:"Stone",ic:"🪨",price:1,cat:"material",desc:"A lump of rock."},
+  iron_ore:{name:"Iron Ore",ic:"🟤",price:10,cat:"material",desc:"Smelt at a furnace into Iron Bits."},
+  steel_ore:{name:"Steel Ore",ic:"⬜",price:24,cat:"material",desc:"Smelt at a furnace into Steel Bits."},
+  titanium_ore:{name:"Titanium Ore",ic:"⬛",price:52,cat:"material",desc:"Smelt at a furnace into Titanium Bits."},
   // Gunsmithing metals (drop from enemies — tougher foes drop better metal)
   iron_bits:{name:"Iron Bits",ic:"🔩",price:8,cat:"material",desc:"Crude iron salvage. Forge into gun parts."},
   steel_bits:{name:"Steel Bits",ic:"⛓️",price:18,cat:"material",desc:"Hardened steel salvage."},
@@ -411,9 +417,9 @@ const player={
   speed:18, hp:100, lastShot:0, flinchUntil:0, walk:0, regen:0,
   skills:{aim:{xp:0,lv:1},composure:{xp:0,lv:1},armour:{xp:0,lv:1},vitality:{xp:xpForLevel(10),lv:10},
           woodcutting:{xp:0,lv:1},cooking:{xp:0,lv:1},agility:{xp:0,lv:1},prayer:{xp:0,lv:1},
-          gunsmithing:{xp:0,lv:1}},
+          gunsmithing:{xp:0,lv:1},mining:{xp:0,lv:1},refining:{xp:0,lv:1}},
   equip:{weapon:"zip",head:null,body:"cloth_shirt",legs:"cloth_pants"},
-  inv:[{k:"bandage",n:5},{k:"cloth_hood",n:1},{k:"hatchet",n:1},{k:"coins",n:40}],
+  inv:[{k:"bandage",n:5},{k:"cloth_hood",n:1},{k:"hatchet",n:1},{k:"pickaxe",n:1},{k:"coins",n:40}],
   mesh:null, pickupTarget:null, talkTarget:null, chopTarget:null, doorTarget:null, altarTarget:null,
   lastChop:0, lastCook:0, quests:{},
   running:true, energy:100, runTimer:0,
@@ -581,7 +587,49 @@ function blobShadow(r){const m=new THREE.Mesh(new THREE.CircleGeometry(r,16),
   new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:0.28}));
   m.rotation.x=-Math.PI/2;m.position.y=0.08;m.userData.noOutline=true;return m;}
 
-// Humanoid (faces +Z). opts: {height, shirt, skin, pants, gun, gunColor}
+// Build a recognisable gun model (faces +Z, sits in the right hand)
+function makeGunModel(type,col){
+  const g=new THREE.Group(), M=TEX.metal, dark=col||0x2a2a2e, steel=0x4a4e55, wood=0x6b4a2a;
+  const B=(w,h,d,c)=>box(w,h,d,c,M);
+  const tube=(r,len,c)=>{const m=cyl(r,r,len,c,8,M);m.rotation.x=Math.PI/2;return m;};
+  if(type==="zip"){
+    g.add(Object.assign(B(0.16,0.26,0.5,dark),{}));
+    const bar=B(0.1,0.1,0.5,steel);bar.position.z=0.45;g.add(bar);
+    const grip=B(0.14,0.3,0.18,dark);grip.position.set(0,-0.22,-0.12);grip.rotation.x=0.32;g.add(grip);
+  } else if(type==="revolver"){
+    g.add(B(0.16,0.24,0.5,dark));
+    const bar=B(0.1,0.12,0.6,steel);bar.position.z=0.5;g.add(bar);
+    const cy=tube(0.13,0.22,0x555);cy.position.z=0.14;g.add(cy);
+    const grip=B(0.14,0.34,0.2,wood);grip.position.set(0,-0.24,-0.12);grip.rotation.x=0.34;g.add(grip);
+  } else if(type==="smg"){
+    g.add(B(0.2,0.3,0.7,dark));
+    const bar=B(0.1,0.1,0.5,steel);bar.position.z=0.55;g.add(bar);
+    const mag=B(0.12,0.5,0.18,steel);mag.position.set(0,-0.36,0.05);g.add(mag);
+    const grip=B(0.14,0.3,0.18,dark);grip.position.set(0,-0.24,-0.22);grip.rotation.x=0.3;g.add(grip);
+    const stk=B(0.12,0.16,0.5,dark);stk.position.z=-0.55;g.add(stk);
+  } else if(type==="shotgun"){
+    g.add(B(0.18,0.24,0.95,dark));
+    const bar=B(0.13,0.17,1.0,steel);bar.position.z=0.95;g.add(bar);
+    const pump=B(0.16,0.16,0.3,wood);pump.position.set(0,-0.13,0.6);g.add(pump);
+    const stk=B(0.14,0.26,0.6,wood);stk.position.z=-0.7;g.add(stk);
+  } else if(type==="rifle"){
+    g.add(B(0.16,0.22,1.0,dark));
+    const bar=tube(0.05,1.5,steel);bar.position.z=1.15;g.add(bar);
+    const scope=tube(0.07,0.4,0x111);scope.position.set(0,0.2,0.1);g.add(scope);
+    const stk=B(0.14,0.26,0.7,wood);stk.position.z=-0.7;g.add(stk);
+  } else if(type==="ak"){
+    g.add(B(0.18,0.26,1.1,dark));
+    const bar=tube(0.05,0.95,steel);bar.position.z=1.0;g.add(bar);
+    const mag=B(0.14,0.5,0.28,0x3a2a14);mag.position.set(0,-0.32,0.18);mag.rotation.x=-0.5;g.add(mag);
+    const grip=B(0.14,0.3,0.18,wood);grip.position.set(0,-0.24,-0.18);grip.rotation.x=0.3;g.add(grip);
+    const stk=B(0.14,0.22,0.7,wood);stk.position.z=-0.85;g.add(stk);
+  } else {
+    g.add(B(0.18,0.2,1.0,dark));
+    const bar=B(0.1,0.1,0.6,steel);bar.position.z=0.7;g.add(bar);
+  }
+  return g;
+}
+// Humanoid (faces +Z). opts: {height, shirt, skin, pants, gun, gunType, gunColor}
 function makeHumanoid(o){
   o=o||{}; const g=new THREE.Group();
   const skin=o.skin??0xc8a07a, shirt=o.shirt??0x4a90d9, pants=o.pants??0x33384a;
@@ -593,8 +641,8 @@ function makeHumanoid(o){
   const armR=box(0.3,1.15,0.3,shirt,TEX.fabric); armR.position.set(0.66,2.05,0.15);
   g.add(legL,legR,torso,head,armL,armR);
   if(o.gun!==false){
-    const gun=box(0.22,0.22,o.gunLen??1.2,o.gunColor??0x222222,TEX.metal);
-    gun.position.set(0.5,2.0,0.75); g.add(gun);
+    const gun=makeGunModel(o.gunType||"rifle",o.gunColor);
+    gun.position.set(0.55,2.0,0.55); g.add(gun);
   }
   g.add(blobShadow(0.85));
   const s=(o.height??3.6)/3.6; g.scale.setScalar(s);
@@ -746,6 +794,38 @@ function makeRock(x,z,s){
   const r=new THREE.Mesh(new THREE.DodecahedronGeometry(s),toonMat({color:0x8a8378,map:TEX.plaster}));
   r.position.set(x,terrainHeight(x,z)+s*0.5,z); scene.add(r); addBlocker(x,z,s*0.8);
 }
+/* ---------------- Mining: ore rocks --------------------------- */
+const oreNodes=[];
+const ORE_DEFS={
+  stone:        {lvl:1,  xp:8,  col:0x9a948a, vein:0xb4aea4},
+  iron_ore:     {lvl:1,  xp:18, col:0x8a8378, vein:0xb5773a},
+  steel_ore:    {lvl:20, xp:34, col:0x8a8d92, vein:0xd0d4db},
+  titanium_ore: {lvl:40, xp:60, col:0x6f7478, vein:0x7ad0d0},
+};
+function makeOreRock(x,z,ore){
+  const d=ORE_DEFS[ore], g=new THREE.Group(); g.position.set(x,terrainHeight(x,z),z);
+  const s=1.4+Math.random()*0.5;
+  const rock=new THREE.Mesh(new THREE.DodecahedronGeometry(s),toonMat({color:d.col,map:TEX.plaster})); rock.position.y=s*0.5; g.add(rock);
+  for(let i=0;i<5;i++){const v=box(0.3,0.3,0.3,d.vein,TEX.metal);
+    v.position.set((Math.random()-0.5)*s*1.2,s*0.4+Math.random()*s*0.6,(Math.random()-0.5)*s*1.2); g.add(v);}
+  scene.add(g); addBlocker(x,z,s*0.8);
+  const node={group:g,rock,pos:new THREE.Vector3(x,0,z),ore,lvl:d.lvl,depleted:false,respawnAt:0};
+  g.userData.ore=node; oreNodes.push(node); return node;
+}
+function populateOres(){
+  let n=0,guard=0;
+  while(n<46 && guard<5000){ guard++;
+    const x=(Math.random()*2-1)*(HALF-14), z=(Math.random()*2-1)*(HALF-14);
+    if(Math.hypot(x-TOWN.x,z-TOWN.z)<30||Math.hypot(x-OUTPOST.x,z-OUTPOST.z)<24||Math.hypot(x-TOWN2.x,z-TOWN2.z)<30) continue;
+    let blocked=false; for(const bl of blockers){ if(Math.hypot(x-bl.x,z-bl.z)<bl.r+2){blocked=true;break;} } if(blocked) continue;
+    const dT=Math.hypot(x-TOWN.x,z-TOWN.z), r=Math.random();
+    let ore;
+    if(dT<MAP.STARTER_R) ore=r<0.5?"stone":"iron_ore";
+    else if(dT<175) ore=r<0.3?"stone":(r<0.78?"iron_ore":"steel_ore");
+    else ore=r<0.25?"iron_ore":(r<0.65?"steel_ore":"titanium_ore");
+    makeOreRock(x,z,ore); n++;
+  }
+}
 function makeAltar(x,z){
   const g=new THREE.Group(); g.position.set(x,terrainHeight(x,z),z);
   const base=box(3,1.2,2,0x8d96a0); base.position.y=0.6; g.add(base);
@@ -791,29 +871,51 @@ function makeWorkshop(x,z){
   const bO={kind:"bench",pos:new THREE.Vector3(x+2.4,0,z),mesh:bench}; bench.userData.workshop=bO; workshops.push(bO);
   addPOI("Workshop",x,z);
 }
-let craftKind=null;
-function openCraft(kind){craftKind=kind;
-  document.getElementById("cw-title").textContent=kind==="forge"?"Forge — smelt parts":"Workbench — build guns";
+// Furnace: smelt mined ore into metal bits (Refining skill)
+const REFINE_RECIPES=[
+  {out:"iron_bits",     lvl:1,  xp:16, in:[["iron_ore",1]]},
+  {out:"steel_bits",    lvl:20, xp:36, in:[["steel_ore",1]]},
+  {out:"titanium_bits", lvl:40, xp:64, in:[["titanium_ore",1]]},
+];
+function makeFurnace(x,z){
+  const g=new THREE.Group(); g.position.set(x,terrainHeight(x,z),z);
+  const base=box(2.6,2.2,2.4,0x6a6058,TEX.plaster); base.position.y=1.1; g.add(base);
+  const chim=box(0.9,1.8,0.9,0x4a443e,TEX.plaster); chim.position.set(0.7,2.9,-0.5); g.add(chim);
+  const mouth=box(1.3,1.0,0.4,0xff7a2a); mouth.position.set(0,1.0,1.25); mouth.userData.noOutline=true; g.add(mouth);
+  const light=new THREE.PointLight(0xff7a2a,0.9,9); light.position.set(0,1.3,1.5); g.add(light);
+  scene.add(g); addBlocker(x,z,1.7);
+  const fO={kind:"furnace",pos:new THREE.Vector3(x,0,z+2.4),mesh:g}; g.userData.workshop=fO; workshops.push(fO);
+  addPOI("Furnace",x,z);
+}
+// crafting stations: each has its own recipe list + governing skill
+const STATIONS={
+  forge:  {title:"Forge — smelt parts",   recipes:FORGE_RECIPES,  skill:"gunsmithing", skillName:"Gunsmithing", verb:"forge"},
+  bench:  {title:"Workbench — build guns", recipes:BENCH_RECIPES,  skill:"gunsmithing", skillName:"Gunsmithing", verb:"build"},
+  furnace:{title:"Furnace — refine ore",   recipes:REFINE_RECIPES, skill:"refining",    skillName:"Refining",    verb:"smelt"},
+};
+const STATION_VERB={forge:"Use forge",bench:"Use workbench",furnace:"Use furnace"};
+let craftStation=null;
+function openCraft(kind){craftStation=STATIONS[kind]; if(!craftStation)return;
+  document.getElementById("cw-title").textContent=craftStation.title;
   document.getElementById("craftwin").classList.add("show"); sfxClick(); renderCraft();}
-function closeCraft(){craftKind=null;document.getElementById("craftwin").classList.remove("show");}
-function craftRecipes(){return craftKind==="forge"?FORGE_RECIPES:BENCH_RECIPES;}
-function canCraft(r){return player.skills.gunsmithing.lv>=r.lvl && r.in.every(([k,n])=>invCount(k)>=n);}
-function renderCraft(){const el=document.getElementById("cw-list");
-  el.innerHTML=craftRecipes().map((r,i)=>{const it=ITEMS[r.out];
-    const lvlOk=player.skills.gunsmithing.lv>=r.lvl;
+function closeCraft(){craftStation=null;document.getElementById("craftwin").classList.remove("show");}
+function canCraft(r){return player.skills[craftStation.skill].lv>=r.lvl && r.in.every(([k,n])=>invCount(k)>=n);}
+function renderCraft(){const el=document.getElementById("cw-list"); const sk=craftStation.skill;
+  el.innerHTML=craftStation.recipes.map((r,i)=>{const it=ITEMS[r.out];
+    const lvlOk=player.skills[sk].lv>=r.lvl;
     const reqs=r.in.map(([k,n])=>`<span class="${invCount(k)>=n?'ok':'no'}">${ITEMS[k].ic}${ITEMS[k].name} ${invCount(k)}/${n}</span>`).join(" · ");
     const ok=canCraft(r);
     return `<div class="cw-r ${ok?'':'locked'}">
       <div><div class="nm">${it.ic} ${it.name}</div>
-        <div class="req">Gunsmithing ${r.lvl}${lvlOk?'':' ✗'} · ${reqs} · +${r.xp} xp</div></div>
+        <div class="req">${craftStation.skillName} ${r.lvl}${lvlOk?'':' ✗'} · ${reqs} · +${r.xp} xp</div></div>
       <button class="btn" data-ri="${i}" ${ok?'':'disabled'}>Make</button></div>`;}).join("");
-  el.querySelectorAll("button[data-ri]").forEach(b=>b.onclick=()=>doCraft(craftRecipes()[+b.dataset.ri]));
+  el.querySelectorAll("button[data-ri]").forEach(b=>b.onclick=()=>doCraft(craftStation.recipes[+b.dataset.ri]));
 }
 function doCraft(r){ if(!canCraft(r)){log("You can't make that yet.","bad");return;}
   for(const [k,n] of r.in) removeItem(k,n);
-  addItem(r.out,1); gainXp("gunsmithing",r.xp);
+  addItem(r.out,1); gainXp(craftStation.skill,r.xp);
   sfxClick(); tone(300,0.08,"square",0.14,520);
-  log(`You ${craftKind==="forge"?"forge":"build"} a ${ITEMS[r.out].name}.`,"loot");
+  log(`You ${craftStation.verb} a ${ITEMS[r.out].name}.`,"loot");
   renderCraft(); refreshUI();
 }
 
@@ -933,6 +1035,9 @@ addPOI("Forest Outpost",OUTPOST.x,OUTPOST.z);
 makeAltar(TOWN.x-12,TOWN.z-12);
 makeAltar(OUTPOST.x+10,OUTPOST.z+10);
 makeWorkshop(TOWN2.x, TOWN2.z+15);     // rare gunsmithing forge + workbench (only Tinhollow has one)
+makeFurnace(TOWN.x+14, TOWN.z-12);     // refining furnaces in the main towns
+makeFurnace(TOWN2.x-13, TOWN2.z+4);
+populateOres();                         // scatter mineable ore rocks across the wild
 
 // Multi-combat zones come from shared/world-data.js (MULTI_ZONES / inMulti).
 function inMultiCombat(x,z){return inMulti(x,z);}
@@ -1048,13 +1153,13 @@ function completeQuest(id){const q=QUESTS[id];
 const ENEMY_BUILDERS={
   rat:      ()=>makeBeast({color:0x7a6a55,size:0.7}),
   wolf:     ()=>makeBeast({color:0x6a6a72,size:1.05}),
-  thug:     ()=>makeHumanoid({height:3.5,shirt:0x8a4b3a,gunColor:0x333,gunLen:1.0}),
-  raider:   ()=>makeHumanoid({height:3.7,shirt:0x44597a,pants:0x2a2f3a,gunLen:1.3}),
+  thug:     ()=>makeHumanoid({height:3.5,shirt:0x8a4b3a,gunColor:0x333,gunType:"revolver"}),
+  raider:   ()=>makeHumanoid({height:3.7,shirt:0x44597a,pants:0x2a2f3a,gunType:"smg"}),
   scorpion: ()=>makeScorpion({color:0x9a6a3a,size:1.4}),
-  mercenary:()=>makeHumanoid({height:3.9,shirt:0x3a7a4a,pants:0x223322,gunColor:0x111,gunLen:1.6}),
-  sniper:   ()=>makeHumanoid({height:3.9,shirt:0x55503a,pants:0x33301f,gunColor:0x000,gunLen:2.4}),
-  brute:    ()=>makeHumanoid({height:4.8,shirt:0x6a4a3a,pants:0x3a2a22,skin:0xa07a5a,gunColor:0x222,gunLen:1.4}),
-  warlord:  ()=>makeHumanoid({height:5.2,shirt:0x7a2a6a,pants:0x3a173a,skin:0xb88,gunColor:0x000,gunLen:2.0}),
+  mercenary:()=>makeHumanoid({height:3.9,shirt:0x3a7a4a,pants:0x223322,gunColor:0x111,gunType:"smg"}),
+  sniper:   ()=>makeHumanoid({height:3.9,shirt:0x55503a,pants:0x33301f,gunColor:0x000,gunType:"rifle"}),
+  brute:    ()=>makeHumanoid({height:4.8,shirt:0x6a4a3a,pants:0x3a2a22,skin:0xa07a5a,gunColor:0x222,gunType:"shotgun"}),
+  warlord:  ()=>makeHumanoid({height:5.2,shirt:0x7a2a6a,pants:0x3a173a,skin:0xb88,gunColor:0x3a2a18,gunType:"ak"}),
 };
 const ENEMY_TYPES={};
 for(const k in ENEMY_STATS) ENEMY_TYPES[k]=Object.assign({},ENEMY_STATS[k],{build:ENEMY_BUILDERS[k]});
@@ -1183,9 +1288,8 @@ function buildPlayerMesh(){
   const head=player.equip.head?ARMOUR_TINT[ITEMS[player.equip.head].mat]:0xc8a07a;
   const legs=player.equip.legs?ARMOUR_TINT[ITEMS[player.equip.legs].mat]:0x33384a;
   const w=WEAPONS[player.equip.weapon]||WEAPONS.fists;
-  const gunLen=({fists:0.1,zip:0.9,revolver:1.0,smg:1.3,shotgun:1.5,rifle:2.4,ak:1.8})[player.equip.weapon]||1.2;
   player.mesh=makeHumanoid({height:3.7,shirt:body,skin:head,pants:legs,
-    gun:player.equip.weapon!=="fists",gunLen,gunColor:player.equip.weapon==="ak"?0x4a2a10:0x222});
+    gun:player.equip.weapon!=="fists",gunType:player.equip.weapon,gunColor:player.equip.weapon==="ak"?0x3a2a18:0x2a2a2e});
   // helmet hint
   if(player.equip.head){const hat=box(0.8,0.3,0.8,head);hat.position.y=3.45;player.mesh.add(hat);}
   addOutline(player.mesh);
@@ -1398,6 +1502,20 @@ function chopTick(now){
 }
 function depleteTree(tr){tr.depleted=true; tr.foliage.visible=false; tr.respawnAt=performance.now()+14000;
   log("The tree is chopped down.","sys"); if(player.chopTarget===tr)player.chopTarget=null;}
+function hasPick(){return invCount("pickaxe")>0;}
+function mineTick(now){
+  const nd=player.mineTarget; if(!nd||nd.depleted)return;
+  if(!hasPick()){log("You need a pickaxe to mine.","bad");player.mineTarget=null;return;}
+  if(player.skills.mining.lv<nd.lvl){log(`You need Mining level ${nd.lvl} to mine that rock.`,"bad");player.mineTarget=null;return;}
+  if(now-(player.lastMine||0)<1300)return; player.lastMine=now; sfxChop();
+  const lv=player.skills.mining.lv;
+  if(Math.random()<0.35+lv*0.012){
+    addItem(nd.ore,1); gainXp("mining",ORE_DEFS[nd.ore].xp); floater(nd.pos,"+"+ITEMS[nd.ore].name,"#caa66a");
+    if(Math.random()<0.18) depleteOre(nd);
+  }
+}
+function depleteOre(nd){nd.depleted=true; nd.group.visible=false; nd.respawnAt=performance.now()+16000;
+  log("The rock is mined out.","sys"); if(player.mineTarget===nd)player.mineTarget=null;}
 
 /* ---------------- Cooking & campfires ----------------------- */
 function makeFire(x,z){
@@ -1706,7 +1824,7 @@ function castAt(clientX,clientY){
   const r=renderer.domElement.getBoundingClientRect();
   mouse.x=((clientX-r.left)/r.width)*2-1; mouse.y=-((clientY-r.top)/r.height)*2+1;
   raycaster.setFromCamera(mouse,camera);
-  const res={enemy:null,npc:null,shop:false,drop:null,tree:null,door:null,altar:null,player:null,stairs:null,workshop:null,point:null};
+  const res={enemy:null,npc:null,shop:false,drop:null,tree:null,door:null,altar:null,player:null,stairs:null,workshop:null,ore:null,point:null};
   if(NET.online){ // server-driven enemies + loot
     const eh=raycaster.intersectObjects([...serverEnemies.values()].map(s=>s.mesh),true);
     if(eh.length){let o=eh[0].object;while(o&&o.userData.serverEnemy==null)o=o.parent;if(o)res.enemy=serverEnemies.get(o.userData.serverEnemy);}
@@ -1733,6 +1851,8 @@ function castAt(clientX,clientY){
   if(sh.length)res.stairs=sh[0].object.userData.stairs;
   const wh=raycaster.intersectObjects(workshops.map(s=>s.mesh),true);
   if(wh.length){let o=wh[0].object;while(o&&!o.userData.workshop)o=o.parent;if(o)res.workshop=o.userData.workshop;}
+  const oh=raycaster.intersectObjects(oreNodes.filter(n=>!n.depleted).map(n=>n.group),true);
+  if(oh.length){let o=oh[0].object;while(o&&!o.userData.ore)o=o.parent;if(o)res.ore=o.userData.ore;}
   const gh=raycaster.intersectObject(ground);
   if(gh.length)res.point=new THREE.Vector3(gh[0].point.x,0,gh[0].point.z);
   return res;
@@ -1740,7 +1860,7 @@ function castAt(clientX,clientY){
 function toggleDoor(ds){ds.open=!ds.open;sfxClick();log(ds.open?"You open the door.":"You close the door.");}
 function clearActions(){player.target=null;player.dest=null;player.pickupTarget=null;
   player.talkTarget=null;player.chopTarget=null;player.doorTarget=null;player.altarTarget=null;
-  player.clickMark=null;player.pvpTarget=null;player.path=null;player.stairTarget=null;player.workshopTarget=null;
+  player.clickMark=null;player.pvpTarget=null;player.path=null;player.stairTarget=null;player.workshopTarget=null;player.mineTarget=null;
   if(dialogOpen)closeDialog();}
 function useStairs(s){ if(player.floor===0){player.floor=1;player.yOffset=FLOOR_H;player.pos.set(s.topX,0,s.topZ);log("You climb the stairs.");}
   else{player.floor=0;player.yOffset=0;player.pos.set(s.x,0,s.z);log("You go downstairs.");} sfxClick(); }
@@ -1759,6 +1879,7 @@ renderer.domElement.addEventListener("mousedown",e=>{
   if(h.altar){clearActions();player.altarTarget=h.altar;return;}
   if(h.stairs){clearActions();player.stairTarget=h.stairs;return;}
   if(h.workshop){clearActions();player.workshopTarget=h.workshop;return;}
+  if(h.ore){clearActions();player.mineTarget=h.ore;return;}
   if(h.drop){clearActions();player.pickupTarget=h.drop;return;}
   if(h.tree){clearActions();player.chopTarget=h.tree;return;}
   if(h.point){clearActions();const t=nearestOpen(h.point.x,h.point.z);
@@ -1807,7 +1928,8 @@ function openWorldMenu(cx,cy){
   if(h.door) opts.push([h.door.open?"Close door":"Open door",()=>{clearActions();player.doorTarget=h.door;}]);
   if(h.altar) opts.push(["Pray at altar",()=>{clearActions();player.altarTarget=h.altar;}]);
   if(h.stairs) opts.push([player.floor===0?"Climb stairs":"Go downstairs",()=>{clearActions();player.stairTarget=h.stairs;}]);
-  if(h.workshop) opts.push([h.workshop.kind==="forge"?"Use forge":"Use workbench",()=>{clearActions();player.workshopTarget=h.workshop;}]);
+  if(h.workshop) opts.push([STATION_VERB[h.workshop.kind]||"Use",()=>{clearActions();player.workshopTarget=h.workshop;}]);
+  if(h.ore) opts.push(["Mine rock",()=>{clearActions();player.mineTarget=h.ore;}]);
   if(h.tree) opts.push(["Chop down tree",()=>{clearActions();player.chopTarget=h.tree;}]);
   if(h.drop) opts.push(["Take "+ITEMS[h.drop.k].name+(h.drop.n>1?" x"+h.drop.n:""),()=>{clearActions();player.pickupTarget=h.drop;}]);
   if(h.point) opts.push(["Walk here",()=>{clearActions();const t=nearestOpen(h.point.x,h.point.z);
@@ -1863,6 +1985,11 @@ function loop(now){
       if(tr.depleted){player.chopTarget=null;}
       else if(dist2(player.pos,tr.pos)>3.2){ if(moveToward(tr.pos.x,tr.pos.z,step))moving=true; }
       else { faceTowards(player.mesh,tr.pos.x,tr.pos.z,player.pos.x,player.pos.z); chopTick(now); }
+    }
+    else if(player.mineTarget){ const nd=player.mineTarget;
+      if(nd.depleted){player.mineTarget=null;}
+      else if(dist2(player.pos,nd.pos)>3.4){ if(moveToward(nd.pos.x,nd.pos.z,step))moving=true; }
+      else { faceTowards(player.mesh,nd.pos.x,nd.pos.z,player.pos.x,player.pos.z); mineTick(now); }
     }
     else if(player.doorTarget){ const ds=player.doorTarget, dp={x:ds.wall.x,z:ds.wall.z};
       if(dist2(player.pos,dp)>3){ if(moveToward(dp.x,dp.z,step))moving=true; } // only toggle when beside it
@@ -1970,6 +2097,7 @@ function loop(now){
 
   /* --- trees respawn --- */
   for(const tr of trees){ if(tr.depleted&&now>=tr.respawnAt){tr.depleted=false;tr.foliage.visible=true;} }
+  for(const nd of oreNodes){ if(nd.depleted&&now>=nd.respawnAt){nd.depleted=false;nd.group.visible=true;} }
 
   /* --- campfires: flicker + expire --- */
   for(let i=fires.length-1;i>=0;i--){const f=fires[i];
@@ -2095,6 +2223,7 @@ function renderSkills(){panel.innerHTML=`<h2>Combat Skills</h2><div class="skill
   <h2 style="margin-top:14px">Gathering & Skilling</h2><div class="skillgrid">
     ${skillRow("woodcutting","Woodcut")}${skillRow("cooking","Cooking")}
     ${skillRow("agility","Agility")}${skillRow("prayer","Prayer")}
+    ${skillRow("mining","Mining")}${skillRow("refining","Refining")}
     ${skillRow("gunsmithing","Gunsmith")}</div>
   <h2 style="margin-top:14px">Derived</h2>
   <div class="statline"><b>Attack style</b><span>${STYLES[attackStyle].label}</span></div>
@@ -2219,7 +2348,7 @@ const remotes=new Map();   // id -> {mesh, plate, tx, tz, ry, hp, maxhp}
 function makeRemoteMesh(ap){ap=ap||{};
   const body=ap.body?ARMOUR_TINT[ITEMS[ap.body]?.mat]:0x9a5acc;
   const m=makeHumanoid({height:3.7,shirt:body,skin:0xc8a07a,pants:0x33384a,
-    gun:ap.weapon&&ap.weapon!=="fists",gunLen:1.2,gunColor:0x222});
+    gun:ap.weapon&&ap.weapon!=="fists",gunType:ap.weapon,gunColor:ap.weapon==="ak"?0x3a2a18:0x2a2a2e});
   addOutline(m); scene.add(m); return m;}
 function makeNameBar(name){const cvs=document.createElement("canvas");cvs.width=256;cvs.height=64;
   const tex=new THREE.CanvasTexture(cvs);

@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.18",
+ "version": "1.0.19",
  "generated": "2026-06-21",
  "patches": [
+  {
+   "version": "1.0.19",
+   "date": "2026-06-21",
+   "title": "Mining + Refining skills, ore rocks/furnaces, and real gun models",
+   "notes": []
+  },
   {
    "version": "1.0.18",
    "date": "2026-06-21",
