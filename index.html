@@ -111,6 +111,18 @@
   #questtracker .qt-q{font-size:11px;color:var(--txt);margin:3px 0;line-height:1.3;}
   #questtracker .qt-q small{color:var(--dim);}
   #questtracker .qt-q.done{color:#7fd06a;} #questtracker .qt-q.done small{color:#7fd06a;}
+  #craftwin{position:fixed;inset:0;z-index:120;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.55);}
+  #craftwin.show{display:flex;}
+  .cw-box{width:420px;max-width:92vw;max-height:80vh;overflow-y:auto;background:var(--panel);
+    border:2px solid var(--gold);border-radius:10px;padding:14px 16px;}
+  .cw-head{display:flex;justify-content:space-between;font-size:17px;color:var(--gold);font-weight:bold;
+    border-bottom:1px solid var(--panel2);padding-bottom:8px;margin-bottom:10px;}
+  #cw-close{cursor:pointer;color:var(--dim);} #cw-close:hover{color:var(--gold);}
+  .cw-r{display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--panel2);
+    border:1px solid var(--frame);border-radius:6px;padding:7px 10px;margin-bottom:7px;font-size:12px;}
+  .cw-r .nm{font-weight:bold;color:var(--gold);} .cw-r .req{color:var(--dim);font-size:11px;margin-top:2px;}
+  .cw-r .req .ok{color:#7fd06a;} .cw-r .req .no{color:#ff7a6a;}
+  .cw-r.locked{opacity:.55;}
   #tip{position:fixed;z-index:50;background:#0d0a07;border:1px solid var(--gold);
     border-radius:6px;padding:8px 10px;font-size:12px;max-width:240px;
     pointer-events:none;display:none;box-shadow:0 4px 16px rgba(0,0,0,.6);}
@@ -252,6 +264,7 @@
   </div>
 </div>
 <div id="changelog"><div class="cl-box"><div class="cl-head">Patch Notes <span id="cl-close">✕</span></div><div id="cl-list"></div></div></div>
+<div id="craftwin"><div class="cw-box"><div class="cw-head"><span id="cw-title">Forge</span> <span id="cw-close">✕</span></div><div id="cw-list"></div></div></div>
 <div id="p2pdlg"><div class="p2p-box"><div id="p2p-text"></div><div class="p2p-acts"><button id="p2p-yes">Accept</button><button id="p2p-no" class="p2p-decline">Decline</button></div></div></div>
 <div id="tradewin"><div class="tw-box">
   <div class="tw-head">Trade with <span id="tw-name"></span> <span id="tw-close">✕</span></div>
@@ -350,7 +363,15 @@ const TOOLS={
   hatchet:{name:"Hatchet",ic:"🪓",price:45,cat:"tool",desc:"Chop trees for logs. Keep it in your pack."},
 };
 const MISC={
-  scrap:{name:"Scrap",ic:"⚙️",price:4,cat:"misc",desc:"Salvaged junk. Sells for coins."},
+  scrap:{name:"Scrap",ic:"⚙️",price:4,cat:"misc",desc:"Salvaged junk. Forge it with metal into gun parts."},
+  // Gunsmithing metals (drop from enemies — tougher foes drop better metal)
+  iron_bits:{name:"Iron Bits",ic:"🔩",price:8,cat:"material",desc:"Crude iron salvage. Forge into gun parts."},
+  steel_bits:{name:"Steel Bits",ic:"⛓️",price:18,cat:"material",desc:"Hardened steel salvage."},
+  titanium_bits:{name:"Titanium Bits",ic:"🧲",price:40,cat:"material",desc:"High-grade lightweight alloy."},
+  // Gunsmithing parts (forge metals → parts → guns at a workbench)
+  part_crude:{name:"Crude Gun Part",ic:"🔧",price:30,cat:"material",desc:"A rough firearm component."},
+  part_std:{name:"Standard Gun Part",ic:"🛠️",price:80,cat:"material",desc:"A solid firearm component."},
+  part_fine:{name:"Precision Gun Part",ic:"⚙️",price:180,cat:"material",desc:"A finely machined component."},
   bones:{name:"Bones",ic:"🦴",price:1,cat:"misc",bury:true,desc:"Right-click to Bury for Prayer XP."},
   logs:{name:"Logs",ic:"🪵",price:3,cat:"misc",light:true,desc:"Right-click to light a campfire."},
   burnt_meat:{name:"Burnt Meat",ic:"🌑",price:0,cat:"misc",desc:"Charred and inedible. Whoops."},
@@ -389,7 +410,8 @@ const player={
   pos:new THREE.Vector3(0,0,40), dest:null, target:null,
   speed:18, hp:100, lastShot:0, flinchUntil:0, walk:0, regen:0,
   skills:{aim:{xp:0,lv:1},composure:{xp:0,lv:1},armour:{xp:0,lv:1},vitality:{xp:xpForLevel(10),lv:10},
-          woodcutting:{xp:0,lv:1},cooking:{xp:0,lv:1},agility:{xp:0,lv:1},prayer:{xp:0,lv:1}},
+          woodcutting:{xp:0,lv:1},cooking:{xp:0,lv:1},agility:{xp:0,lv:1},prayer:{xp:0,lv:1},
+          gunsmithing:{xp:0,lv:1}},
   equip:{weapon:"zip",head:null,body:"cloth_shirt",legs:"cloth_pants"},
   inv:[{k:"bandage",n:5},{k:"cloth_hood",n:1},{k:"hatchet",n:1},{k:"coins",n:40}],
   mesh:null, pickupTarget:null, talkTarget:null, chopTarget:null, doorTarget:null, altarTarget:null,
@@ -707,6 +729,65 @@ function makeAltar(x,z){
   const altar={mesh:g,glow,pos:new THREE.Vector3(x,0,z)}; g.userData.altar=altar;
   altars.push(altar); addPOI("Altar",x,z); return altar;
 }
+/* ---------------- Gunsmithing: forge + workbench ------------- */
+const workshops=[];   // {kind:'forge'|'bench', pos, mesh}
+// Forge: Scrap + metal → gun parts.  Workbench: parts → guns.  Both give Gunsmithing XP.
+const FORGE_RECIPES=[
+  {out:"part_crude", lvl:1,  xp:18, in:[["scrap",2],["iron_bits",1]]},
+  {out:"part_std",   lvl:20, xp:46, in:[["scrap",2],["steel_bits",2]]},
+  {out:"part_fine",  lvl:40, xp:98, in:[["steel_bits",1],["titanium_bits",2]]},
+];
+const BENCH_RECIPES=[
+  {out:"zip",      lvl:1,  xp:40,  in:[["part_crude",3]]},
+  {out:"revolver", lvl:10, xp:75,  in:[["part_crude",4],["scrap",2]]},
+  {out:"smg",      lvl:24, xp:135, in:[["part_std",3]]},
+  {out:"shotgun",  lvl:32, xp:175, in:[["part_std",4],["steel_bits",1]]},
+  {out:"rifle",    lvl:45, xp:290, in:[["part_fine",4]]},
+  {out:"ak",       lvl:58, xp:430, in:[["part_fine",5],["titanium_bits",2]]},
+];
+function makeWorkshop(x,z){
+  const g=new THREE.Group(); g.position.set(x,terrainHeight(x,z),z);
+  // forge (furnace with glowing coals) on the left
+  const forge=new THREE.Group(); forge.position.x=-2.4; g.add(forge);
+  const fbase=box(2.4,1.6,2,0x5a5048); fbase.position.y=0.8; forge.add(fbase);
+  const hood=box(2.2,1.0,1.8,0x3a342e); hood.position.y=2.4; forge.add(hood);
+  const coals=box(1.6,0.3,1.2,0xff7a2a); coals.position.set(0,1.65,0.2); coals.userData.noOutline=true; forge.add(coals);
+  const flight=new THREE.PointLight(0xff7a2a,0.9,9); flight.position.set(0,2,0.3); forge.add(flight);
+  // workbench (table + vice) on the right
+  const bench=new THREE.Group(); bench.position.x=2.4; g.add(bench);
+  const top=box(3,0.3,2,0x7a5230); top.position.y=1.5; bench.add(top);
+  for(const dx of[-1.3,1.3])for(const dz of[-0.8,0.8]){const leg=box(0.25,1.5,0.25,0x5a3c25);leg.position.set(dx,0.75,dz);bench.add(leg);}
+  const vice=box(0.5,0.5,0.5,0x3a3a40); vice.position.set(1,1.9,0); bench.add(vice);
+  scene.add(g); addBlocker(x,z,2.2);
+  const fO={kind:"forge",pos:new THREE.Vector3(x-2.4,0,z),mesh:forge}; forge.userData.workshop=fO; workshops.push(fO);
+  const bO={kind:"bench",pos:new THREE.Vector3(x+2.4,0,z),mesh:bench}; bench.userData.workshop=bO; workshops.push(bO);
+  addPOI("Workshop",x,z);
+}
+let craftKind=null;
+function openCraft(kind){craftKind=kind;
+  document.getElementById("cw-title").textContent=kind==="forge"?"Forge — smelt parts":"Workbench — build guns";
+  document.getElementById("craftwin").classList.add("show"); sfxClick(); renderCraft();}
+function closeCraft(){craftKind=null;document.getElementById("craftwin").classList.remove("show");}
+function craftRecipes(){return craftKind==="forge"?FORGE_RECIPES:BENCH_RECIPES;}
+function canCraft(r){return player.skills.gunsmithing.lv>=r.lvl && r.in.every(([k,n])=>invCount(k)>=n);}
+function renderCraft(){const el=document.getElementById("cw-list");
+  el.innerHTML=craftRecipes().map((r,i)=>{const it=ITEMS[r.out];
+    const lvlOk=player.skills.gunsmithing.lv>=r.lvl;
+    const reqs=r.in.map(([k,n])=>`<span class="${invCount(k)>=n?'ok':'no'}">${ITEMS[k].ic}${ITEMS[k].name} ${invCount(k)}/${n}</span>`).join(" · ");
+    const ok=canCraft(r);
+    return `<div class="cw-r ${ok?'':'locked'}">
+      <div><div class="nm">${it.ic} ${it.name}</div>
+        <div class="req">Gunsmithing ${r.lvl}${lvlOk?'':' ✗'} · ${reqs} · +${r.xp} xp</div></div>
+      <button class="btn" data-ri="${i}" ${ok?'':'disabled'}>Make</button></div>`;}).join("");
+  el.querySelectorAll("button[data-ri]").forEach(b=>b.onclick=()=>doCraft(craftRecipes()[+b.dataset.ri]));
+}
+function doCraft(r){ if(!canCraft(r)){log("You can't make that yet.","bad");return;}
+  for(const [k,n] of r.in) removeItem(k,n);
+  addItem(r.out,1); gainXp("gunsmithing",r.xp);
+  sfxClick(); tone(300,0.08,"square",0.14,520);
+  log(`You ${craftKind==="forge"?"forge":"build"} a ${ITEMS[r.out].name}.`,"loot");
+  renderCraft(); refreshUI();
+}
 
 // flat dirt/cobble path quad laid just above the (flattened) town ground
 function makePath(cx,cz,w,d,rot){
@@ -823,6 +904,7 @@ addPOI("Forest Outpost",OUTPOST.x,OUTPOST.z);
 // prayer altars in both towns
 makeAltar(TOWN.x-12,TOWN.z-12);
 makeAltar(OUTPOST.x+10,OUTPOST.z+10);
+makeWorkshop(TOWN2.x, TOWN2.z+15);     // rare gunsmithing forge + workbench (only Tinhollow has one)
 
 // Multi-combat zones come from shared/world-data.js (MULTI_ZONES / inMulti).
 function inMultiCombat(x,z){return inMulti(x,z);}
@@ -1409,6 +1491,9 @@ function rollDrops(e){
   if(e.type==="scorpion"||e.type==="brute") common.push("raw_steak");
   common.push("scrap","scrap","bandage"); if(e.tier>=3) common.push("medkit");
   makeDrop(pick(common),1,sx(),sz());
+  // metal salvage for Gunsmithing (better metals from tougher foes)
+  const metals=e.tier<=1?["iron_bits"]:e.tier<=3?["iron_bits","steel_bits"]:["steel_bits","titanium_bits"];
+  if(Math.random()<0.4) makeDrop(pick(metals),1,sx(),sz());
   // gun roll (within this enemy's level band)
   if(Math.random()<e.gunChance){
     const pool=GUN_TIERS[e.tier];
@@ -1593,7 +1678,7 @@ function castAt(clientX,clientY){
   const r=renderer.domElement.getBoundingClientRect();
   mouse.x=((clientX-r.left)/r.width)*2-1; mouse.y=-((clientY-r.top)/r.height)*2+1;
   raycaster.setFromCamera(mouse,camera);
-  const res={enemy:null,npc:null,shop:false,drop:null,tree:null,door:null,altar:null,player:null,stairs:null,point:null};
+  const res={enemy:null,npc:null,shop:false,drop:null,tree:null,door:null,altar:null,player:null,stairs:null,workshop:null,point:null};
   if(NET.online){ // server-driven enemies + loot
     const eh=raycaster.intersectObjects([...serverEnemies.values()].map(s=>s.mesh),true);
     if(eh.length){let o=eh[0].object;while(o&&o.userData.serverEnemy==null)o=o.parent;if(o)res.enemy=serverEnemies.get(o.userData.serverEnemy);}
@@ -1618,6 +1703,8 @@ function castAt(clientX,clientY){
   if(ah.length){let o=ah[0].object;while(o&&!o.userData.altar)o=o.parent;if(o)res.altar=o.userData.altar;}
   const sh=raycaster.intersectObjects(stairsList.map(s=>s.mesh),false);
   if(sh.length)res.stairs=sh[0].object.userData.stairs;
+  const wh=raycaster.intersectObjects(workshops.map(s=>s.mesh),true);
+  if(wh.length){let o=wh[0].object;while(o&&!o.userData.workshop)o=o.parent;if(o)res.workshop=o.userData.workshop;}
   const gh=raycaster.intersectObject(ground);
   if(gh.length)res.point=new THREE.Vector3(gh[0].point.x,0,gh[0].point.z);
   return res;
@@ -1625,7 +1712,7 @@ function castAt(clientX,clientY){
 function toggleDoor(ds){ds.open=!ds.open;sfxClick();log(ds.open?"You open the door.":"You close the door.");}
 function clearActions(){player.target=null;player.dest=null;player.pickupTarget=null;
   player.talkTarget=null;player.chopTarget=null;player.doorTarget=null;player.altarTarget=null;
-  player.clickMark=null;player.pvpTarget=null;player.path=null;player.stairTarget=null;
+  player.clickMark=null;player.pvpTarget=null;player.path=null;player.stairTarget=null;player.workshopTarget=null;
   if(dialogOpen)closeDialog();}
 function useStairs(s){ if(player.floor===0){player.floor=1;player.yOffset=FLOOR_H;player.pos.set(s.topX,0,s.topZ);log("You climb the stairs.");}
   else{player.floor=0;player.yOffset=0;player.pos.set(s.x,0,s.z);log("You go downstairs.");} sfxClick(); }
@@ -1643,6 +1730,7 @@ renderer.domElement.addEventListener("mousedown",e=>{
   if(h.door){clearActions();player.doorTarget=h.door;return;}
   if(h.altar){clearActions();player.altarTarget=h.altar;return;}
   if(h.stairs){clearActions();player.stairTarget=h.stairs;return;}
+  if(h.workshop){clearActions();player.workshopTarget=h.workshop;return;}
   if(h.drop){clearActions();player.pickupTarget=h.drop;return;}
   if(h.tree){clearActions();player.chopTarget=h.tree;return;}
   if(h.point){clearActions();const t=nearestOpen(h.point.x,h.point.z);
@@ -1691,6 +1779,7 @@ function openWorldMenu(cx,cy){
   if(h.door) opts.push([h.door.open?"Close door":"Open door",()=>{clearActions();player.doorTarget=h.door;}]);
   if(h.altar) opts.push(["Pray at altar",()=>{clearActions();player.altarTarget=h.altar;}]);
   if(h.stairs) opts.push([player.floor===0?"Climb stairs":"Go downstairs",()=>{clearActions();player.stairTarget=h.stairs;}]);
+  if(h.workshop) opts.push([h.workshop.kind==="forge"?"Use forge":"Use workbench",()=>{clearActions();player.workshopTarget=h.workshop;}]);
   if(h.tree) opts.push(["Chop down tree",()=>{clearActions();player.chopTarget=h.tree;}]);
   if(h.drop) opts.push(["Take "+ITEMS[h.drop.k].name+(h.drop.n>1?" x"+h.drop.n:""),()=>{clearActions();player.pickupTarget=h.drop;}]);
   if(h.point) opts.push(["Walk here",()=>{clearActions();const t=nearestOpen(h.point.x,h.point.z);
@@ -1754,6 +1843,10 @@ function loop(now){
     else if(player.stairTarget){ const s=player.stairTarget; const sp=player.floor===0?{x:s.x,z:s.z}:{x:s.topX,z:s.topZ};
       if(dist2(player.pos,sp)>2.5){ if(moveToward(sp.x,sp.z,step))moving=true; }
       else { useStairs(s); player.stairTarget=null; }
+    }
+    else if(player.workshopTarget){ const ws=player.workshopTarget;
+      if(dist2(player.pos,ws.pos)>3.5){ if(moveToward(ws.pos.x,ws.pos.z,step))moving=true; }
+      else { faceTowards(player.mesh,ws.pos.x,ws.pos.z,player.pos.x,player.pos.z); openCraft(ws.kind); player.workshopTarget=null; }
     }
     else if(player.altarTarget){ const al=player.altarTarget;
       if(dist2(player.pos,al.pos)>3.5){ if(moveToward(al.pos.x,al.pos.z,step))moving=true; }
@@ -1973,7 +2066,8 @@ function renderSkills(){panel.innerHTML=`<h2>Combat Skills</h2><div class="skill
     ${skillRow("armour","Armour")}${skillRow("vitality","Vitality")}</div>
   <h2 style="margin-top:14px">Gathering & Skilling</h2><div class="skillgrid">
     ${skillRow("woodcutting","Woodcut")}${skillRow("cooking","Cooking")}
-    ${skillRow("agility","Agility")}${skillRow("prayer","Prayer")}</div>
+    ${skillRow("agility","Agility")}${skillRow("prayer","Prayer")}
+    ${skillRow("gunsmithing","Gunsmith")}</div>
   <h2 style="margin-top:14px">Derived</h2>
   <div class="statline"><b>Attack style</b><span>${STYLES[attackStyle].label}</span></div>
   <div class="statline"><b>Prayer points</b><span>${Math.ceil(player.prayer)} / ${maxPrayer()}</span></div>
@@ -2437,6 +2531,9 @@ function openChangelog(){
   const overlay=document.getElementById("changelog");
   document.getElementById("cl-close").onclick=()=>overlay.classList.remove("show");
   overlay.onclick=(e)=>{ if(e.target===overlay)overlay.classList.remove("show"); };
+  const cw=document.getElementById("craftwin");
+  document.getElementById("cw-close").onclick=closeCraft;
+  cw.onclick=(e)=>{ if(e.target===cw)closeCraft(); };
 })();
 
 /* ============================================================ *

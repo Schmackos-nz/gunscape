@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.15",
+ "version": "1.0.16",
  "generated": "2026-06-21",
  "patches": [
+  {
+   "version": "1.0.16",
+   "date": "2026-06-21",
+   "title": "Add Gunsmithing skill: forge metals into parts, build guns at a workbench",
+   "notes": []
+  },
   {
    "version": "1.0.15",
    "date": "2026-06-21",

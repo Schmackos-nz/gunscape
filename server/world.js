@@ -210,6 +210,9 @@ export class World {
     if (e.type === 'rat' || e.type === 'wolf') common.push('raw_meat', 'raw_meat');
     common.push('scrap', 'scrap', 'bandage'); if (s.tier >= 3) common.push('medkit');
     drop(pick(common), 1);
+    // metal salvage for Gunsmithing (better metals from tougher foes)
+    const metals = s.tier <= 1 ? ['iron_bits'] : s.tier <= 3 ? ['iron_bits', 'steel_bits'] : ['steel_bits', 'titanium_bits'];
+    if (Math.random() < 0.4) drop(pick(metals), 1);
     if (Math.random() < s.gunChance) { const pool = GUN_TIERS[s.tier]; drop(Math.random() < 0.5 ? pool[pool.length - 1] : pick(pool), 1); }
     if (Math.random() < s.armChance) drop(pick(ARMOUR_TIERS[s.tier]), 1);
   }
