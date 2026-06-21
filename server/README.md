@@ -32,10 +32,28 @@ You'll see:
 
 ## Config
 
-| Env var | Default   | Meaning                          |
-|---------|-----------|----------------------------------|
-| `PORT`  | `8787`    | HTTP + WebSocket port            |
-| `HOST`  | `0.0.0.0` | Bind address                     |
+| Env var  | Default   | Meaning                                            |
+|----------|-----------|----------------------------------------------------|
+| `PORT`   | `8787`    | HTTP + WebSocket port                              |
+| `HOST`   | `0.0.0.0` | Bind address                                       |
+| `ADMINS` | `admin`   | Comma-separated admin usernames                    |
+
+## Admin commands
+
+Log in as an admin (any username in `ADMINS`, or the account `admin` by default)
+and type these in the in-game chat box:
+
+| Command            | Effect                                              |
+|--------------------|-----------------------------------------------------|
+| `/broadcast <msg>` | Send a SERVER message to everyone's chat            |
+| `/announce <msg>`  | Big on-screen announcement for everyone (~3 min)    |
+| `/dm <user> <msg>` | Private message to one player                       |
+| `/kick <user>`     | Disconnect a player                                 |
+| `/ban <user>`      | Ban an account (kicks them; blocks future logins)   |
+| `/unban <user>`    | Lift a ban                                          |
+| `/who`             | List online players                                 |
+
+Bans are stored on the account in `accounts.json`.
 
 Accounts are stored in `server/accounts.json` (created on first register).
 Passwords are salted + SHA-256 hashed; this is a hobby server, not a bank.

@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.8",
+ "version": "1.0.9",
  "generated": "2026-06-21",
  "patches": [
+  {
+   "version": "1.0.9",
+   "date": "2026-06-21",
+   "title": "Server admin commands: broadcast, announce, DM, kick, ban",
+   "notes": []
+  },
   {
    "version": "1.0.8",
    "date": "2026-06-21",

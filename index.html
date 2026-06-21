@@ -83,6 +83,10 @@
   #gold{top:8px;left:8px;border:1px solid var(--gold);color:#ffd24a;}
   #cmblvl{top:8px;left:120px;border:1px solid #b23b2e;color:#ff9b8a;}
   #biome{top:8px;left:232px;border:1px solid var(--gold);color:#cdbf9a;}
+  #announce{position:absolute;top:54px;left:50%;transform:translateX(-50%);z-index:95;display:none;
+    max-width:70%;text-align:center;background:rgba(60,40,5,.9);color:#ffe08a;border:2px solid var(--gold);
+    border-radius:8px;padding:8px 18px;font-size:16px;font-weight:bold;text-shadow:1px 1px 0 #000;
+    box-shadow:0 4px 18px rgba(0,0,0,.6);}
   #netbanner{position:absolute;top:78px;left:8px;z-index:90;display:none;
     background:rgba(60,10,10,.85);color:#ffcaba;border:1px solid #b23b2e;border-radius:6px;
     padding:6px 12px;font-size:13px;font-weight:bold;}
@@ -233,6 +237,7 @@
     <div id="multicombat">⚠ Multicombat</div>
     <div id="netbanner"></div>
     <div id="questtracker"></div>
+    <div id="announce"></div>
     <div id="chat"></div>
     <div id="hint">Click to move · click monster = auto-fight · click trees to chop · hold Tab for attack style · right-click = options · right-drag turn · wheel zoom</div>
   </div>
@@ -2160,6 +2165,10 @@ function updateServerWorld(dt,now){
   for(const sl of serverLoot.values())if(sl.mesh.visible)sl.mesh.position.y=terrainHeight(sl.x,sl.z)+1+Math.sin(now/350+sl.x)*0.15;
 }
 const netBanner=document.getElementById("netbanner");
+const announceEl=document.getElementById("announce"); let announceTimer=null;
+function showAnnounce(msg,ms){announceEl.textContent="📢 "+msg;announceEl.style.display="block";
+  clearTimeout(announceTimer); announceTimer=setTimeout(()=>announceEl.style.display="none",ms||180000);
+  log("📢 "+msg,"xp");}
 function showBanner(t){netBanner.textContent=t;netBanner.style.display="block";}
 function hideBanner(){netBanner.style.display="none";}
 function beginReconnect(){
@@ -2187,7 +2196,8 @@ function netConnect(url,mode,user,pass){
   ws.onopen=()=>ws.send(JSON.stringify({t:mode,user,pass}));
   ws.onerror=()=>{ if(!NET.reconnecting)msgEl.textContent="Could not reach that server."; };
   ws.onclose=()=>{ if(NET.online){NET.online=false;
-    for(const id of [...remotes.keys()])removeRemote(id); clearServerWorld(); beginReconnect();} };
+    for(const id of [...remotes.keys()])removeRemote(id); clearServerWorld();
+    if(NET.kicked){NET.kicked=false;} else beginReconnect();} };
   ws.onmessage=(ev)=>{let m;try{m=JSON.parse(ev.data);}catch{return;}
     if(m.t==="authfail"){msgEl.className="";msgEl.textContent=m.why; NET.reconnecting=false; clearTimeout(NET._retry); hideBanner();}
     else if(m.t==="authok"){NET.id=m.id;NET.user=m.user;NET.online=true;
@@ -2201,7 +2211,11 @@ function netConnect(url,mode,user,pass){
       if(m.loot)syncServerLoot(m.loot);}
     else if(m.t==="join"){/* presence appears via snapshot */}
     else if(m.t==="leave"){removeRemote(m.id);}
-    else if(m.t==="chat"){log(`${m.from}: ${m.msg}`, m.from===NET.user?"loot":"sys");}
+    else if(m.t==="chat"){log(`${m.from}: ${m.msg}`, m.from==="SERVER"?"xp":(m.from===NET.user?"loot":"sys"));}
+    else if(m.t==="announce"){ showAnnounce(m.msg, m.ms||180000); }
+    else if(m.t==="kicked"){ NET.kicked=true; log(m.why||"You were disconnected.","bad");
+      try{NET.ws.close();}catch(e){} document.getElementById("login").style.display="flex";
+      document.getElementById("lg-msg").textContent=m.why||"Disconnected."; }
     else if(m.t==="xp"){ const ks=STYLES[attackStyle].xp; for(const k of ks)gainXp(k,m.xp*0.7/ks.length);
       gainXp("vitality",m.xp*0.3); log("You killed the "+m.name+".","cmb"); sfxKill(); }
     else if(m.t==="hurt"){ sfxHurt();   // damage number comes via the shared 'fx' broadcast
@@ -2268,7 +2282,7 @@ function populateServers(){document.getElementById("lg-servers").innerHTML=
   const cb=document.getElementById("chatbox");
   cb.addEventListener("keydown",e=>{e.stopPropagation();
     if(e.key==="Enter"){const v=cb.value.trim();
-      if(v){ if(NET.online)netSend({t:"chat",msg:v}); else log("You: "+v,"loot"); }
+      if(v){ if(NET.online) netSend(v[0]==="/"?{t:"admin",line:v}:{t:"chat",msg:v}); else log("You: "+v,"loot"); }
       cb.value="";cb.blur();}
     if(e.key==="Escape"){cb.value="";cb.blur();}});
   // Enter focuses the chat box when not already typing

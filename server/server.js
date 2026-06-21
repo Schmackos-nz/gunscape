@@ -61,10 +61,38 @@ const clients = new Map();          // ws -> session {id, user, state}
 let nextId = 1;
 const world = new World();           // authoritative enemy/loot/combat simulation
 function wsById(id) { for (const [w, s] of clients) if (s.id === id) return w; return null; }
+function wsByUser(u) { for (const [w, s] of clients) if (s.user === u) return w; return null; }
 
 function send(ws, obj) { if (ws.readyState === 1) ws.send(JSON.stringify(obj)); }
 function broadcast(obj, except) { const s = JSON.stringify(obj);
   for (const ws of clients.keys()) if (ws !== except && ws.readyState === 1) ws.send(s); }
+
+// ── admin commands ───────────────────────────────────────────
+// Admins: usernames in the ADMINS env (comma-separated), plus 'admin' by default.
+const ADMINS = new Set((process.env.ADMINS || 'admin').split(',').map(s => s.trim().toLowerCase()).filter(Boolean));
+function isAdmin(u) { return ADMINS.has(u) || (accounts[u] && accounts[u].admin); }
+function adminCommand(ws, session, line) {
+  if (!session.authed) return;
+  const sysTo = (w, m) => send(w, { t: 'chat', from: 'SERVER', msg: m });
+  if (!isAdmin(session.user)) return sysTo(ws, "You aren't an admin.");
+  line = line.replace(/^\//, '');
+  const sp = line.indexOf(' '), cmd = (sp < 0 ? line : line.slice(0, sp)).toLowerCase(), rest = sp < 0 ? '' : line.slice(sp + 1).trim();
+  const target = () => { const sp2 = rest.indexOf(' '); return sp2 < 0 ? [rest.toLowerCase(), ''] : [rest.slice(0, sp2).toLowerCase(), rest.slice(sp2 + 1)]; };
+  switch (cmd) {
+    case 'broadcast': case 'say': broadcast({ t: 'chat', from: 'SERVER', msg: rest }); break;
+    case 'announce': broadcast({ t: 'announce', msg: rest, ms: 180000 }); console.log(`[announce] ${rest}`); break;
+    case 'dm': { const [u, m] = target(); const tw = wsByUser(u);
+      if (tw) { send(tw, { t: 'chat', from: session.user + ' (DM)', msg: m }); sysTo(ws, `→ ${u}: ${m}`); } else sysTo(ws, `${u} is not online.`); break; }
+    case 'kick': { const u = rest.toLowerCase(); const tw = wsByUser(u);
+      if (tw) { const ts = clients.get(tw); if (ts) ts.kicked = true; send(tw, { t: 'kicked', why: 'You were kicked by an admin.' }); setTimeout(() => tw.close(), 50); sysTo(ws, `Kicked ${u}.`); } else sysTo(ws, `${u} is not online.`); break; }
+    case 'ban': { const u = rest.toLowerCase(); if (accounts[u]) { accounts[u].banned = true; saveAccounts(); }
+      const tw = wsByUser(u); if (tw) { const ts = clients.get(tw); if (ts) ts.kicked = true; send(tw, { t: 'kicked', why: 'You have been banned.' }); setTimeout(() => tw.close(), 50); }
+      sysTo(ws, `Banned ${u}.`); break; }
+    case 'unban': { const u = rest.toLowerCase(); if (accounts[u]) { accounts[u].banned = false; saveAccounts(); } sysTo(ws, `Unbanned ${u}.`); break; }
+    case 'who': sysTo(ws, 'Online: ' + [...clients.values()].filter(s => s.authed).map(s => s.user).join(', ')); break;
+    default: sysTo(ws, 'Admin cmds: /broadcast <m> · /announce <m> · /dm <user> <m> · /kick <user> · /ban <user> · /unban <user> · /who');
+  }
+}
 
 function defaultProfile() {
   return { x: 0, z: 40, ry: 0, hp: 100, maxhp: 100, name: '', appearance: {} };
@@ -93,10 +121,12 @@ wss.on('connection', (ws) => {
         const user = String(msg.user || '').trim().toLowerCase();
         const acc = accounts[user];
         if (!acc || acc.pass !== hash(msg.pass || '', acc.salt)) return send(ws, { t: 'authfail', why: 'Wrong username or password.' });
+        if (acc.banned) return send(ws, { t: 'authfail', why: 'This account is banned.' });
         if ([...clients.values()].some(s => s.user === user)) return send(ws, { t: 'authfail', why: 'That account is already online.' });
         login(ws, session, user);
         break;
       }
+      case 'admin': { adminCommand(ws, session, String(msg.line || '')); break; }
       case 'state': {
         if (!session.authed) return;
         // server-authoritative movement: clamp to world + reject teleports
@@ -148,10 +178,15 @@ wss.on('connection', (ws) => {
     if (s && s.authed) {
       const acc = accounts[s.user];
       if (acc) { acc.profile = Object.assign(acc.profile, s.state); saveAccounts(); }
-      // logout-linger: your character stays in the world for 10s; if it dies in that
-      // window it's a real death (gear drops). Don't remove or broadcast leave yet.
-      lingering.set(s.id, { user: s.user, removeAt: Date.now() + 10000, appearance: s.state.appearance });
-      console.log(`~ ${s.user} logging out (10s linger)`);
+      if (s.kicked) {                                  // kicked/banned → remove immediately, no linger
+        world.removePlayer(s.id); broadcast({ t: 'leave', id: s.id });
+        console.log(`- ${s.user} removed`);
+      } else {
+        // logout-linger: your character stays in the world for 10s; if it dies in that
+        // window it's a real death (gear drops). Don't remove or broadcast leave yet.
+        lingering.set(s.id, { user: s.user, removeAt: Date.now() + 10000, appearance: s.state.appearance });
+        console.log(`~ ${s.user} logging out (10s linger)`);
+      }
     }
     clients.delete(ws);
   });
