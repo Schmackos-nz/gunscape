@@ -88,7 +88,7 @@
   #hpbar{height:10px;background:#3a0f0c;border-radius:4px;overflow:hidden;}
   #hpbar i{display:block;height:100%;background:linear-gradient(#7ed66a,#4a9c3c);width:100%;}
   #minimap{position:absolute;top:8px;right:8px;border:2px solid var(--frame);
-    border-radius:6px;background:#0a0a0a;}
+    border-radius:50%;background:#0a0a0a;}
   #hint{position:absolute;bottom:8px;right:8px;width:46%;text-align:center;
     color:#cdbf9a;font-size:12px;background:rgba(0,0,0,.4);padding:5px;
     border-radius:6px;pointer-events:none;}
@@ -159,28 +159,29 @@ function levelForXp(xp){let lv=1;for(let i=1;i<XP_TABLE.length;i++){if(xp>=XP_TA
 function xpForLevel(lv){return XP_TABLE[lv-1]||0;}
 
 /* ---------------- Items (ranges are in world units now) ------ */
+// Equip requirements: reqLvl=combat level, reqAim/reqComp (weapons), reqArm (armour)
 const WEAPONS={
-  fists:    {name:"Bare Fists",   ic:"👊",req:1, fireRate:1100,bloom:30,dmgMin:1, dmgMax:3, range:3, price:0,    cat:"weapon",grade:"none",  desc:"Your knuckles. Find a gun, fast."},
-  zip:      {name:"Zip Pistol",   ic:"🔫",req:1, fireRate:900, bloom:26,dmgMin:2, dmgMax:6, range:16,price:40,   cat:"weapon",grade:"Bronze",desc:"A crude homemade pistol."},
-  revolver: {name:"Revolver",     ic:"🔫",req:5, fireRate:850, bloom:20,dmgMin:4, dmgMax:9, range:20,price:160,  cat:"weapon",grade:"Steel", desc:"Reliable iron sidearm."},
-  smg:      {name:"SMG",          ic:"🧨",req:15,fireRate:380, bloom:22,dmgMin:3, dmgMax:8, range:20,price:650,  cat:"weapon",grade:"Mithril",desc:"Fast but it sprays."},
-  shotgun:  {name:"Shotgun",      ic:"💥",req:25,fireRate:1000,bloom:14,dmgMin:8, dmgMax:18,range:13,price:1800, cat:"weapon",grade:"Adamant",desc:"Devastating up close."},
-  rifle:    {name:"Hunting Rifle",ic:"🎯",req:35,fireRate:1200,bloom:6, dmgMin:14,dmgMax:26,range:38,price:4200, cat:"weapon",grade:"Rune",   desc:"Pinpoint long-range punch."},
-  ak:       {name:"AK-47",        ic:"⭐",req:45,fireRate:300, bloom:10,dmgMin:12,dmgMax:24,range:28,price:12000,cat:"weapon",grade:"Dragon", desc:"The legend. Fast and brutal."},
+  fists:    {name:"Bare Fists",   ic:"👊",reqLvl:1, reqAim:1, reqComp:1, fireRate:1100,bloom:30,dmgMin:1, dmgMax:3, range:3, price:0,    cat:"weapon",grade:"none",  desc:"Your knuckles. Find a gun, fast."},
+  zip:      {name:"Zip Pistol",   ic:"🔫",reqLvl:1, reqAim:1, reqComp:1, fireRate:900, bloom:26,dmgMin:2, dmgMax:6, range:16,price:40,   cat:"weapon",grade:"Bronze",desc:"A crude homemade pistol."},
+  revolver: {name:"Revolver",     ic:"🔫",reqLvl:5, reqAim:5, reqComp:3, fireRate:850, bloom:20,dmgMin:4, dmgMax:9, range:20,price:160,  cat:"weapon",grade:"Steel", desc:"Reliable iron sidearm."},
+  smg:      {name:"SMG",          ic:"🧨",reqLvl:12,reqAim:15,reqComp:10,fireRate:380, bloom:22,dmgMin:3, dmgMax:8, range:20,price:650,  cat:"weapon",grade:"Mithril",desc:"Fast but it sprays."},
+  shotgun:  {name:"Shotgun",      ic:"💥",reqLvl:20,reqAim:25,reqComp:20,fireRate:1000,bloom:14,dmgMin:8, dmgMax:18,range:13,price:1800, cat:"weapon",grade:"Adamant",desc:"Devastating up close."},
+  rifle:    {name:"Hunting Rifle",ic:"🎯",reqLvl:30,reqAim:35,reqComp:25,fireRate:1200,bloom:6, dmgMin:14,dmgMax:26,range:38,price:4200, cat:"weapon",grade:"Rune",   desc:"Pinpoint long-range punch."},
+  ak:       {name:"AK-47",        ic:"⭐",reqLvl:40,reqAim:45,reqComp:40,fireRate:300, bloom:10,dmgMin:12,dmgMax:24,range:28,price:12000,cat:"weapon",grade:"Dragon", desc:"The legend. Fast and brutal."},
 };
 const ARMOUR={
-  cloth_hood:{name:"Cloth Hood",ic:"🧢",slot:"head",armour:1,price:15,cat:"armour",mat:"Cloth",desc:"Stops nothing, really."},
-  cloth_shirt:{name:"Cloth Shirt",ic:"👕",slot:"body",armour:2,price:30,cat:"armour",mat:"Cloth",desc:"Comfort over protection."},
-  cloth_pants:{name:"Cloth Pants",ic:"👖",slot:"legs",armour:1,price:20,cat:"armour",mat:"Cloth",desc:"Just trousers."},
-  card_helm:{name:"Cardboard Helm",ic:"📦",slot:"head",armour:3,price:60,cat:"armour",mat:"Cardboard",desc:"Don't get it wet."},
-  card_vest:{name:"Cardboard Vest",ic:"📦",slot:"body",armour:6,price:120,cat:"armour",mat:"Cardboard",desc:"A box with arm holes."},
-  card_legs:{name:"Cardboard Greaves",ic:"📦",slot:"legs",armour:4,price:90,cat:"armour",mat:"Cardboard",desc:"Crinkles when you walk."},
-  metal_helm:{name:"Steel Helmet",ic:"⛑️",slot:"head",armour:8,price:320,cat:"armour",mat:"Metal",desc:"Bolted scrap steel."},
-  metal_plate:{name:"Steel Plate",ic:"🛡️",slot:"body",armour:16,price:780,cat:"armour",mat:"Metal",desc:"A welded breastplate."},
-  metal_legs:{name:"Steel Legs",ic:"🦿",slot:"legs",armour:11,price:520,cat:"armour",mat:"Metal",desc:"Riveted plate leggings."},
-  kev_helm:{name:"Kevlar Helm",ic:"🪖",slot:"head",armour:16,price:1600,cat:"armour",mat:"Kevlar",desc:"Lightweight ballistic helmet."},
-  kev_vest:{name:"Kevlar Vest",ic:"🦺",slot:"body",armour:30,price:3600,cat:"armour",mat:"Kevlar",desc:"Stops most rounds cold."},
-  kev_legs:{name:"Kevlar Leggings",ic:"🦵",slot:"legs",armour:21,price:2400,cat:"armour",mat:"Kevlar",desc:"Flexible ballistic leg armour."},
+  cloth_hood:{name:"Cloth Hood",ic:"🧢",slot:"head",armour:1,reqLvl:1,reqArm:1,price:15,cat:"armour",mat:"Cloth",desc:"Stops nothing, really."},
+  cloth_shirt:{name:"Cloth Shirt",ic:"👕",slot:"body",armour:2,reqLvl:1,reqArm:1,price:30,cat:"armour",mat:"Cloth",desc:"Comfort over protection."},
+  cloth_pants:{name:"Cloth Pants",ic:"👖",slot:"legs",armour:1,reqLvl:1,reqArm:1,price:20,cat:"armour",mat:"Cloth",desc:"Just trousers."},
+  card_helm:{name:"Cardboard Helm",ic:"📦",slot:"head",armour:3,reqLvl:5,reqArm:5,price:60,cat:"armour",mat:"Cardboard",desc:"Don't get it wet."},
+  card_vest:{name:"Cardboard Vest",ic:"📦",slot:"body",armour:6,reqLvl:5,reqArm:5,price:120,cat:"armour",mat:"Cardboard",desc:"A box with arm holes."},
+  card_legs:{name:"Cardboard Greaves",ic:"📦",slot:"legs",armour:4,reqLvl:5,reqArm:5,price:90,cat:"armour",mat:"Cardboard",desc:"Crinkles when you walk."},
+  metal_helm:{name:"Steel Helmet",ic:"⛑️",slot:"head",armour:8,reqLvl:18,reqArm:20,price:320,cat:"armour",mat:"Metal",desc:"Bolted scrap steel."},
+  metal_plate:{name:"Steel Plate",ic:"🛡️",slot:"body",armour:16,reqLvl:18,reqArm:20,price:780,cat:"armour",mat:"Metal",desc:"A welded breastplate."},
+  metal_legs:{name:"Steel Legs",ic:"🦿",slot:"legs",armour:11,reqLvl:18,reqArm:20,price:520,cat:"armour",mat:"Metal",desc:"Riveted plate leggings."},
+  kev_helm:{name:"Kevlar Helm",ic:"🪖",slot:"head",armour:16,reqLvl:35,reqArm:40,price:1600,cat:"armour",mat:"Kevlar",desc:"Lightweight ballistic helmet."},
+  kev_vest:{name:"Kevlar Vest",ic:"🦺",slot:"body",armour:30,reqLvl:35,reqArm:40,price:3600,cat:"armour",mat:"Kevlar",desc:"Stops most rounds cold."},
+  kev_legs:{name:"Kevlar Leggings",ic:"🦵",slot:"legs",armour:21,reqLvl:35,reqArm:40,price:2400,cat:"armour",mat:"Kevlar",desc:"Flexible ballistic leg armour."},
 };
 const CONSUMABLES={
   bandage:{name:"Bandage",ic:"🩹",price:25,heal:12,cat:"food",desc:"Heals 12 vitality."},
@@ -210,7 +211,7 @@ const ARMOUR_TINT={Cloth:0xb9a37a,Cardboard:0xb98a4a,Metal:0x8d96a0,Kevlar:0x2e3
 /* ---------------- Player state ------------------------------ */
 const player={
   pos:new THREE.Vector3(0,0,30), dest:null, target:null,
-  speed:18, hp:30, lastShot:0, flinchUntil:0, walk:0, regen:0,
+  speed:18, hp:100, lastShot:0, flinchUntil:0, walk:0, regen:0,
   skills:{aim:{xp:0,lv:1},composure:{xp:0,lv:1},armour:{xp:0,lv:1},vitality:{xp:xpForLevel(10),lv:10}},
   equip:{weapon:"zip",head:null,body:"cloth_shirt",legs:"cloth_pants"},
   inv:[{k:"bandage",n:5},{k:"cloth_hood",n:1},{k:"coins",n:40}],
@@ -222,19 +223,48 @@ const player={
  * ============================================================ */
 const stage=document.getElementById("stage");
 const scene=new THREE.Scene();
-scene.background=new THREE.Color(0x8fb6d6);
-scene.fog=new THREE.Fog(0x8fb6d6,90,260);
-const camera=new THREE.PerspectiveCamera(55,1,0.1,800);
+const camera=new THREE.PerspectiveCamera(55,1,0.1,900);
 const renderer=new THREE.WebGLRenderer({antialias:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.outputEncoding=THREE.sRGBEncoding;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.08;
 stage.appendChild(renderer.domElement);
 function resize(){const w=stage.clientWidth,h=stage.clientHeight;
   renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();}
 addEventListener("resize",resize);
 
-scene.add(new THREE.HemisphereLight(0xcfe6ff,0x4a5238,0.85));
-const sun=new THREE.DirectionalLight(0xfff3d0,0.9);
-sun.position.set(60,120,40);scene.add(sun);
+// --- stylized cel-shading gradient map (3 hard bands) ---
+const gradMap=(()=>{const d=new Uint8Array([70,150,235]);
+  const t=new THREE.DataTexture(d,3,1,THREE.RedFormat);
+  t.minFilter=t.magFilter=THREE.NearestFilter; t.needsUpdate=true; return t;})();
+function toonMat(opts){return new THREE.MeshToonMaterial(Object.assign({gradientMap:gradMap},opts));}
+
+// --- gradient sky ---
+const sky=(()=>{const c=document.createElement("canvas");c.width=4;c.height=256;
+  const g=c.getContext("2d"); const grd=g.createLinearGradient(0,0,0,256);
+  grd.addColorStop(0,"#4f7fc4");grd.addColorStop(0.55,"#9cc2e3");grd.addColorStop(1,"#dcebef");
+  g.fillStyle=grd; g.fillRect(0,0,4,256);
+  const t=new THREE.CanvasTexture(c); t.encoding=THREE.sRGBEncoding; return t;})();
+scene.background=sky;
+scene.fog=new THREE.Fog(0xcfe2ee,120,330);
+
+scene.add(new THREE.HemisphereLight(0xdbeeff,0x556043,0.78));
+const sun=new THREE.DirectionalLight(0xfff1cf,1.05);
+sun.position.set(70,130,50);scene.add(sun);
+const rim=new THREE.DirectionalLight(0xa9c8ff,0.35); // cool back light
+rim.position.set(-80,40,-60);scene.add(rim);
+
+/* ---------------- Cartoon outline helper -------------------- */
+function addOutline(group,scale){
+  scale=scale||1.07; const targets=[];
+  group.traverse(o=>{if(o.isMesh&&!o.userData.noOutline)targets.push(o);});
+  for(const m of targets){
+    const o=new THREE.Mesh(m.geometry,new THREE.MeshBasicMaterial({color:0x14100c,side:THREE.BackSide}));
+    o.scale.setScalar(scale); o.position.copy(m.position); o.rotation.copy(m.rotation);
+    o.userData.noOutline=true; m.parent.add(o);
+  }
+}
 
 /* ---------------- World constants ---------------------------- */
 const HALF=300;                       // world spans -300..300
@@ -280,7 +310,7 @@ function buildTerrain(){
   }
   geo.setAttribute("color",new THREE.Float32BufferAttribute(colors,3));
   geo.computeVertexNormals();
-  const mat=new THREE.MeshLambertMaterial({vertexColors:true});
+  const mat=toonMat({vertexColors:true});
   const mesh=new THREE.Mesh(geo,mat); mesh.name="ground"; scene.add(mesh);
   return mesh;
 }
@@ -288,9 +318,9 @@ const ground=buildTerrain();
 
 // water: a few lakes (blue discs, block movement)
 function addLake(x,z,r){
-  const m=new THREE.Mesh(new THREE.CircleGeometry(r,32),
-    new THREE.MeshLambertMaterial({color:0x2f6fb0,transparent:true,opacity:0.85}));
-  m.rotation.x=-Math.PI/2; m.position.set(x,0.6,z); scene.add(m);
+  const m=new THREE.Mesh(new THREE.CircleGeometry(r,40),
+    new THREE.MeshToonMaterial({color:0x2f6fb0,gradientMap:gradMap,transparent:true,opacity:0.82}));
+  m.rotation.x=-Math.PI/2; m.position.set(x,0.6,z); m.userData.noOutline=true; scene.add(m);
   addBlocker(x,z,r*0.85);
 }
 addLake(-70,70,18); addLake(80,90,15); addLake(-110,-90,22);
@@ -298,13 +328,11 @@ addLake(-70,70,18); addLake(80,90,15); addLake(-110,-90,22);
 /* ============================================================ *
  *  PROCEDURAL MODELS
  * ============================================================ */
-function box(w,h,d,color){return new THREE.Mesh(new THREE.BoxGeometry(w,h,d),
-  new THREE.MeshLambertMaterial({color}));}
-function cyl(rt,rb,h,color,seg=8){return new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,seg),
-  new THREE.MeshLambertMaterial({color}));}
+function box(w,h,d,color){return new THREE.Mesh(new THREE.BoxGeometry(w,h,d),toonMat({color}));}
+function cyl(rt,rb,h,color,seg=8){return new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,seg),toonMat({color}));}
 function blobShadow(r){const m=new THREE.Mesh(new THREE.CircleGeometry(r,16),
   new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:0.28}));
-  m.rotation.x=-Math.PI/2;m.position.y=0.08;return m;}
+  m.rotation.x=-Math.PI/2;m.position.y=0.08;m.userData.noOutline=true;return m;}
 
 // Humanoid (faces +Z). opts: {height, shirt, skin, pants, gun, gunColor}
 function makeHumanoid(o){
@@ -372,7 +400,7 @@ function makeHouse(x,z,w,d,color){
   const h=4+Math.random()*2;
   const base=box(w,h,d,color); base.position.y=h/2; g.add(base);
   const roof=new THREE.Mesh(new THREE.ConeGeometry(Math.max(w,d)*0.82,2.4,4),
-    new THREE.MeshLambertMaterial({color:0x6e3b2a}));
+    toonMat({color:0x6e3b2a}));
   roof.rotation.y=Math.PI/4; roof.position.y=h+1.2; g.add(roof);
   const door=box(1,2,0.2,0x3a2a1a); door.position.set(0,1,d/2+0.05); g.add(door);
   g.position.set(x,0,z); scene.add(g);
@@ -388,13 +416,12 @@ function makeTree(x,z,kind){
     const trunk=cyl(0.3,0.45,3,0x5a3c25); trunk.position.y=1.5; g.add(trunk);
     const fc=kind==="pine"?0x2f5a2f:0x3f7a3a;
     for(let i=0;i<3;i++){const c=new THREE.Mesh(new THREE.ConeGeometry(2-i*0.45,2,7),
-      new THREE.MeshLambertMaterial({color:fc}));c.position.y=3.4+i*1.2;g.add(c);}
+      toonMat({color:fc}));c.position.y=3.4+i*1.2;g.add(c);}
   }
   g.position.set(x,0,z); scene.add(g);
 }
 function makeRock(x,z,s){
-  const r=new THREE.Mesh(new THREE.DodecahedronGeometry(s),
-    new THREE.MeshLambertMaterial({color:0x8a8378,flatShading:true}));
+  const r=new THREE.Mesh(new THREE.DodecahedronGeometry(s),toonMat({color:0x8a8378}));
   r.position.set(x,s*0.5,z); scene.add(r); addBlocker(x,z,s*0.8);
 }
 
@@ -414,7 +441,7 @@ buildTown(OUTPOST,5,"Forest Outpost");
 
 // shopkeeper NPC in main town
 const shopkeeper=makeHumanoid({height:3.6,shirt:0x9c5a2a,skin:0xd0a878,gun:false});
-shopkeeper.position.set(6,0,8); scene.add(shopkeeper);
+addOutline(shopkeeper); shopkeeper.position.set(6,0,8); scene.add(shopkeeper);
 const shopSign=box(2,1.2,0.2,0xffd24a); shopSign.position.set(6,4,8); scene.add(shopSign);
 
 // scatter biome flora
@@ -463,7 +490,7 @@ function buildRadioTower(x,z){
 function buildBunker(x,z){
   const g=new THREE.Group();
   const dome=new THREE.Mesh(new THREE.SphereGeometry(6,16,8,0,Math.PI*2,0,Math.PI/2),
-    new THREE.MeshLambertMaterial({color:0x5a5e52,flatShading:true}));
+    toonMat({color:0x5a5e52}));
   g.add(dome);
   const door=box(2.5,3,0.5,0x2a2a2a); door.position.set(0,1.5,6); g.add(door);
   g.position.set(x,0,z); scene.add(g); addBlocker(x,z,6); addPOI("Old Bunker",x,z);
@@ -478,10 +505,10 @@ function buildGraveyard(x,z){
 function buildBanditCamp(x,z){
   const g=new THREE.Group();
   for(let i=0;i<4;i++){const a=i/4*6.28;
-    const tent=new THREE.Mesh(new THREE.ConeGeometry(2.5,3,4),new THREE.MeshLambertMaterial({color:0x6a5a3a}));
+    const tent=new THREE.Mesh(new THREE.ConeGeometry(2.5,3,4),toonMat({color:0x6a5a3a}));
     tent.position.set(Math.cos(a)*6,1.5,Math.sin(a)*6);tent.rotation.y=0.8;g.add(tent);}
   const fire=cyl(1.2,1.4,0.4,0x3a2a1a); fire.position.y=0.2; g.add(fire);
-  const flame=new THREE.Mesh(new THREE.ConeGeometry(0.8,1.6,6),new THREE.MeshLambertMaterial({color:0xff7a2a}));
+  const flame=new THREE.Mesh(new THREE.ConeGeometry(0.8,1.6,6),toonMat({color:0xff7a2a}));
   flame.position.y=1; g.add(flame);
   g.position.set(x,0,z); scene.add(g); addBlocker(x,z,2); addPOI("Bandit Camp",x,z);
 }
@@ -518,7 +545,7 @@ function drawMarker(spr,ch,col){const{cvs,tex}=spr.userData;const c=cvs.getConte
 function spawnNpc(questId,x,z,shirt){
   const q=QUESTS[questId];
   const mesh=makeHumanoid({height:3.6,shirt:shirt||0x6a6acc,skin:0xd0a878,gun:false});
-  mesh.position.set(x,0,z); scene.add(mesh);
+  addOutline(mesh); mesh.position.set(x,0,z); scene.add(mesh);
   // name tag
   const tag=makePlate({mesh:{userData:{baseHeight:3.6}}});
   const npc={questId,name:q.giver,mesh,pos:new THREE.Vector3(x,0,z)};
@@ -606,7 +633,7 @@ const ENEMY_TYPES={
 const enemies=[];
 function spawnEnemy(type,x,z){
   const t=ENEMY_TYPES[type];
-  const mesh=t.build(); mesh.position.set(x,0,z); scene.add(mesh);
+  const mesh=t.build(); addOutline(mesh); mesh.position.set(x,0,z); scene.add(mesh);
   const e={type,name:t.name,cmb:t.cmb,maxhp:t.hp,hp:t.hp,aim:t.aim,dmg:t.dmg,
     armour:t.armour,fireRate:t.fireRate,range:t.range,xp:t.xp,speed:t.speed,
     aggroR:t.aggro,tier:t.tier,coins:t.coins,quest:t.quest,gunChance:t.gunChance,
@@ -691,6 +718,7 @@ function removeDrop(dp){const i=drops.indexOf(dp);if(i>=0){scene.remove(dp.mesh)
 function pickUpDrop(dp){
   if(addItem(dp.k,dp.n)){
     log(`You pick up ${dp.n>1?dp.n+" ":""}${ITEMS[dp.k].name}.`,"loot");
+    (dp.k==="coins"?sfxCoin:sfxPickup)();
     removeDrop(dp); checkQuestProgress();
   }
 }
@@ -709,6 +737,7 @@ function buildPlayerMesh(){
     gun:player.equip.weapon!=="fists",gunLen,gunColor:player.equip.weapon==="ak"?0x4a2a10:0x222});
   // helmet hint
   if(player.equip.head){const hat=box(0.8,0.3,0.8,head);hat.position.y=3.45;player.mesh.add(hat);}
+  addOutline(player.mesh);
   player.mesh.position.copy(player.pos); scene.add(player.mesh);
 }
 buildPlayerMesh();
@@ -735,13 +764,47 @@ function rand(a,b){return a+Math.random()*(b-a);}
 function randint(a,b){return Math.floor(rand(a,b+1));}
 function dist2(a,b){const dx=a.x-b.x,dz=a.z-b.z;return Math.hypot(dx,dz);}
 
+/* ---------------- Sound (synthesized Web Audio) ------------- */
+let actx=null, masterGain=null;
+function initAudio(){ if(actx)return;
+  try{ actx=new (window.AudioContext||window.webkitAudioContext)();
+    masterGain=actx.createGain(); masterGain.gain.value=0.32; masterGain.connect(actx.destination);
+  }catch(e){ actx=null; } }
+addEventListener("pointerdown",()=>{initAudio(); if(actx&&actx.state==="suspended")actx.resume();});
+function tone(freq,dur,type,vol,slideTo){ if(!actx)return;
+  const t=actx.currentTime, o=actx.createOscillator(), g=actx.createGain();
+  o.type=type||"square"; o.frequency.setValueAtTime(freq,t);
+  if(slideTo)o.frequency.exponentialRampToValueAtTime(Math.max(1,slideTo),t+dur);
+  g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol||0.3,t+0.005);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  o.connect(g); g.connect(masterGain); o.start(t); o.stop(t+dur+0.03); }
+function noise(dur,vol,filtFreq){ if(!actx)return;
+  const t=actx.currentTime, n=Math.max(1,Math.floor(actx.sampleRate*dur));
+  const buf=actx.createBuffer(1,n,actx.sampleRate), d=buf.getChannelData(0);
+  for(let i=0;i<n;i++)d[i]=Math.random()*2-1;
+  const src=actx.createBufferSource(); src.buffer=buf;
+  const f=actx.createBiquadFilter(); f.type="lowpass"; f.frequency.value=filtFreq||1500;
+  const g=actx.createGain(); g.gain.setValueAtTime(vol||0.3,t); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  src.connect(f); f.connect(g); g.connect(masterGain); src.start(t); src.stop(t+dur); }
+const SHOT={zip:[.05,.28,2600],revolver:[.08,.4,2200],smg:[.04,.22,3000],shotgun:[.13,.55,1600],
+  rifle:[.10,.5,2000],ak:[.05,.32,2600],fists:[.04,.12,1200]};
+function sfxShoot(w){const s=SHOT[w]||SHOT.zip; noise(s[0],s[1],s[2]); tone(150,s[0]*1.3,"square",s[1]*0.4,55);}
+function sfxHit(){tone(440,0.06,"square",0.16,320);}
+function sfxKill(){tone(300,0.28,"sawtooth",0.26,80); noise(0.2,0.22,900);}
+function sfxHurt(){tone(130,0.2,"sawtooth",0.3,65);}
+function sfxPickup(){tone(680,0.06,"square",0.2); tone(1000,0.09,"square",0.2);}
+function sfxCoin(){tone(1200,0.05,"square",0.25); tone(1600,0.07,"square",0.2);}
+function sfxLevel(){[523,659,784,1047].forEach((f,i)=>setTimeout(()=>tone(f,0.2,"triangle",0.3),i*85));}
+function sfxQuest(){[392,523,659,784,1047].forEach((f,i)=>setTimeout(()=>tone(f,0.22,"triangle",0.3),i*95));}
+function sfxClick(){tone(320,0.03,"square",0.12);}
+
 /* ---------------- Skills ------------------------------------ */
 function gainXp(skill,amt){const s=player.skills[skill];if(!s)return;const before=s.lv;
   s.xp+=amt;const now=levelForXp(s.xp);
   if(now>before){s.lv=now;log(`Level up! Your ${skill[0].toUpperCase()+skill.slice(1)} is now ${now}.`,"xp");
-    floater(player.pos,"⬆ "+skill,"#7fd06a");} else s.lv=now;}
+    floater(player.pos,"⬆ "+skill,"#7fd06a");sfxLevel();} else s.lv=now;}
 function combatLevel(){const s=player.skills;return Math.max(3,Math.floor((s.aim.lv+s.composure.lv+s.armour.lv+s.vitality.lv)/4+0.5));}
-function maxHp(){return player.skills.vitality.lv*3;}
+function maxHp(){return player.skills.vitality.lv*10;}
 function curWeapon(){return WEAPONS[player.equip.weapon]||WEAPONS.fists;}
 function effectiveBloom(){const w=curWeapon();const reduce=player.skills.aim.lv/99*0.7;return Math.max(2,w.bloom*(1-reduce));}
 function flinchResist(){return player.skills.composure.lv/(player.skills.composure.lv+45);}
@@ -751,19 +814,28 @@ function totalArmour(){let a=player.skills.armour.lv;for(const s of["head","body
 const INV_MAX=30;
 function invCount(k){const s=player.inv.find(i=>i.k===k);return s?s.n:0;}
 function coins(){return invCount("coins");}
-function addItem(k,n=1){const it=ITEMS[k];
-  const stack=it.cat==="coins"||it.cat==="food"||it.cat==="misc";
-  if(stack){const s=player.inv.find(i=>i.k===k);if(s){s.n+=n;refreshUI();return true;}}
+function addItem(k,n=1){
+  // every item stacks into a single inventory slot
+  const s=player.inv.find(i=>i.k===k);
+  if(s){s.n+=n;refreshUI();return true;}
   if(player.inv.length>=INV_MAX){log("Your inventory is full.","bad");return false;}
   player.inv.push({k,n});refreshUI();return true;}
 function removeItem(k,n=1){const i=player.inv.findIndex(x=>x.k===k);if(i<0)return;
   player.inv[i].n-=n;if(player.inv[i].n<=0)player.inv.splice(i,1);refreshUI();}
+// returns null if equippable, else [skillLabel, neededLevel] of the first failing requirement
+function reqFail(k){const it=ITEMS[k];if(!it)return null;
+  if(it.reqLvl&&combatLevel()<it.reqLvl)return["Combat level",it.reqLvl];
+  if(it.reqAim&&player.skills.aim.lv<it.reqAim)return["Aim",it.reqAim];
+  if(it.reqComp&&player.skills.composure.lv<it.reqComp)return["Composure",it.reqComp];
+  if(it.reqArm&&player.skills.armour.lv<it.reqArm)return["Armour",it.reqArm];
+  return null;}
 function equipItem(k){const it=ITEMS[k];if(!it)return;
-  if(it.cat==="weapon"){if(player.skills.aim.lv<it.req){log(`You need Aim ${it.req} to wield the ${it.name}.`,"bad");return;}
-    const old=player.equip.weapon;player.equip.weapon=k;removeItem(k,1);
-    if(old&&old!=="fists")addItem(old,1);log(`You wield the ${it.name}.`);}
+  const fail=reqFail(k);
+  if(fail){log(`You need ${fail[0]} ${fail[1]} to use the ${it.name}.`,"bad");sfxClick();return;}
+  if(it.cat==="weapon"){const old=player.equip.weapon;player.equip.weapon=k;removeItem(k,1);
+    if(old&&old!=="fists")addItem(old,1);log(`You wield the ${it.name}.`);sfxClick();}
   else if(it.cat==="armour"){const slot=it.slot,old=player.equip[slot];
-    player.equip[slot]=k;removeItem(k,1);if(old)addItem(old,1);log(`You put on the ${it.name}.`);}
+    player.equip[slot]=k;removeItem(k,1);if(old)addItem(old,1);log(`You put on the ${it.name}.`);sfxClick();}
   buildPlayerMesh();refreshUI();}
 function unequip(slot){
   const k=player.equip[slot]; if(!k||k==="fists")return;
@@ -798,21 +870,21 @@ function playerShoot(now){
   faceTowards(player.mesh,e.pos.x,e.pos.z,player.pos.x,player.pos.z);
   if(now-player.lastShot<w.fireRate) return;
   if(now<player.flinchUntil) return;
-  player.lastShot=now;
+  player.lastShot=now; sfxShoot(player.equip.weapon);
   tracer(muzzle(player.mesh,3.7),new THREE.Vector3(e.pos.x,2.2,e.pos.z),0xffe070);
   const bloom=effectiveBloom(), rangePen=d/w.range*8;
   const acc=100/(1+bloom*0.06+rangePen*0.05);
   const hit=acc/(acc+e.armour);
   if(Math.random()<hit){
     const dmg=randint(w.dmgMin,w.dmgMax); e.hp-=dmg; e.hpDirty=true;
-    floater(e.pos,String(dmg),"#ffd24a");
+    floater(e.pos,String(dmg),"#ffd24a"); sfxHit();
     gainXp("aim",dmg*4);gainXp("composure",dmg*2);gainXp("vitality",Math.round(dmg*1.33));
     if(e.hp<=0) killEnemy(e);
   }else{ floater(e.pos,"miss","#cccccc"); gainXp("aim",2); }
 }
 function pick(arr){return arr[Math.floor(Math.random()*arr.length)];}
 function killEnemy(e){
-  e.dead=true; e.respawnAt=performance.now()+9000; e.mesh.visible=false; player.target=null;
+  e.dead=true; e.respawnAt=performance.now()+9000; e.mesh.visible=false; player.target=null; sfxKill();
   log(`You killed the ${e.name}.`,"cmb");
   gainXp("aim",e.xp*0.4);gainXp("composure",e.xp*0.3);gainXp("vitality",e.xp*0.3);
   rollDrops(e);
@@ -841,10 +913,12 @@ function rollDrops(e){
 function enemyShoot(e,now){
   if(now-e.lastShot<e.fireRate)return; e.lastShot=now;
   tracer(muzzle(e.mesh,e.mesh.userData.baseHeight),new THREE.Vector3(player.pos.x,2.2,player.pos.z),0xff5040);
+  // faint report if nearby
+  if(dist2(e.pos,player.pos)<60) noise(0.04,0.08,1800);
   const acc=e.aim+8, hit=acc/(acc+totalArmour());
   if(Math.random()<hit){
     let dmg=randint(e.dmg[0],e.dmg[1]); dmg=Math.max(1,dmg-Math.floor(totalArmour()*0.12));
-    player.hp-=dmg; floater(player.pos,String(dmg),"#ff6a5a");
+    player.hp-=dmg; floater(player.pos,String(dmg),"#ff6a5a"); sfxHurt();
     gainXp("armour",dmg*3);gainXp("composure",dmg*1.5);
     if(Math.random()>flinchResist()){player.flinchUntil=now+450;floater(player.pos,"flinch!","#ff9b5a");}
     if(player.hp<=0)playerDeath();
@@ -1071,28 +1145,35 @@ function updateTopBar(){
   document.getElementById("biome").textContent=biomeAt(player.pos.x,player.pos.z).name;
   document.querySelector("#hpbar i").style.width=Math.max(0,player.hp/maxHp()*100)+"%";
 }
-const mm=document.getElementById("minimap"), mmx=mm.getContext("2d"), MMR=75, MMSCALE=75/HALF;
+const mm=document.getElementById("minimap"), mmx=mm.getContext("2d");
+const MMR=75, MM_VIEW=50, MMSCALE=75/MM_VIEW; // local radar: ~50 units around you
 function updateMinimap(){
+  mmx.save();
+  // circular clip
+  mmx.beginPath();mmx.arc(MMR,MMR,MMR,0,7);mmx.clip();
   mmx.clearRect(0,0,150,150);
-  // biome backdrop
+  // biome backdrop sampled around the player
   for(let y=0;y<150;y+=10)for(let x=0;x<150;x+=10){
-    const wx=(x-MMR)/MMSCALE, wz=(y-MMR)/MMSCALE;
+    const wx=player.pos.x+(x-MMR)/MMSCALE, wz=player.pos.z+(y-MMR)/MMSCALE;
     mmx.fillStyle="#"+biomeAt(wx,wz).ground.toString(16).padStart(6,"0");
     mmx.fillRect(x,y,10,10);}
-  const toMM=(wx,wz)=>[MMR+wx*MMSCALE,MMR+wz*MMSCALE];
-  // enemies
-  for(const e of enemies){if(e.dead)continue;const[a,b]=toMM(e.pos.x,e.pos.z);
-    mmx.fillStyle=e.aggro?"#ff4030":"#c04030";mmx.fillRect(a-1,b-1,2,2);}
+  const toMM=(wx,wz)=>[MMR+(wx-player.pos.x)*MMSCALE,MMR+(wz-player.pos.z)*MMSCALE];
+  const near=(p)=>Math.abs(p.x-player.pos.x)<MM_VIEW&&Math.abs(p.z-player.pos.z)<MM_VIEW;
+  // POIs (white squares)
+  for(const p of POIS){if(!near(p))continue;const[a,b]=toMM(p.x,p.z);mmx.fillStyle="#ffffff";mmx.fillRect(a-2,b-2,4,4);}
   // ground loot
-  mmx.fillStyle="#ffe89a";for(const dp of drops){const[a,b]=toMM(dp.x,dp.z);mmx.fillRect(a-0.5,b-0.5,1.5,1.5);}
-  // points of interest (white squares)
-  mmx.fillStyle="#ffffff";mmx.font="6px sans-serif";mmx.textAlign="center";
-  for(const p of POIS){const[a,b]=toMM(p.x,p.z);mmx.fillStyle="#fff";mmx.fillRect(a-1.5,b-1.5,3,3);}
-  // NPCs (yellow !)
-  mmx.fillStyle="#ffd24a";for(const n of npcs){const[a,b]=toMM(n.pos.x,n.pos.z);mmx.fillRect(a-1.5,b-1.5,3,3);}
-  // player
-  const[px,pz]=toMM(player.pos.x,player.pos.z);
-  mmx.fillStyle="#4ad0ff";mmx.beginPath();mmx.arc(px,pz,3,0,7);mmx.fill();
+  mmx.fillStyle="#ffe89a";for(const dp of drops){if(!near(dp))continue;const[a,b]=toMM(dp.x,dp.z);mmx.fillRect(a-1,b-1,2,2);}
+  // NPCs
+  mmx.fillStyle="#ffd24a";for(const n of npcs){if(!near(n.pos))continue;const[a,b]=toMM(n.pos.x,n.pos.z);mmx.fillRect(a-2,b-2,4,4);}
+  // enemies
+  for(const e of enemies){if(e.dead||!near(e.pos))continue;const[a,b]=toMM(e.pos.x,e.pos.z);
+    mmx.fillStyle=e.aggro?"#ff4030":"#d05040";mmx.fillRect(a-1.5,b-1.5,3,3);}
+  // player (always centre) with facing tick
+  mmx.fillStyle="#4ad0ff";mmx.beginPath();mmx.arc(MMR,MMR,3.5,0,7);mmx.fill();
+  mmx.restore();
+  // ring + N marker
+  mmx.strokeStyle="#0d0a07";mmx.lineWidth=2;mmx.beginPath();mmx.arc(MMR,MMR,MMR-1,0,7);mmx.stroke();
+  mmx.fillStyle="#cdbf9a";mmx.font="bold 10px Trebuchet MS";mmx.textAlign="center";mmx.fillText("N",MMR,11);
 }
 
 const panel=document.getElementById("panelbody");
@@ -1169,9 +1250,9 @@ function renderShop(){const cats=[["weapon","Guns"],["armour","Armour"],["food",
   const pool=shopFilter==="weapon"?WEAPONS:shopFilter==="armour"?ARMOUR:{bandage:CONSUMABLES.bandage,medkit:CONSUMABLES.medkit};
   let list="";
   for(const k in pool){const it=pool[k];if(!it.price)continue;
-    const reqTxt=it.req?`<span style="color:${player.skills.aim.lv>=it.req?'#7fd06a':'#ff7a6a'}">Aim ${it.req}</span> · `:"";
-    const sub=it.cat==="weapon"?`${reqTxt}${it.dmgMin}–${it.dmgMax} dmg`:
-      it.cat==="armour"?`${it.mat} · +${it.armour} armour`:`Heals ${it.heal}`;
+    const reqTxt=reqHtml(k);
+    const sub=it.cat==="weapon"?`${it.dmgMin}–${it.dmgMax} dmg${reqTxt?" · "+reqTxt:""}`:
+      it.cat==="armour"?`${it.mat} · +${it.armour} armour${reqTxt?" · "+reqTxt:""}`:`Heals ${it.heal}`;
     list+=`<div class="shopitem" data-tip="item:${k}"><div style="font-size:20px">${it.ic}</div>
       <div class="info"><div class="nm">${it.name}</div><div class="sub">${sub}</div></div>
       <button class="btn buy" data-k="${k}" ${coins()<it.price?"disabled":""}>⛁${it.price}</button></div>`;}
@@ -1179,9 +1260,17 @@ function renderShop(){const cats=[["weapon","Guns"],["armour","Armour"],["food",
     <p style="font-size:11px;color:var(--dim);margin-top:8px">You have ⛁ ${coins()} coins. Sell loot via right-click in inventory.</p>`;
   panel.querySelectorAll("[data-cat]").forEach(b=>b.addEventListener("click",()=>{shopFilter=b.dataset.cat;renderShop();}));
   panel.querySelectorAll(".buy").forEach(b=>b.addEventListener("click",()=>buy(b.dataset.k)));bindTips();}
+// coloured requirement string for an item (green = met, red = not yet)
+function reqHtml(k){const it=ITEMS[k];if(!it)return "";const parts=[];
+  const add=(lab,need,have)=>{if(need)parts.push(`<span style="color:${have>=need?'#7fd06a':'#ff7a6a'}">${lab} ${need}</span>`);};
+  add("Lvl",it.reqLvl,combatLevel());
+  add("Aim",it.reqAim,player.skills.aim.lv);
+  add("Comp",it.reqComp,player.skills.composure.lv);
+  add("Arm",it.reqArm,player.skills.armour.lv);
+  return parts.join(" ");}
 function buy(k){const it=ITEMS[k];if(coins()<it.price){log("You can't afford that.","bad");return;}
   if(player.inv.length>=INV_MAX&&it.cat!=="food"){log("Not enough inventory space.","bad");return;}
-  removeItem("coins",it.price);addItem(k,1);log(`You buy the ${it.name}.`,"loot");refreshUI();}
+  removeItem("coins",it.price);addItem(k,1);sfxCoin();log(`You buy the ${it.name}.`,"loot");refreshUI();}
 
 /* ---------------- Tooltip & context menu -------------------- */
 const tip=document.getElementById("tip");
@@ -1190,9 +1279,10 @@ function bindTips(){panel.querySelectorAll("[data-tip]").forEach(el=>{
   el.addEventListener("mouseleave",()=>tip.style.display="none");});}
 function showTip(ev,spec){const[type,key]=spec.split(":");let html="";
   if(type==="item"){const d=ITEMS[key];if(!d)return;let lines="";
-    if(d.cat==="weapon")lines=`<div class="tline">${d.grade}-grade · ${d.dmgMin}–${d.dmgMax} dmg · ${(1000/d.fireRate).toFixed(1)}/s</div><div class="tline">Range ${d.range} · bloom ${d.bloom} · needs Aim ${d.req}</div>`;
+    if(d.cat==="weapon")lines=`<div class="tline">${d.grade}-grade · ${d.dmgMin}–${d.dmgMax} dmg · ${(1000/d.fireRate).toFixed(1)}/s</div><div class="tline">Range ${d.range} · bloom ${d.bloom}</div>`;
     else if(d.cat==="armour")lines=`<div class="tline">${d.mat} · ${d.slot} · +${d.armour} armour</div>`;
     else if(d.cat==="food")lines=`<div class="tline">Heals ${d.heal} vitality</div>`;
+    const rq=reqHtml(key); if(rq)lines+=`<div class="tline">Requires: ${rq}</div>`;
     html=`<div class="tnm">${d.ic} ${d.name}</div>${lines}<div class="tdesc">${d.desc||""}</div>`;}
   else if(type==="skill"){const s=player.skills[key];
     html=`<div class="tnm">${key[0].toUpperCase()+key.slice(1)}</div>
