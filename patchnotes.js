@@ -1,7 +1,19 @@
 window.PATCHNOTES={
- "version": "1.0.10",
+ "version": "1.0.12",
  "generated": "2026-06-21",
  "patches": [
+  {
+   "version": "1.0.12",
+   "date": "2026-06-21",
+   "title": "Changelog hook: regenerate patchnotes into the same commit (post-commit + amend)",
+   "notes": []
+  },
+  {
+   "version": "1.0.11",
+   "date": "2026-06-21",
+   "title": "Version chip + auto-updating changelog (patch notes)",
+   "notes": []
+  },
   {
    "version": "1.0.10",
    "date": "2026-06-21",

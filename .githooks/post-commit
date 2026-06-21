@@ -1,0 +1,13 @@
+#!/bin/sh
+# Regenerate the in-game changelog (patchnotes.js) from git history after each
+# commit and fold it into that same commit, so the version chip + patch notes
+# always reflect the latest commit. Guarded so the amend doesn't loop.
+root="$(git rev-parse --show-toplevel)" || exit 0
+command -v node >/dev/null 2>&1 || exit 0
+node "$root/scripts/changelog.mjs" >/dev/null 2>&1 || exit 0
+cd "$root" || exit 0
+if ! git diff --quiet -- patchnotes.js; then
+  git add patchnotes.js
+  git commit --amend --no-edit --no-verify >/dev/null 2>&1
+fi
+exit 0

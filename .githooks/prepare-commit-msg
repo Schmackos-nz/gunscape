@@ -1,8 +1,0 @@
-#!/bin/sh
-# Auto-regenerate the in-game changelog (patchnotes.js) for every commit,
-# including the message of the commit being made, and stage it.
-if command -v node >/dev/null 2>&1; then
-  node "$(git rev-parse --show-toplevel)/scripts/changelog.mjs" --msg-file "$1" >/dev/null 2>&1
-  git add "$(git rev-parse --show-toplevel)/patchnotes.js" 2>/dev/null
-fi
-exit 0
