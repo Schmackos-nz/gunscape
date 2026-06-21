@@ -89,6 +89,10 @@
   #hpbar i{display:block;height:100%;background:linear-gradient(#7ed66a,#4a9c3c);width:100%;}
   #minimap{position:absolute;top:8px;right:8px;border:2px solid var(--frame);
     border-radius:50%;background:#0a0a0a;}
+  #runtoggle{position:absolute;top:162px;right:8px;width:150px;text-align:center;
+    background:rgba(0,0,0,.6);color:#ffd24a;font-weight:bold;font-size:13px;
+    padding:5px 0;border-radius:8px;cursor:pointer;border:2px solid #5a5142;}
+  #runtoggle.on{border-color:#4ad0ff;color:#bfe9ff;box-shadow:0 0 8px rgba(74,208,255,.5);}
   #hint{position:absolute;bottom:8px;right:8px;width:46%;text-align:center;
     color:#cdbf9a;font-size:12px;background:rgba(0,0,0,.4);padding:5px;
     border-radius:6px;pointer-events:none;}
@@ -109,6 +113,16 @@
   #dialog .say{color:var(--txt);font-size:13px;line-height:1.5;margin-bottom:10px;}
   #dialog .prog{color:#7fbfff;font-size:12px;margin-bottom:10px;}
   #dialog .acts{display:flex;gap:8px;justify-content:flex-end;}
+  #styleMenu{position:absolute;left:50%;top:46%;transform:translate(-50%,-50%);z-index:75;
+    background:rgba(13,10,7,.95);border:2px solid var(--gold);border-radius:10px;
+    padding:14px 16px;display:none;width:340px;box-shadow:0 6px 24px rgba(0,0,0,.7);}
+  #styleMenu .sm-title{color:var(--gold);font-weight:bold;text-align:center;margin-bottom:10px;font-size:15px;}
+  #styleMenu .sm-opt{display:block;width:100%;text-align:left;margin:5px 0;padding:8px 10px;
+    background:var(--panel2);color:var(--txt);border:1px solid var(--frame);border-radius:6px;
+    cursor:pointer;font-size:13px;font-weight:bold;}
+  #styleMenu .sm-opt small{display:block;color:var(--dim);font-weight:normal;font-size:11px;margin-top:2px;}
+  #styleMenu .sm-opt.on{border-color:var(--gold);background:#46371d;}
+  #styleMenu .sm-opt:hover{border-color:var(--gold);}
   #loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
     background:#0a0a12;color:var(--gold);font-size:20px;z-index:80;}
   ::-webkit-scrollbar{width:8px;}
@@ -125,8 +139,9 @@
     <div id="biome" class="hudbox">—</div>
     <div id="hpwrap" class="hudbox"><div class="lab">Vitality</div><div id="hpbar"><i></i></div></div>
     <canvas id="minimap" width="150" height="150"></canvas>
+    <div id="runtoggle" title="Toggle run (run uses energy)">🏃 100%</div>
     <div id="chat"></div>
-    <div id="hint">WASD / click to move · click monster = auto-fight · click loot to grab · right-click = options · right-drag turn · wheel zoom</div>
+    <div id="hint">Click to move · click monster = auto-fight · click trees to chop · hold Tab for attack style · right-click = options · right-drag turn · wheel zoom</div>
   </div>
   <div id="side">
     <div id="tabs">
@@ -141,6 +156,7 @@
 <div id="tip"></div>
 <div id="ctx"></div>
 <div id="dialog"></div>
+<div id="styleMenu"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
@@ -186,16 +202,28 @@ const ARMOUR={
 const CONSUMABLES={
   bandage:{name:"Bandage",ic:"🩹",price:25,heal:12,cat:"food",desc:"Heals 12 vitality."},
   medkit:{name:"Med-Kit",ic:"🧰",price:120,heal:40,cat:"food",desc:"Heals 40 vitality."},
+  cooked_meat:{name:"Cooked Meat",ic:"🍖",price:8,heal:16,cat:"food",desc:"Nicely cooked. Heals 16, always safe."},
+  cooked_steak:{name:"Cooked Steak",ic:"🥩",price:18,heal:34,cat:"food",desc:"A hearty steak. Heals 34."},
+};
+// raw foods (cook on a campfire). rawHeal=heal if eaten raw, sickChance=odds it sickens you
+const RAWFOOD={
+  raw_meat:{name:"Raw Meat",ic:"🥓",price:2,cat:"raw",cook:"cooked_meat",burnt:"burnt_meat",cookLvl:1,stopBurn:24,cookXp:30,rawHeal:3,sickChance:.45,desc:"Raw and risky. Cook it first!"},
+  raw_steak:{name:"Raw Steak",ic:"🍗",price:6,cat:"raw",cook:"cooked_steak",burnt:"burnt_meat",cookLvl:20,stopBurn:50,cookXp:65,rawHeal:5,sickChance:.55,desc:"A thick raw cut. Needs Cooking 20."},
+};
+const TOOLS={
+  hatchet:{name:"Hatchet",ic:"🪓",price:45,cat:"tool",desc:"Chop trees for logs. Keep it in your pack."},
 };
 const MISC={
   scrap:{name:"Scrap",ic:"⚙️",price:4,cat:"misc",desc:"Salvaged junk. Sells for coins."},
   bones:{name:"Bones",ic:"🦴",price:1,cat:"misc",desc:"The remains of the fallen. Grim."},
+  logs:{name:"Logs",ic:"🪵",price:3,cat:"misc",light:true,desc:"Right-click to light a campfire."},
+  burnt_meat:{name:"Burnt Meat",ic:"🌑",price:0,cat:"misc",desc:"Charred and inedible. Whoops."},
   rat_tail:{name:"Rat Tail",ic:"🐀",price:3,cat:"misc",desc:"A scrawny rat tail."},
   hound_fang:{name:"Hound Fang",ic:"🦷",price:6,cat:"misc",desc:"A sharp mutant fang."},
   scorpion_tail:{name:"Scorpion Tail",ic:"🦂",price:10,cat:"misc",desc:"A venomous stinger."},
   dog_tags:{name:"Dog Tags",ic:"🪖",price:18,cat:"misc",desc:"Mercenary identification tags."},
 };
-const ITEMS=Object.assign({},WEAPONS,ARMOUR,CONSUMABLES,MISC,{coins:{name:"Coins",ic:"⛁",cat:"coins",desc:"Shiny money."}});
+const ITEMS=Object.assign({},WEAPONS,ARMOUR,CONSUMABLES,RAWFOOD,TOOLS,MISC,{coins:{name:"Coins",ic:"⛁",cat:"coins",desc:"Shiny money."}});
 // loot tiers (index = strength). Used by enemy drop tables.
 const GUN_TIERS=[["zip"],["zip","revolver"],["revolver","smg"],["smg","shotgun"],["shotgun","rifle"],["rifle","ak"]];
 const ARMOUR_TIERS=[
@@ -210,12 +238,15 @@ const ARMOUR_TINT={Cloth:0xb9a37a,Cardboard:0xb98a4a,Metal:0x8d96a0,Kevlar:0x2e3
 
 /* ---------------- Player state ------------------------------ */
 const player={
-  pos:new THREE.Vector3(0,0,30), dest:null, target:null,
+  pos:new THREE.Vector3(0,0,40), dest:null, target:null,
   speed:18, hp:100, lastShot:0, flinchUntil:0, walk:0, regen:0,
-  skills:{aim:{xp:0,lv:1},composure:{xp:0,lv:1},armour:{xp:0,lv:1},vitality:{xp:xpForLevel(10),lv:10}},
+  skills:{aim:{xp:0,lv:1},composure:{xp:0,lv:1},armour:{xp:0,lv:1},vitality:{xp:xpForLevel(10),lv:10},
+          woodcutting:{xp:0,lv:1},cooking:{xp:0,lv:1},agility:{xp:0,lv:1}},
   equip:{weapon:"zip",head:null,body:"cloth_shirt",legs:"cloth_pants"},
-  inv:[{k:"bandage",n:5},{k:"cloth_hood",n:1},{k:"coins",n:40}],
-  mesh:null, pickupTarget:null, talkTarget:null, quests:{},
+  inv:[{k:"bandage",n:5},{k:"cloth_hood",n:1},{k:"hatchet",n:1},{k:"coins",n:40}],
+  mesh:null, pickupTarget:null, talkTarget:null, chopTarget:null,
+  lastChop:0, lastCook:0, quests:{},
+  running:true, energy:100, runTimer:0,
 };
 
 /* ============================================================ *
@@ -270,8 +301,13 @@ function addOutline(group,scale){
 const HALF=300;                       // world spans -300..300
 const TOWN=new THREE.Vector3(0,0,0);  // main town centre
 const OUTPOST=new THREE.Vector3(150,0,-150);
-const blockers=[];                    // {x,z,r} solid obstacles
+const blockers=[];                    // {x,z,r} solid round obstacles
 function addBlocker(x,z,r){blockers.push({x,z,r});}
+const wallBoxes=[];                   // {x,z,hw,hd,door} axis-aligned wall segments
+function addWall(x,z,hw,hd,door){const w={x,z,hw,hd,door:door||null};wallBoxes.push(w);return w;}
+const buildings=[];                   // {fx,fz,hw,hd,roof} for roof hiding
+const trees=[];                       // choppable trees
+const fires=[];                       // active campfires
 
 /* ---------------- Biomes ------------------------------------ */
 // Region by position. Returns {name, ground(hex), spawns[], aggro}
@@ -395,30 +431,56 @@ function makeScorpion(o){
 /* ============================================================ *
  *  TOWNS, TREES, PROPS
  * ============================================================ */
+// Enterable building: 4 walls with a doorway gap, a toggle door, a hideable
+// roof and an interior floor. Walls collide as AABBs so you walk in the door.
 function makeHouse(x,z,w,d,color){
-  const g=new THREE.Group();
-  const h=4+Math.random()*2;
-  const base=box(w,h,d,color); base.position.y=h/2; g.add(base);
-  const roof=new THREE.Mesh(new THREE.ConeGeometry(Math.max(w,d)*0.82,2.4,4),
-    toonMat({color:0x6e3b2a}));
-  roof.rotation.y=Math.PI/4; roof.position.y=h+1.2; g.add(roof);
-  const door=box(1,2,0.2,0x3a2a1a); door.position.set(0,1,d/2+0.05); g.add(door);
-  g.position.set(x,0,z); scene.add(g);
-  addBlocker(x,z,Math.max(w,d)*0.6);
+  const g=new THREE.Group(); g.position.set(x,0,z);
+  const h=5, t=0.4;            // wall height / thickness
+  const hw=w/2, hd=d/2, gap=4; // doorway width
+  // floor
+  const floor=box(w,0.3,d,0x6b5640); floor.position.y=0.15; floor.userData.noOutline=true; g.add(floor);
+  function wall(cx,cz,ww,dd){const m=box(ww,h,dd,color);m.position.set(cx,h/2,cz);g.add(m);
+    addWall(x+cx,z+cz,ww/2,dd/2);}
+  // back + sides (solid)
+  wall(0,-hd,w,t);            // north (back)
+  wall(-hw,0,t,d);            // west
+  wall(hw,0,t,d);             // east
+  // front (south) wall split around a central doorway
+  const seg=(hw-gap/2);
+  wall(-(gap/2+seg/2),hd,seg,t);
+  wall(  gap/2+seg/2 ,hd,seg,t);
+  // toggle door filling the gap
+  const door=box(gap,h*0.85,t*0.8,0x3a2a1a);
+  door.position.set(0,h*0.45,hd); door.userData.noOutline=true; g.add(door);
+  const doorState={open:true,mesh:door,hinge:Math.PI*0.55,base:new THREE.Vector3(0,h*0.45,hd)};
+  const doorWall=addWall(x,z+hd,gap/2,t/2,doorState); // blocker while closed
+  doorState.wall=doorWall; door.userData.door=doorState;
+  // seed the open-door transform so it doesn't appear shut on load
+  const dhw=gap/2; door.rotation.y=doorState.hinge;
+  door.position.set(-dhw+Math.cos(doorState.hinge)*dhw, h*0.45, hd+Math.sin(doorState.hinge)*dhw);
+  // pitched roof (hidden when you're inside)
+  const roof=new THREE.Mesh(new THREE.ConeGeometry(Math.max(w,d)*0.78,2.6,4),toonMat({color:0x6e3b2a}));
+  roof.rotation.y=Math.PI/4; roof.position.y=h+1.3; roof.userData.noOutline=true; g.add(roof);
+  scene.add(g);
+  buildings.push({fx:x,fz:z,hw,hd,roof,door:doorState});
   return g;
 }
+// trees register for woodcutting
 function makeTree(x,z,kind){
-  const g=new THREE.Group();
+  const g=new THREE.Group(); g.position.set(x,0,z);
+  const foliage=new THREE.Group();
   if(kind==="cactus"){
     const t=cyl(0.4,0.5,3.2,0x3d7a3a); t.position.y=1.6; g.add(t);
-    const a=cyl(0.25,0.25,1.4,0x3d7a3a); a.position.set(0.6,2,0); a.rotation.z=-0.5; g.add(a);
+    const a=cyl(0.25,0.25,1.4,0x3d7a3a); a.position.set(0.6,2,0); a.rotation.z=-0.5; foliage.add(a);
   }else{
     const trunk=cyl(0.3,0.45,3,0x5a3c25); trunk.position.y=1.5; g.add(trunk);
     const fc=kind==="pine"?0x2f5a2f:0x3f7a3a;
     for(let i=0;i<3;i++){const c=new THREE.Mesh(new THREE.ConeGeometry(2-i*0.45,2,7),
-      toonMat({color:fc}));c.position.y=3.4+i*1.2;g.add(c);}
+      toonMat({color:fc}));c.position.y=3.4+i*1.2;foliage.add(c);}
   }
-  g.position.set(x,0,z); scene.add(g);
+  g.add(foliage); scene.add(g);
+  const tree={group:g,foliage,pos:new THREE.Vector3(x,0,z),depleted:false,respawnAt:0};
+  g.userData.tree=tree; trees.push(tree);
 }
 function makeRock(x,z,s){
   const r=new THREE.Mesh(new THREE.DodecahedronGeometry(s),toonMat({color:0x8a8378}));
@@ -428,21 +490,22 @@ function makeRock(x,z,s){
 function buildTown(center,houses,name){
   const palette=[0xd8c89a,0xc7b07a,0xbfa98c,0xa8967a];
   for(let i=0;i<houses;i++){
-    const a=(i/houses)*Math.PI*2, rad=14+Math.random()*10;
+    const a=(i/houses)*Math.PI*2, rad=22+Math.random()*8;
     const x=center.x+Math.cos(a)*rad, z=center.z+Math.sin(a)*rad;
-    makeHouse(x,z,5+Math.random()*3,5+Math.random()*3,palette[i%palette.length]);
+    makeHouse(x,z,8+Math.random()*2,8+Math.random()*2,palette[i%palette.length]);
   }
   // central well / fountain
   const well=cyl(2,2.4,1.2,0x7a7066); well.position.set(center.x,0.6,center.z); scene.add(well);
   addBlocker(center.x,center.z,2.4);
 }
-buildTown(TOWN,9,"Riverside");
+buildTown(TOWN,8,"Riverside");
 buildTown(OUTPOST,5,"Forest Outpost");
 
-// shopkeeper NPC in main town
+// shopkeeper lives inside a shop building in the main town
+makeHouse(6,11,10,9,0xb98a5a);
 const shopkeeper=makeHumanoid({height:3.6,shirt:0x9c5a2a,skin:0xd0a878,gun:false});
-addOutline(shopkeeper); shopkeeper.position.set(6,0,8); scene.add(shopkeeper);
-const shopSign=box(2,1.2,0.2,0xffd24a); shopSign.position.set(6,4,8); scene.add(shopSign);
+addOutline(shopkeeper); shopkeeper.position.set(6,0,11); scene.add(shopkeeper);
+const shopSign=box(2.4,1,0.2,0xffd24a); shopSign.position.set(6,6.4,15.6); scene.add(shopSign);
 
 // scatter biome flora
 function scatterFlora(){
@@ -544,6 +607,7 @@ function drawMarker(spr,ch,col){const{cvs,tex}=spr.userData;const c=cvs.getConte
   tex.needsUpdate=true;}
 function spawnNpc(questId,x,z,shirt){
   const q=QUESTS[questId];
+  makeHouse(x,z-2.2,10,9,0xbfa98c); // each quest-giver has their own house
   const mesh=makeHumanoid({height:3.6,shirt:shirt||0x6a6acc,skin:0xd0a878,gun:false});
   addOutline(mesh); mesh.position.set(x,0,z); scene.add(mesh);
   // name tag
@@ -705,13 +769,17 @@ function tracer(from,to,color){
 }
 /* ---------------- Ground loot ------------------------------- */
 const drops=[];
-const DROP_COLORS={coins:0xffd24a,bones:0xe8e0d0};
+// ground items are flat icon sprites that look like the item itself
+const _iconCache={};
+function iconTexture(k){ if(_iconCache[k])return _iconCache[k];
+  const c=document.createElement("canvas");c.width=c.height=64;const g=c.getContext("2d");
+  g.font="48px serif";g.textAlign="center";g.textBaseline="middle";g.fillText(ITEMS[k].ic||"?",32,36);
+  const t=new THREE.CanvasTexture(c);t.encoding=THREE.sRGBEncoding;_iconCache[k]=t;return t;}
 function makeDrop(k,n,x,z){
-  const col=DROP_COLORS[k]||(WEAPONS[k]?0xff8844:ARMOUR[k]?0x66aaff:0xbbbbbb);
-  const sz=WEAPONS[k]?0.8:0.55;
-  const m=box(sz,sz,sz,col); m.position.set(x,0.5,z);
-  scene.add(m);
-  const dp={k,n,mesh:m,x,z,t:0}; m.userData.drop=dp;
+  const spr=new THREE.Sprite(new THREE.SpriteMaterial({map:iconTexture(k),transparent:true}));
+  spr.scale.set(1.8,1.8,1); spr.position.set(x,1.0,z);
+  scene.add(spr);
+  const dp={k,n,mesh:spr,x,z}; spr.userData.drop=dp;
   drops.push(dp); return dp;
 }
 function removeDrop(dp){const i=drops.indexOf(dp);if(i>=0){scene.remove(dp.mesh);drops.splice(i,1);}}
@@ -741,6 +809,21 @@ function buildPlayerMesh(){
   player.mesh.position.copy(player.pos); scene.add(player.mesh);
 }
 buildPlayerMesh();
+
+// floating health bar shown above the player while in combat
+const playerPlate=(()=>{const cvs=document.createElement("canvas");cvs.width=256;cvs.height=44;
+  const tex=new THREE.CanvasTexture(cvs);
+  const spr=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,depthTest:false,transparent:true}));
+  spr.scale.set(6,1.05,1); spr.visible=false; scene.add(spr); spr.userData={cvs,tex}; return spr;})();
+function drawPlayerPlate(){const{cvs,tex}=playerPlate.userData;const c=cvs.getContext("2d");
+  c.clearRect(0,0,256,44); const f=Math.max(0,player.hp/maxHp());
+  const bw=240,bx=8,by=14,bh=18;
+  c.fillStyle="#000";c.fillRect(bx-2,by-2,bw+4,bh+4);
+  c.fillStyle="#3a0f0c";c.fillRect(bx,by,bw,bh);
+  c.fillStyle=f>0.3?"#5fd04a":"#d04a3a";c.fillRect(bx,by,bw*f,bh);
+  c.fillStyle="#fff";c.font="bold 15px Trebuchet MS";c.textAlign="center";c.textBaseline="middle";
+  c.fillText(Math.ceil(player.hp)+" / "+maxHp(),128,by+bh/2+1);
+  tex.needsUpdate=true;}
 
 /* ============================================================ *
  *  CAMERA CONTROL
@@ -797,6 +880,10 @@ function sfxCoin(){tone(1200,0.05,"square",0.25); tone(1600,0.07,"square",0.2);}
 function sfxLevel(){[523,659,784,1047].forEach((f,i)=>setTimeout(()=>tone(f,0.2,"triangle",0.3),i*85));}
 function sfxQuest(){[392,523,659,784,1047].forEach((f,i)=>setTimeout(()=>tone(f,0.22,"triangle",0.3),i*95));}
 function sfxClick(){tone(320,0.03,"square",0.12);}
+function sfxChop(){tone(170,0.09,"square",0.22,90); noise(0.05,0.12,700);}
+function sfxFire(){noise(0.4,0.18,500);}
+function sfxCook(){tone(520,0.08,"sine",0.18); tone(700,0.1,"sine",0.16);}
+function sfxSick(){tone(180,0.3,"sawtooth",0.25,90);}
 
 /* ---------------- Skills ------------------------------------ */
 function gainXp(skill,amt){const s=player.skills[skill];if(!s)return;const before=s.lv;
@@ -847,10 +934,68 @@ function useItem(k){const it=ITEMS[k];if(!it)return;
   if(it.cat==="food"){if(player.hp>=maxHp()){log("Already at full health.");return;}
     player.hp=Math.min(maxHp(),player.hp+it.heal);removeItem(k,1);
     floater(player.pos,"+"+it.heal,"#7fd06a");log(`You use the ${it.name}.`,"loot");}
-  else if(it.cat==="weapon"||it.cat==="armour")equipItem(k);refreshUI();}
+  else if(it.cat==="raw"){ nearFire()?cookFood(k):eatRaw(k); }
+  else if(it.light){ lightFire(); }
+  else if(it.cat==="weapon"||it.cat==="armour")equipItem(k);
+  else if(it.cat==="tool")log(`${it.name}: ${it.desc}`);
+  refreshUI();}
 function sellValue(k){return Math.max(1,Math.floor((ITEMS[k].price||5)*0.4));}
 function sell(k){const v=sellValue(k);removeItem(k,1);addItem("coins",v);log(`Sold ${ITEMS[k].name} for ⛁${v}.`,"loot");refreshUI();}
 function dropItem(k){removeItem(k,1);makeDrop(k,1,player.pos.x,player.pos.z);log(`You drop the ${ITEMS[k].name}.`);}
+
+/* ---------------- Woodcutting ------------------------------- */
+function hasAxe(){return invCount("hatchet")>0||player.equip.weapon==="hatchet";}
+function chopTick(now){
+  const tr=player.chopTarget; if(!tr||tr.depleted)return;
+  if(!hasAxe()){log("You need a hatchet to chop trees.","bad");player.chopTarget=null;return;}
+  if(now-player.lastChop<1100)return; player.lastChop=now; sfxChop();
+  const lv=player.skills.woodcutting.lv;
+  if(Math.random()<0.4+lv*0.012){
+    addItem("logs",1); gainXp("woodcutting",25); floater(tr.pos,"+Logs","#caa66a");
+    if(Math.random()<0.16){ depleteTree(tr); }
+  }
+}
+function depleteTree(tr){tr.depleted=true; tr.foliage.visible=false; tr.respawnAt=performance.now()+14000;
+  log("The tree is chopped down.","sys"); if(player.chopTarget===tr)player.chopTarget=null;}
+
+/* ---------------- Cooking & campfires ----------------------- */
+function makeFire(x,z){
+  const g=new THREE.Group(); g.position.set(x,0,z);
+  const lg=cyl(1.2,1.4,0.4,0x3a2a1a); lg.position.y=0.2; lg.userData.noOutline=true; g.add(lg);
+  const flame=new THREE.Mesh(new THREE.ConeGeometry(0.8,1.9,6),toonMat({color:0xff7a2a}));
+  flame.position.y=1.2; flame.userData.noOutline=true; g.add(flame);
+  const glow=new THREE.PointLight(0xff8a3a,1.2,16); glow.position.y=1.4; g.add(glow);
+  scene.add(g);
+  const fire={mesh:g,flame,pos:new THREE.Vector3(x,0,z),expireAt:performance.now()+50000};
+  fires.push(fire); return fire;
+}
+function nearFire(){for(const f of fires){if(dist2(player.pos,f.pos)<4.2)return f;}return null;}
+function lightFire(){
+  if(invCount("logs")<1){log("You have no logs to burn.","bad");return;}
+  if(nearFire()){log("There's already a fire here.","sys");return;}
+  removeItem("logs",1); makeFire(player.pos.x,player.pos.z); sfxFire();
+  log("You light a campfire. Use raw food on it to cook.","loot"); refreshUI();
+}
+function cookFood(k){
+  const fd=RAWFOOD[k]; if(!fd)return;
+  if(!nearFire()){log("Stand beside a campfire to cook.","bad");return;}
+  if(player.skills.cooking.lv<fd.cookLvl){log(`You need Cooking ${fd.cookLvl} to cook that.`,"bad");return;}
+  removeItem(k,1); const lv=player.skills.cooking.lv; sfxCook();
+  let burn=(fd.stopBurn-lv)/(fd.stopBurn-fd.cookLvl)*0.55; burn=Math.max(0,Math.min(0.55,burn));
+  if(Math.random()<burn){ addItem(fd.burnt,1); floater(player.pos,"burnt!","#aa6644");
+    log(`You burn the ${ITEMS[k].name}.`,"bad"); gainXp("cooking",fd.cookXp*0.12); }
+  else { addItem(fd.cook,1); floater(player.pos,"cooked!","#ffce6a");
+    log(`You cook a ${ITEMS[fd.cook].name}.`,"loot"); gainXp("cooking",fd.cookXp); }
+  refreshUI();
+}
+function eatRaw(k){
+  const fd=RAWFOOD[k]; if(!fd)return; removeItem(k,1);
+  player.hp=Math.min(maxHp(),player.hp+fd.rawHeal);
+  if(Math.random()<fd.sickChance){ const s=randint(3,8); player.hp=Math.max(1,player.hp-s);
+    floater(player.pos,"sick! -"+s,"#9bd04a"); log("Ugh — eating it raw makes you ill.","bad"); sfxSick(); }
+  else floater(player.pos,"+"+fd.rawHeal,"#7fd06a");
+  refreshUI();
+}
 
 /* ============================================================ *
  *  COMBAT
@@ -860,33 +1005,49 @@ function faceTowards(mesh,tx,tz,px,pz){mesh.rotation.y=Math.atan2(tx-px,tz-pz);}
 function muzzle(mesh,h){const f=forwardOf(mesh);return new THREE.Vector3(
   mesh.position.x+f.x*1.2, (h||3.6)*0.55, mesh.position.z+f.z*1.2);}
 
-function attack(e){player.dest=null;player.pickupTarget=null;player.talkTarget=null;
-  player.target=e;e.aggro=true;e.hpDirty=true;log(`You attack the ${e.name}.`,"cmb");}
+/* ---- attack styles (hold Tab to switch) ---- */
+const COMBAT_RANGE=4.0; // front-to-front engagement distance
+const STYLES={
+  aim:      {label:"Aim",      accMul:1.7, rangeBonus:6, fireMul:1.12, dodge:0,    xp:["aim"]},
+  composure:{label:"Composure",accMul:1.0, rangeBonus:0, fireMul:1.0,  dodge:0,    xp:["composure"]},
+  defense:  {label:"Defense",  accMul:0.7, rangeBonus:0, fireMul:1.3,  dodge:0.4,  xp:["armour"]},
+  all:      {label:"All",      accMul:1.12,rangeBonus:2, fireMul:1.05, dodge:0.14, xp:["aim","composure","armour"]},
+};
+let attackStyle="composure";
+function awardCombatXp(dmg){
+  const pool=dmg*4, ks=STYLES[attackStyle].xp;
+  for(const k of ks) gainXp(k,pool/ks.length);     // same total; "all" splits it
+  gainXp("vitality",Math.round(dmg*1.33));
+}
+function attack(e){player.dest=null;player.pickupTarget=null;player.talkTarget=null;player.chopTarget=null;
+  player.target=e;e.aggro=true;e.hpDirty=true;player.combatUntil=performance.now()+6000;
+  log(`You attack the ${e.name}.`,"cmb");}
 function playerShoot(now){
   const e=player.target; if(!e||e.dead){player.target=null;return;}
-  const w=curWeapon(); const d=dist2(player.pos,e.pos);
-  if(d>w.range*0.92){ player.dest=e.pos.clone(); return; } // close in
+  const w=curWeapon(); const st=STYLES[attackStyle];
+  const engage=COMBAT_RANGE+st.rangeBonus; const d=dist2(player.pos,e.pos);
+  if(d>engage){ player.dest=e.pos.clone(); return; } // path in to front-to-front
   player.dest=null;
   faceTowards(player.mesh,e.pos.x,e.pos.z,player.pos.x,player.pos.z);
-  if(now-player.lastShot<w.fireRate) return;
+  if(now-player.lastShot<w.fireRate*st.fireMul) return;
   if(now<player.flinchUntil) return;
   player.lastShot=now; sfxShoot(player.equip.weapon);
   tracer(muzzle(player.mesh,3.7),new THREE.Vector3(e.pos.x,2.2,e.pos.z),0xffe070);
-  const bloom=effectiveBloom(), rangePen=d/w.range*8;
-  const acc=100/(1+bloom*0.06+rangePen*0.05);
+  const bloom=effectiveBloom();
+  const acc=100/(1+bloom*0.06)*st.accMul;
   const hit=acc/(acc+e.armour);
   if(Math.random()<hit){
     const dmg=randint(w.dmgMin,w.dmgMax); e.hp-=dmg; e.hpDirty=true;
-    floater(e.pos,String(dmg),"#ffd24a"); sfxHit();
-    gainXp("aim",dmg*4);gainXp("composure",dmg*2);gainXp("vitality",Math.round(dmg*1.33));
+    floater(e.pos,String(dmg),"#ffd24a"); sfxHit(); awardCombatXp(dmg);
     if(e.hp<=0) killEnemy(e);
-  }else{ floater(e.pos,"miss","#cccccc"); gainXp("aim",2); }
+  }else{ floater(e.pos,"miss","#cccccc"); }
 }
 function pick(arr){return arr[Math.floor(Math.random()*arr.length)];}
 function killEnemy(e){
   e.dead=true; e.respawnAt=performance.now()+9000; e.mesh.visible=false; player.target=null; sfxKill();
   log(`You killed the ${e.name}.`,"cmb");
-  gainXp("aim",e.xp*0.4);gainXp("composure",e.xp*0.3);gainXp("vitality",e.xp*0.3);
+  const ks=STYLES[attackStyle].xp; for(const k of ks) gainXp(k,e.xp*0.7/ks.length);
+  gainXp("vitality",e.xp*0.3);
   rollDrops(e);
 }
 // Every kill: bones + coins + one random common drop. Chance of a tier-
@@ -895,8 +1056,10 @@ function rollDrops(e){
   const sx=()=>e.pos.x+rand(-1.5,1.5), sz=()=>e.pos.z+rand(-1.5,1.5);
   makeDrop("bones",1,sx(),sz());
   makeDrop("coins",randint(e.coins[0],e.coins[1]),sx(),sz());
-  // common roll: quest item / scrap / supplies
+  // common roll: quest item / meat / scrap / supplies
   const common=[]; if(e.quest) common.push(e.quest,e.quest);
+  if(e.type==="rat"||e.type==="wolf") common.push("raw_meat","raw_meat");
+  if(e.type==="scorpion"||e.type==="brute") common.push("raw_steak");
   common.push("scrap","scrap","bandage"); if(e.tier>=3) common.push("medkit");
   makeDrop(pick(common),1,sx(),sz());
   // gun roll (within this enemy's level band)
@@ -911,11 +1074,14 @@ function rollDrops(e){
   if(Math.random()<e.armChance) makeDrop(pick(ARMOUR_TIERS[e.tier]),1,sx(),sz());
 }
 function enemyShoot(e,now){
-  if(now-e.lastShot<e.fireRate)return; e.lastShot=now;
+  if(now-e.lastShot<e.fireRate)return; e.lastShot=now; player.combatUntil=now+6000;
   tracer(muzzle(e.mesh,e.mesh.userData.baseHeight),new THREE.Vector3(player.pos.x,2.2,player.pos.z),0xff5040);
   // faint report if nearby
   if(dist2(e.pos,player.pos)<60) noise(0.04,0.08,1800);
   const acc=e.aim+8, hit=acc/(acc+totalArmour());
+  // Defense style: chance to fully dodge the incoming shot
+  if(Math.random()<STYLES[attackStyle].dodge){
+    floater(player.pos,"dodge","#7fe0ff"); gainXp("armour",4); gainXp("agility",12); return; }
   if(Math.random()<hit){
     let dmg=randint(e.dmg[0],e.dmg[1]); dmg=Math.max(1,dmg-Math.floor(totalArmour()*0.12));
     player.hp-=dmg; floater(player.pos,String(dmg),"#ff6a5a"); sfxHurt();
@@ -942,15 +1108,18 @@ function playerDeath(){
   log("Your gear scattered across the ground. Run back to reclaim it!","bad");
   player.hp=maxHp();player.target=null;player.dest=null;player.pickupTarget=null;
   player.talkTarget=null;player.flinchUntil=0;
-  player.pos.set(0,0,30);buildPlayerMesh();refreshUI();
+  player.energy=100;player.pos.set(0,0,40);buildPlayerMesh();refreshUI();
 }
 
 /* ============================================================ *
  *  MOVEMENT (with simple blocker collision)
  * ============================================================ */
+const PR=0.8; // player collision radius
 function tryMove(nx,nz){
-  for(const b of blockers){ if(Math.hypot(nx-b.x,nz-b.z)<b.r+1.0) return false; }
   if(Math.abs(nx)>HALF-4||Math.abs(nz)>HALF-4) return false;
+  for(const b of blockers){ if(Math.hypot(nx-b.x,nz-b.z)<b.r+PR) return false; }
+  for(const w of wallBoxes){ if(w.door&&w.door.open) continue;
+    if(Math.abs(nx-w.x)<w.hw+PR && Math.abs(nz-w.z)<w.hd+PR) return false; }
   return true;
 }
 function moveToward(tx,tz,step){
@@ -968,8 +1137,26 @@ function moveToward(tx,tz,step){
 
 /* ---------------- Input ------------------------------------- */
 const keys={};
-addEventListener("keydown",e=>{keys[e.key.toLowerCase()]=true;});
-addEventListener("keyup",e=>{keys[e.key.toLowerCase()]=false;});
+addEventListener("keydown",e=>{keys[e.key.toLowerCase()]=true;
+  if(e.key==="Tab"){e.preventDefault(); if(!styleMenuOpen){styleMenuOpen=true;styleMenu.style.display="block";renderStyleMenu();}}});
+addEventListener("keyup",e=>{keys[e.key.toLowerCase()]=false;
+  if(e.key==="Tab"){styleMenuOpen=false;styleMenu.style.display="none";}});
+/* ---------------- Attack-style overlay (hold Tab) ---------- */
+const styleMenu=document.getElementById("styleMenu"); let styleMenuOpen=false;
+const STYLE_DESC={
+  aim:"Slightly longer reach, much better accuracy. All XP → Aim.",
+  composure:"Standard fire rate, no frills. All XP → Composure.",
+  defense:"Often dodges hits, attacks slower. All XP → Armour.",
+  all:"A weaker blend of all three. XP split across them.",
+};
+function renderStyleMenu(){
+  styleMenu.innerHTML=`<div class="sm-title">⚔ Attack Style</div>`+
+    Object.keys(STYLES).map(s=>`<button class="sm-opt ${s===attackStyle?'on':''}" data-s="${s}">
+      ${STYLES[s].label}<small>${STYLE_DESC[s]}</small></button>`).join("");
+  styleMenu.querySelectorAll(".sm-opt").forEach(b=>b.onclick=()=>setStyle(b.dataset.s));
+}
+function setStyle(s){attackStyle=s;sfxClick();log("Attack style set to "+STYLES[s].label+".","sys");
+  renderStyleMenu(); if(activeTab==="skills")refreshUI();}
 const raycaster=new THREE.Raycaster(), mouse=new THREE.Vector2();
 let dragging=false, didDrag=false, lastX=0, lastY=0;
 
@@ -977,7 +1164,7 @@ function castAt(clientX,clientY){
   const r=renderer.domElement.getBoundingClientRect();
   mouse.x=((clientX-r.left)/r.width)*2-1; mouse.y=-((clientY-r.top)/r.height)*2+1;
   raycaster.setFromCamera(mouse,camera);
-  const res={enemy:null,npc:null,shop:false,drop:null,point:null};
+  const res={enemy:null,npc:null,shop:false,drop:null,tree:null,door:null,point:null};
   const eh=raycaster.intersectObjects(enemies.filter(e=>!e.dead).map(e=>e.mesh),true);
   if(eh.length){let o=eh[0].object;while(o&&!o.userData.enemy)o=o.parent;if(o)res.enemy=o.userData.enemy;}
   const nh=raycaster.intersectObjects(npcs.map(n=>n.mesh),true);
@@ -985,12 +1172,17 @@ function castAt(clientX,clientY){
   if(raycaster.intersectObject(shopkeeper,true).length) res.shop=true;
   const dh=raycaster.intersectObjects(drops.map(d=>d.mesh),false);
   if(dh.length)res.drop=dh[0].object.userData.drop;
+  const dr=raycaster.intersectObjects(buildings.map(b=>b.door.mesh),false);
+  if(dr.length)res.door=dr[0].object.userData.door;
+  const th=raycaster.intersectObjects(trees.filter(t=>!t.depleted).map(t=>t.group),true);
+  if(th.length){let o=th[0].object;while(o&&!o.userData.tree)o=o.parent;if(o)res.tree=o.userData.tree;}
   const gh=raycaster.intersectObject(ground);
   if(gh.length)res.point=new THREE.Vector3(gh[0].point.x,0,gh[0].point.z);
   return res;
 }
-function clearActions(){player.target=null;player.dest=null;player.pickupTarget=null;player.talkTarget=null;
-  if(dialogOpen)closeDialog();}
+function toggleDoor(ds){ds.open=!ds.open;sfxClick();log(ds.open?"You open the door.":"You close the door.");}
+function clearActions(){player.target=null;player.dest=null;player.pickupTarget=null;
+  player.talkTarget=null;player.chopTarget=null; if(dialogOpen)closeDialog();}
 
 renderer.domElement.addEventListener("contextmenu",e=>e.preventDefault());
 renderer.domElement.addEventListener("mousedown",e=>{
@@ -1001,7 +1193,9 @@ renderer.domElement.addEventListener("mousedown",e=>{
   if(h.enemy){attack(h.enemy);return;}
   if(h.shop){openShop();return;}
   if(h.npc){clearActions();player.talkTarget=h.npc;return;}
+  if(h.door){toggleDoor(h.door);return;}
   if(h.drop){clearActions();player.pickupTarget=h.drop;return;}
+  if(h.tree){clearActions();player.chopTarget=h.tree;return;}
   if(h.point){clearActions();player.dest=h.point;}
 });
 addEventListener("mouseup",e=>{
@@ -1019,12 +1213,24 @@ addEventListener("mousemove",e=>{
 renderer.domElement.addEventListener("wheel",e=>{e.preventDefault();
   camDist=Math.max(10,Math.min(70,camDist+e.deltaY*0.03));},{passive:false});
 
+/* ---------------- Running / agility ------------------------- */
+const WALK_SPEED=12, RUN_SPEED=21;
+const runEl=document.getElementById("runtoggle");
+runEl.addEventListener("click",()=>{player.running=!player.running;sfxClick();updateRunUI();});
+function agiDrainFactor(){return 1+0.03*(player.skills.agility.lv-1);}      // higher agi = lasts longer
+function energyRegen(){return 1+3*(player.skills.agility.lv-1)/98;}         // 1/s @lv1 .. 4/s @lv99
+function updateRunUI(){const on=player.running&&player.energy>0.5;
+  runEl.classList.toggle("on",on);
+  runEl.textContent="🏃 "+Math.round(player.energy)+"%";}
+
 // right-click world context menu
 function openWorldMenu(cx,cy){
   const h=castAt(cx,cy); const opts=[];
   if(h.enemy) opts.push(["Attack "+h.enemy.name,()=>attack(h.enemy)]);
   if(h.npc) opts.push(["Talk to "+h.npc.name,()=>{clearActions();player.talkTarget=h.npc;}]);
   if(h.shop) opts.push(["Trade with Shopkeeper",()=>openShop()]);
+  if(h.door) opts.push([h.door.open?"Close door":"Open door",()=>toggleDoor(h.door)]);
+  if(h.tree) opts.push(["Chop down tree",()=>{clearActions();player.chopTarget=h.tree;}]);
   if(h.drop) opts.push(["Take "+ITEMS[h.drop.k].name+(h.drop.n>1?" x"+h.drop.n:""),()=>{clearActions();player.pickupTarget=h.drop;}]);
   if(h.point) opts.push(["Walk here",()=>{clearActions();player.dest=h.point;}]);
   opts.push(["Cancel",()=>{}]);
@@ -1048,20 +1254,13 @@ let last=performance.now(), uiTick=0;
 function loop(now){
   const dt=Math.min(0.05,(now-last)/1000); last=now;
 
-  /* --- player movement --- */
+  /* --- player movement (click-to-move only) --- */
   let moving=false;
-  const step=player.speed*dt;
-  // WASD relative to camera
-  const fwd=new THREE.Vector3(-Math.sin(camYaw),0,-Math.cos(camYaw));
-  const right=new THREE.Vector3().crossVectors(fwd,new THREE.Vector3(0,1,0));
-  let mv=new THREE.Vector3();
-  if(keys["w"])mv.add(fwd); if(keys["s"])mv.sub(fwd);
-  if(keys["d"])mv.add(right); if(keys["a"])mv.sub(right);
+  const isRunning=player.running&&player.energy>0.5;
+  const step=(isRunning?RUN_SPEED:WALK_SPEED)*dt;
   if(now>=player.flinchUntil){
-    if(mv.lengthSq()>0){ mv.normalize(); clearActions();
-      if(moveToward(player.pos.x+mv.x,player.pos.z+mv.z,step))moving=true; }
-    else if(player.target&&!player.target.dead){
-      playerShoot(now); // automated: closes in & keeps firing
+    if(player.target&&!player.target.dead){
+      playerShoot(now); // automated: paths to front-to-front & keeps firing
       if(player.dest&&moveToward(player.dest.x,player.dest.z,step))moving=true;
     }
     else if(player.pickupTarget){ const dp=player.pickupTarget;
@@ -1074,14 +1273,33 @@ function loop(now){
       else { faceTowards(player.mesh,n.pos.x,n.pos.z,player.pos.x,player.pos.z);
         openDialog(n); player.talkTarget=null; }
     }
+    else if(player.chopTarget){ const tr=player.chopTarget;
+      if(tr.depleted){player.chopTarget=null;}
+      else if(dist2(player.pos,tr.pos)>3.2){ if(moveToward(tr.pos.x,tr.pos.z,step))moving=true; }
+      else { faceTowards(player.mesh,tr.pos.x,tr.pos.z,player.pos.x,player.pos.z); chopTick(now); }
+    }
     else if(player.dest){
       if(dist2(player.pos,player.dest)>0.6){ if(moveToward(player.dest.x,player.dest.z,step))moving=true; }
       else player.dest=null;
     }
   }
-  player.walk+=moving?dt*10:0; if(!moving)player.walk*=0.8;
+  player.walk+=moving?dt*(isRunning?15:10):0; if(!moving)player.walk*=0.8;
   animateLegs(player.mesh,player.walk,moving?0.6:0.05);
   player.mesh.position.set(player.pos.x,0,player.pos.z);
+
+  /* --- run energy: drain while running, regen always, agility xp --- */
+  if(moving&&isRunning){
+    const dist=(isRunning?RUN_SPEED:WALK_SPEED)*dt;
+    player.energy=Math.max(0,player.energy-dist*0.5/agiDrainFactor());
+    player.runTimer+=dt;
+    while(player.runTimer>=5){player.runTimer-=5;gainXp("agility",8);} // xp per 5s of running
+  }
+  player.energy=Math.min(100,player.energy+energyRegen()*dt);
+
+  /* --- player combat health bar over head --- */
+  const inCombat=(player.target&&!player.target.dead)||now<(player.combatUntil||0);
+  playerPlate.visible=inCombat;
+  if(inCombat){playerPlate.position.set(player.pos.x,5.6,player.pos.z);drawPlayerPlate();}
 
   /* --- regen out of combat --- */
   if(!player.target&&player.hp<maxHp()){player.regen+=dt;
@@ -1099,9 +1317,9 @@ function loop(now){
     if(e.aggro!==wasAggro) e.hpDirty=true;
     let emoving=false;
     if(e.aggro){
-      if(d<=e.range*0.92){ faceTowards(e.mesh,player.pos.x,player.pos.z,e.pos.x,e.pos.z); enemyShoot(e,now); }
-      else { // chase
-        const dx=player.pos.x-e.pos.x,dz=player.pos.z-e.pos.z,l=Math.hypot(dx,dz);
+      if(d<=COMBAT_RANGE+0.4){ faceTowards(e.mesh,player.pos.x,player.pos.z,e.pos.x,e.pos.z); enemyShoot(e,now); }
+      else { // path in to stand front-to-front
+        const dx=player.pos.x-e.pos.x,dz=player.pos.z-e.pos.z,l=Math.hypot(dx,dz)||1;
         const s=e.speed*dt; e.pos.x+=dx/l*s; e.pos.z+=dz/l*s; emoving=true;
         faceTowards(e.mesh,player.pos.x,player.pos.z,e.pos.x,e.pos.z);
       }
@@ -1119,7 +1337,28 @@ function loop(now){
   }
 
   /* --- ground loot bob (pick up by clicking) --- */
-  for(const dp of drops){dp.mesh.rotation.y+=dt*1.6;dp.mesh.position.y=0.5+Math.sin(now/250+dp.x)*0.12;}
+  for(const dp of drops){dp.mesh.position.y=1.0+Math.sin(now/350+dp.x)*0.15;}
+
+  /* --- trees respawn --- */
+  for(const tr of trees){ if(tr.depleted&&now>=tr.respawnAt){tr.depleted=false;tr.foliage.visible=true;} }
+
+  /* --- campfires: flicker + expire --- */
+  for(let i=fires.length-1;i>=0;i--){const f=fires[i];
+    f.flame.scale.y=1+Math.sin(now/80+i)*0.18; f.flame.rotation.y+=dt*4;
+    if(now>=f.expireAt){scene.remove(f.mesh);fires.splice(i,1);}}
+
+  /* --- doors: animate swing --- */
+  for(const b of buildings){const ds=b.door; const tgt=ds.open?Math.PI*0.55:0;
+    if(Math.abs(ds.hinge-tgt)>0.01){ds.hinge+=(tgt-ds.hinge)*Math.min(1,dt*8);
+      const m=ds.mesh, hw=m.geometry.parameters.width/2;
+      m.rotation.y=ds.hinge; // swing around left edge
+      m.position.x=ds.base.x - hw + Math.cos(ds.hinge)*hw;
+      m.position.z=ds.base.z + Math.sin(ds.hinge)*hw; }
+  }
+
+  /* --- roofs hide when you're inside a building --- */
+  for(const b of buildings){ const inside=Math.abs(player.pos.x-b.fx)<b.hw+0.5 && Math.abs(player.pos.z-b.fz)<b.hd+0.5;
+    if(b.roof.visible===inside) b.roof.visible=!inside; }
 
   /* --- floaters / tracers --- */
   for(let i=floaters.length-1;i>=0;i--){const f=floaters[i];f.t+=dt;f.spr.position.y+=dt*2.5;
@@ -1131,7 +1370,7 @@ function loop(now){
   renderer.render(scene,camera);
 
   uiTick+=dt;
-  if(uiTick>0.15){uiTick=0;updateTopBar();updateMinimap();
+  if(uiTick>0.15){uiTick=0;updateTopBar();updateMinimap();updateRunUI();
     if(activeTab==="skills"||activeTab==="equip")refreshUI();}
   requestAnimationFrame(loop);
 }
@@ -1197,7 +1436,11 @@ function skillRow(key,label){const s=player.skills[key];
 function renderSkills(){panel.innerHTML=`<h2>Combat Skills</h2><div class="skillgrid">
     ${skillRow("aim","Aim")}${skillRow("composure","Composure")}
     ${skillRow("armour","Armour")}${skillRow("vitality","Vitality")}</div>
+  <h2 style="margin-top:14px">Gathering & Skilling</h2><div class="skillgrid">
+    ${skillRow("woodcutting","Woodcut")}${skillRow("cooking","Cooking")}
+    ${skillRow("agility","Agility")}</div>
   <h2 style="margin-top:14px">Derived</h2>
+  <div class="statline"><b>Attack style</b><span>${STYLES[attackStyle].label}</span></div>
   <div class="statline"><b>Combat level</b><span>${combatLevel()}</span></div>
   <div class="statline"><b>Vitality</b><span>${player.hp} / ${maxHp()}</span></div>
   <div class="statline"><b>Weapon bloom</b><span>${effectiveBloom().toFixed(1)} (lower=tighter)</span></div>
@@ -1243,16 +1486,19 @@ function renderEquip(){const w=curWeapon();
   panel.querySelectorAll(".pdoll.full").forEach(el=>el.addEventListener("click",()=>unequip(el.dataset.slot)));
   bindTips();}
 let shopFilter="weapon";
-function renderShop(){const cats=[["weapon","Guns"],["armour","Armour"],["food","Supplies"]];
-  let tabs=`<div style="display:flex;gap:4px;margin-bottom:8px">`;
+function renderShop(){const cats=[["weapon","Guns"],["armour","Armour"],["food","Supplies"],["tool","Tools"]];
+  let tabs=`<div style="display:flex;gap:4px;margin-bottom:8px;flex-wrap:wrap">`;
   for(const[c,l]of cats)tabs+=`<button class="btn" data-cat="${c}" style="${shopFilter===c?"":"background:#5a5142;color:#cdbf9a"}">${l}</button>`;
   tabs+=`</div>`;
-  const pool=shopFilter==="weapon"?WEAPONS:shopFilter==="armour"?ARMOUR:{bandage:CONSUMABLES.bandage,medkit:CONSUMABLES.medkit};
+  const pool=shopFilter==="weapon"?WEAPONS:shopFilter==="armour"?ARMOUR:
+    shopFilter==="food"?{bandage:CONSUMABLES.bandage,medkit:CONSUMABLES.medkit}:
+    {hatchet:TOOLS.hatchet,logs:MISC.logs,raw_meat:RAWFOOD.raw_meat,raw_steak:RAWFOOD.raw_steak};
   let list="";
   for(const k in pool){const it=pool[k];if(!it.price)continue;
     const reqTxt=reqHtml(k);
     const sub=it.cat==="weapon"?`${it.dmgMin}–${it.dmgMax} dmg${reqTxt?" · "+reqTxt:""}`:
-      it.cat==="armour"?`${it.mat} · +${it.armour} armour${reqTxt?" · "+reqTxt:""}`:`Heals ${it.heal}`;
+      it.cat==="armour"?`${it.mat} · +${it.armour} armour${reqTxt?" · "+reqTxt:""}`:
+      it.cat==="food"?`Heals ${it.heal}`:(it.desc||"");
     list+=`<div class="shopitem" data-tip="item:${k}"><div style="font-size:20px">${it.ic}</div>
       <div class="info"><div class="nm">${it.name}</div><div class="sub">${sub}</div></div>
       <button class="btn buy" data-k="${k}" ${coins()<it.price?"disabled":""}>⛁${it.price}</button></div>`;}
@@ -1293,7 +1539,9 @@ function showTip(ev,spec){const[type,key]=spec.split(":");let html="";
 const ctxEl=document.getElementById("ctx");
 function showItemCtx(ev,k){const it=ITEMS[k];let opts=[];
   if(it.cat==="weapon"||it.cat==="armour")opts.push(["Equip",()=>equipItem(k)]);
-  if(it.cat==="food")opts.push(["Use",()=>useItem(k)]);
+  if(it.cat==="food")opts.push(["Eat",()=>useItem(k)]);
+  if(it.cat==="raw"){opts.push(["Cook",()=>cookFood(k)]);opts.push(["Eat raw",()=>eatRaw(k)]);}
+  if(it.light)opts.push(["Light fire",()=>lightFire()]);
   if(k!=="coins")opts.push(["Sell ("+sellValue(k)+")",()=>sell(k)]);
   if(k!=="coins")opts.push(["Drop",()=>dropItem(k)]);
   opts.push(["Examine",()=>log(it.name+": "+(it.desc||"An item."))]);
@@ -1312,8 +1560,10 @@ log("Welcome to Gunscape Classic 3D!","sys");
 log("Explore: Greenfields (N), Mistwood (E), Dust Reach (S), Scarlands (W).","sys");
 log("Talk to townsfolk with a ! above their head for quests. Click the shopkeeper to trade.","sys");
 log("Click a monster to auto-fight it. Right-click for options. Don't die — you drop everything!","sys");
+log("Chop trees with your hatchet, light logs for a campfire, then cook raw meat on it.","sys");
+log("Hold Tab to pick an attack style. Toggle run by the minimap (it burns energy).","sys");
 log("Goal: reach the mighty AK-47 (Aim 45) and topple the Warlords.","sys");
-refreshUI();
+refreshUI(); updateRunUI();
 requestAnimationFrame(loop);
 </script>
 </body>
