@@ -115,6 +115,12 @@ wss.on('connection', (ws) => {
           aim: +msg.aim || undefined, weapon: msg.appearance && msg.appearance.weapon });
         break;
       }
+      case 'p2p': {   // relay a player-to-player message (duel/trade) to one target
+        if (!session.authed) break;
+        const tw = wsById(msg.to);
+        if (tw) { const out = Object.assign({}, msg, { from: session.id, fromUser: session.user }); delete out.to; send(tw, out); }
+        break;
+      }
       case 'attack': { if (session.authed) world.attackIntent(session.id, msg.enemyId); break; }
       case 'pickup': { if (session.authed) { const got = world.pickup(session.id, msg.lootId); if (got) send(ws, { t: 'looted', k: got.k, n: got.n }); } break; }
       case 'chat': {

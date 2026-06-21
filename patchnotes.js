@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.12",
+ "version": "1.0.13",
  "generated": "2026-06-21",
  "patches": [
+  {
+   "version": "1.0.13",
+   "date": "2026-06-21",
+   "title": "Login patch notes, player duels & trading, server picker that remembers",
+   "notes": []
+  },
   {
    "version": "1.0.12",
    "date": "2026-06-21",
