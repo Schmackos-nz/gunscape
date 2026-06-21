@@ -443,6 +443,34 @@ const gradMap=(()=>{const d=new Uint8Array([70,150,235]);
   t.minFilter=t.magFilter=THREE.NearestFilter; t.needsUpdate=true; return t;})();
 function toonMat(opts){return new THREE.MeshToonMaterial(Object.assign({gradientMap:gradMap},opts));}
 
+/* --- procedural textures (grayscale detail; material color tints them) --- */
+function makeTex(draw,repeat){
+  const s=128, cv=document.createElement("canvas"); cv.width=cv.height=s;
+  const c=cv.getContext("2d"); try{draw(c,s);}catch(e){}
+  const t=new THREE.CanvasTexture(cv); t.wrapS=t.wrapT=THREE.RepeatWrapping;
+  if(repeat&&t.repeat&&t.repeat.set)t.repeat.set(repeat[0],repeat[1]); t.needsUpdate=true; return t;
+}
+const TEX={
+  wood:makeTex((c,s)=>{c.fillStyle="#cfcfcf";c.fillRect(0,0,s,s);
+    for(let i=1;i<5;i++){c.fillStyle="rgba(0,0,0,0.22)";c.fillRect(0,i*s/5-1,s,2);}
+    for(let k=0;k<150;k++){c.fillStyle="rgba(0,0,0,"+(0.03+Math.random()*0.07)+")";c.fillRect(Math.random()*s,Math.random()*s,6+Math.random()*22,1);}},[2,2]),
+  plaster:makeTex((c,s)=>{c.fillStyle="#d6d6d6";c.fillRect(0,0,s,s);
+    for(let k=0;k<950;k++){c.fillStyle="rgba(0,0,0,"+(Math.random()*0.10)+")";c.fillRect(Math.random()*s,Math.random()*s,2,2);}
+    for(let k=0;k<3;k++){c.strokeStyle="rgba(0,0,0,0.10)";c.beginPath();c.moveTo(Math.random()*s,0);c.lineTo(Math.random()*s,s);c.stroke();}},[2,2]),
+  shingle:makeTex((c,s)=>{c.fillStyle="#cccccc";c.fillRect(0,0,s,s);const rows=6,cols=6,rw=s/rows,cw=s/cols;
+    for(let r=0;r<rows;r++)for(let col=0;col<cols;col++){const off=(r%2)*cw/2,x=col*cw+off,y=r*rw;
+      c.fillStyle="rgba(0,0,0,"+(0.05+((r+col)%2)*0.07)+")";c.fillRect(x+1,y+1,cw-2,rw-2);
+      c.strokeStyle="rgba(0,0,0,0.18)";c.strokeRect(x+1,y+1,cw-2,rw-2);}},[3,3]),
+  ground:makeTex((c,s)=>{c.fillStyle="#dadada";c.fillRect(0,0,s,s);
+    for(let k=0;k<2400;k++){const g=Math.floor(120+Math.random()*120);c.fillStyle="rgba("+g+","+g+","+g+",0.25)";c.fillRect(Math.random()*s,Math.random()*s,1.6,1.6);}},[80,80]),
+  fabric:makeTex((c,s)=>{c.fillStyle="#cfcfcf";c.fillRect(0,0,s,s);
+    for(let y=0;y<s;y+=3)for(let x=0;x<s;x+=3){if((x+y)%6===0){c.fillStyle="rgba(0,0,0,0.10)";c.fillRect(x,y,2,2);}}},[2,2]),
+  metal:makeTex((c,s)=>{c.fillStyle="#cccccc";c.fillRect(0,0,s,s);
+    for(let y=0;y<s;y+=2){c.fillStyle="rgba(0,0,0,"+(0.04+Math.random()*0.06)+")";c.fillRect(0,y,s,1);}},[1,1]),
+  bark:makeTex((c,s)=>{c.fillStyle="#cbcbcb";c.fillRect(0,0,s,s);
+    for(let k=0;k<70;k++){c.fillStyle="rgba(0,0,0,"+(0.06+Math.random()*0.10)+")";c.fillRect(Math.random()*s,0,1+Math.random()*2,s);}},[1,2]),
+};
+
 // --- gradient sky ---
 const sky=(()=>{const c=document.createElement("canvas");c.width=4;c.height=256;
   const g=c.getContext("2d"); const grd=g.createLinearGradient(0,0,0,256);
@@ -529,7 +557,7 @@ function buildTerrain(){
   }
   geo.setAttribute("color",new THREE.Float32BufferAttribute(colors,3));
   geo.computeVertexNormals();
-  const mat=toonMat({vertexColors:true});
+  const mat=toonMat({vertexColors:true,map:TEX.ground});
   const mesh=new THREE.Mesh(geo,mat); mesh.name="ground"; scene.add(mesh);
   return mesh;
 }
@@ -547,8 +575,8 @@ addLake(-70,70,18); addLake(80,90,15); addLake(-110,-90,22);
 /* ============================================================ *
  *  PROCEDURAL MODELS
  * ============================================================ */
-function box(w,h,d,color){return new THREE.Mesh(new THREE.BoxGeometry(w,h,d),toonMat({color}));}
-function cyl(rt,rb,h,color,seg=8){return new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,seg),toonMat({color}));}
+function box(w,h,d,color,tex){return new THREE.Mesh(new THREE.BoxGeometry(w,h,d),toonMat({color,map:tex||null}));}
+function cyl(rt,rb,h,color,seg=8,tex){return new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,seg),toonMat({color,map:tex||null}));}
 function blobShadow(r){const m=new THREE.Mesh(new THREE.CircleGeometry(r,16),
   new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:0.28}));
   m.rotation.x=-Math.PI/2;m.position.y=0.08;m.userData.noOutline=true;return m;}
@@ -557,15 +585,15 @@ function blobShadow(r){const m=new THREE.Mesh(new THREE.CircleGeometry(r,16),
 function makeHumanoid(o){
   o=o||{}; const g=new THREE.Group();
   const skin=o.skin??0xc8a07a, shirt=o.shirt??0x4a90d9, pants=o.pants??0x33384a;
-  const legL=box(0.34,1.4,0.34,pants); legL.position.set(-0.3,0.7,0);
-  const legR=box(0.34,1.4,0.34,pants); legR.position.set(0.3,0.7,0);
-  const torso=box(1.0,1.3,0.6,shirt); torso.position.y=2.05;
+  const legL=box(0.34,1.4,0.34,pants,TEX.fabric); legL.position.set(-0.3,0.7,0);
+  const legR=box(0.34,1.4,0.34,pants,TEX.fabric); legR.position.set(0.3,0.7,0);
+  const torso=box(1.0,1.3,0.6,shirt,TEX.fabric); torso.position.y=2.05;
   const head=box(0.66,0.66,0.66,skin); head.position.y=3.05;
-  const armL=box(0.3,1.15,0.3,shirt); armL.position.set(-0.66,2.1,0);
-  const armR=box(0.3,1.15,0.3,shirt); armR.position.set(0.66,2.05,0.15);
+  const armL=box(0.3,1.15,0.3,shirt,TEX.fabric); armL.position.set(-0.66,2.1,0);
+  const armR=box(0.3,1.15,0.3,shirt,TEX.fabric); armR.position.set(0.66,2.05,0.15);
   g.add(legL,legR,torso,head,armL,armR);
   if(o.gun!==false){
-    const gun=box(0.22,0.22,o.gunLen??1.2,o.gunColor??0x222222);
+    const gun=box(0.22,0.22,o.gunLen??1.2,o.gunColor??0x222222,TEX.metal);
     gun.position.set(0.5,2.0,0.75); g.add(gun);
   }
   g.add(blobShadow(0.85));
@@ -627,13 +655,13 @@ function makeHouse(x,z,w,d,color,opts){
   const wallCol=opts.wall||color||WALL_COLS[Math.floor(Math.random()*WALL_COLS.length)];
   const roofCol=opts.roof||ROOF_COLS[Math.floor(Math.random()*ROOF_COLS.length)];
   // wooden floor (plank-toned)
-  const floor=box(w,0.3,d,0x8a5a2e); floor.position.y=0.16; floor.userData.noOutline=true; g.add(floor);
+  const floor=box(w,0.3,d,0x8a5a2e,TEX.wood); floor.position.y=0.16; floor.userData.noOutline=true; g.add(floor);
   for(let px=-w/2+0.6;px<w/2;px+=1.2){const pl=box(0.08,0.32,d-0.4,0x6e441f);pl.position.set(px,0.18,0);pl.userData.noOutline=true;g.add(pl);}
   // window: pale glass pane sunk into a wall (cosmetic, no collision)
   function windowOn(cx,cz,horiz){const pane=box(horiz?1.6:0.18,1.2,horiz?0.18:1.6,0x9fd3e6);
     pane.position.set(cx,2.6,cz); pane.userData.noOutline=true; g.add(pane);
     const frame=box(horiz?1.9:0.26,1.5,horiz?0.26:1.9,0x4a3526); frame.position.set(cx,2.6,cz); frame.userData.noOutline=true; g.add(frame); g.add(pane);}
-  function wall(cx,cz,ww,dd){const m=box(ww,h,dd,wallCol);m.position.set(cx,h/2,cz);g.add(m);
+  function wall(cx,cz,ww,dd){const m=box(ww,h,dd,wallCol,TEX.plaster);m.position.set(cx,h/2,cz);g.add(m);
     addWall(x+cx,z+cz,ww/2,dd/2);}
   wall(0,-hd,w,t);            // north (back)
   wall(-hw,0,t,d);            // west
@@ -646,17 +674,17 @@ function makeHouse(x,z,w,d,color,opts){
   windowOn(-hw,-d*0.22,false); windowOn(hw,d*0.22,false);
   // ---- door on a proper hinge (pivot group at the left edge of the gap) ----
   const pivot=new THREE.Group(); pivot.position.set(-gap/2,h*0.45,hd); g.add(pivot);
-  const door=box(gap,h*0.85,t*0.8,0x3a2a1a); door.position.set(gap/2,0,0); door.userData.noOutline=true; pivot.add(door);
+  const door=box(gap,h*0.85,t*0.8,0x3a2a1a,TEX.wood); door.position.set(gap/2,0,0); door.userData.noOutline=true; pivot.add(door);
   const doorState={open:true,pivot,mesh:door,hinge:-Math.PI*0.5};
   pivot.rotation.y=doorState.hinge;
   const doorWall=addWall(x,z+hd,gap/2,t/2,doorState); doorState.wall=doorWall; door.userData.door=doorState;
   // ---- roof (pitched cone or flat slab), hidden when you're inside ----
   let roof;
-  if(opts.flat){ roof=box(w+0.6,0.5,d+0.6,roofCol); roof.position.y=h+0.25; }
-  else { roof=new THREE.Mesh(new THREE.ConeGeometry(Math.max(w,d)*0.78,2.6,4),toonMat({color:roofCol}));
+  if(opts.flat){ roof=box(w+0.6,0.5,d+0.6,roofCol,TEX.shingle); roof.position.y=h+0.25; }
+  else { roof=new THREE.Mesh(new THREE.ConeGeometry(Math.max(w,d)*0.78,2.6,4),toonMat({color:roofCol,map:TEX.shingle}));
     roof.rotation.y=Math.PI/4; roof.position.y=h+1.3; }
   roof.userData.noOutline=true; g.add(roof);
-  const chimney=box(0.7,1.6,0.7,0x5a4434); chimney.position.set(hw*0.5,h+1.4,-hd*0.4); chimney.userData.noOutline=true; g.add(chimney);
+  const chimney=box(0.7,1.6,0.7,0x5a4434,TEX.plaster); chimney.position.set(hw*0.5,h+1.4,-hd*0.4); chimney.userData.noOutline=true; g.add(chimney);
   const bld={fx:x,fz:z,hw,hd,roof,door:doorState,group:g};
   buildings.push(bld);
   // ---- optional upstairs (slab + railings on floor 1 + staircase) ----
@@ -669,13 +697,13 @@ const stairsList=[];          // clickable staircases
 function addUpstairs(g,bld,x,z,w,d,h,wallCol,roofCol){
   const hw=w/2,hd=d/2,t=0.4,HS=3.4,uh=4.5;   // HS = stair-hole size (NE/back corner); uh = upstairs wall height
   // ---- upstairs floor: full slab MINUS a hole in the BACK (NE) corner, away from the front door ----
-  function slabPiece(cx,cz,ww,dd){const s=box(ww,0.3,dd,0x8a5a2e);s.position.set(cx,FLOOR_H,cz);s.userData.noOutline=true;g.add(s);}
+  function slabPiece(cx,cz,ww,dd){const s=box(ww,0.3,dd,0x8a5a2e,TEX.wood);s.position.set(cx,FLOOR_H,cz);s.userData.noOutline=true;g.add(s);}
   slabPiece(0, HS/2, w, d-HS);                           // south strip (full width, toward the door)
   slabPiece(-HS/2, -hd+HS/2, w-HS, HS);                  // back-west strip (leaves the NE/back hole open)
   // raise the roof so it sits right on top of the upstairs walls (not floating)
   bld.roof.position.y += uh;
   // ---- full upstairs walls: bottom sits exactly on the ground walls (top at h), floor-1 collision ----
-  function uwall(cx,cz,ww,dd){const m=box(ww,uh,dd,wallCol);m.position.set(cx,h+uh/2,cz);m.userData.noOutline=true;g.add(m);
+  function uwall(cx,cz,ww,dd){const m=box(ww,uh,dd,wallCol,TEX.plaster);m.position.set(cx,h+uh/2,cz);m.userData.noOutline=true;g.add(m);
     const wl=addWall(x+cx,z+cz,ww/2,dd/2); wl.floor=1;}
   uwall(0,-hd,w,t); uwall(-hw,0,t,d); uwall(hw,0,t,d); uwall(0,hd,w,t);   // enclosed second storey
   function uwin(cx,cz,horiz){const p=box(horiz?1.6:0.18,1.1,horiz?0.18:1.6,0x9fd3e6);p.position.set(cx,FLOOR_H+2.4,cz);p.userData.noOutline=true;g.add(p);}
@@ -705,7 +733,7 @@ function makeTree(x,z,kind){
     const t=cyl(0.4,0.5,3.2,0x3d7a3a); t.position.y=1.6; g.add(t);
     const a=cyl(0.25,0.25,1.4,0x3d7a3a); a.position.set(0.6,2,0); a.rotation.z=-0.5; foliage.add(a);
   }else{
-    const trunk=cyl(0.3,0.45,3,0x5a3c25); trunk.position.y=1.5; g.add(trunk);
+    const trunk=cyl(0.3,0.45,3,0x5a3c25,8,TEX.bark); trunk.position.y=1.5; g.add(trunk);
     const fc=kind==="pine"?0x2f5a2f:0x3f7a3a;
     for(let i=0;i<3;i++){const c=new THREE.Mesh(new THREE.ConeGeometry(2-i*0.45,2,7),
       toonMat({color:fc}));c.position.y=3.4+i*1.2;foliage.add(c);}
@@ -715,7 +743,7 @@ function makeTree(x,z,kind){
   g.userData.tree=tree; trees.push(tree);
 }
 function makeRock(x,z,s){
-  const r=new THREE.Mesh(new THREE.DodecahedronGeometry(s),toonMat({color:0x8a8378}));
+  const r=new THREE.Mesh(new THREE.DodecahedronGeometry(s),toonMat({color:0x8a8378,map:TEX.plaster}));
   r.position.set(x,terrainHeight(x,z)+s*0.5,z); scene.add(r); addBlocker(x,z,s*0.8);
 }
 function makeAltar(x,z){
@@ -749,13 +777,13 @@ function makeWorkshop(x,z){
   const g=new THREE.Group(); g.position.set(x,terrainHeight(x,z),z);
   // forge (furnace with glowing coals) on the left
   const forge=new THREE.Group(); forge.position.x=-2.4; g.add(forge);
-  const fbase=box(2.4,1.6,2,0x5a5048); fbase.position.y=0.8; forge.add(fbase);
-  const hood=box(2.2,1.0,1.8,0x3a342e); hood.position.y=2.4; forge.add(hood);
+  const fbase=box(2.4,1.6,2,0x5a5048,TEX.plaster); fbase.position.y=0.8; forge.add(fbase);
+  const hood=box(2.2,1.0,1.8,0x3a342e,TEX.metal); hood.position.y=2.4; forge.add(hood);
   const coals=box(1.6,0.3,1.2,0xff7a2a); coals.position.set(0,1.65,0.2); coals.userData.noOutline=true; forge.add(coals);
   const flight=new THREE.PointLight(0xff7a2a,0.9,9); flight.position.set(0,2,0.3); forge.add(flight);
   // workbench (table + vice) on the right
   const bench=new THREE.Group(); bench.position.x=2.4; g.add(bench);
-  const top=box(3,0.3,2,0x7a5230); top.position.y=1.5; bench.add(top);
+  const top=box(3,0.3,2,0x7a5230,TEX.wood); top.position.y=1.5; bench.add(top);
   for(const dx of[-1.3,1.3])for(const dz of[-0.8,0.8]){const leg=box(0.25,1.5,0.25,0x5a3c25);leg.position.set(dx,0.75,dz);bench.add(leg);}
   const vice=box(0.5,0.5,0.5,0x3a3a40); vice.position.set(1,1.9,0); bench.add(vice);
   scene.add(g); addBlocker(x,z,2.2);

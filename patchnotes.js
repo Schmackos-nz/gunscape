@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.17",
+ "version": "1.0.18",
  "generated": "2026-06-21",
  "patches": [
+  {
+   "version": "1.0.18",
+   "date": "2026-06-21",
+   "title": "Texture everything with procedural canvas textures",
+   "notes": []
+  },
   {
    "version": "1.0.17",
    "date": "2026-06-21",
