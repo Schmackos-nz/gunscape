@@ -74,9 +74,10 @@ export class World {
     for (const it of (items || [])) if (it && it.k) add(it.k, it.n || 1);
   }
 
-  // returns events for the owner (xp / loot notices) keyed by pid
+  // returns { events (per-owner: xp/hurt/death), fx (broadcast: damage numbers) }
   tick(dt, now) {
     const events = [];
+    const fx = [];   // combat damage numbers visible to everyone
     const alive = [...this.players.entries()].filter(([, p]) => !p.dead);
 
     // ---- player → enemy attacks + out-of-combat regen ----
@@ -93,7 +94,8 @@ export class World {
       const stats = ENEMY_STATS[e.type];
       const acc = 100 / (1 + wc.bloom * 0.06) * (1 + p.aim / 99);
       if (Math.random() < acc / (acc + stats.armour)) {
-        e.hp -= randint(wc.dmgMin, wc.dmgMax);
+        const dmg = randint(wc.dmgMin, wc.dmgMax); e.hp -= dmg;
+        fx.push({ k: 'ehit', x: e.x, z: e.z, dmg });
         if (e.hp <= 0) { this.killEnemy(e, pid, now); events.push({ pid, t: 'xp', xp: stats.xp, name: stats.name }); }
       }
     }
@@ -120,6 +122,7 @@ export class World {
               let dmg = randint(stats.dmg[0], stats.dmg[1]); dmg = Math.max(1, dmg - Math.floor(tgt.armour * 0.12));
               tgt.hp -= dmg; tgt.lastHit = now;
               events.push({ pid: near, t: 'hurt', dmg });
+              fx.push({ k: 'phit', x: tgt.x, z: tgt.z, dmg });
               if (tgt.hp <= 0) { tgt.hp = 0; tgt.dead = true; tgt.respawnAt = now + 4000; events.push({ pid: near, t: 'death' }); }
             }
           }
@@ -136,7 +139,7 @@ export class World {
 
     // ---- loot despawn (120s) ----
     for (let i = this.loot.length - 1; i >= 0; i--) if (now >= this.loot[i].despawnAt) this.loot.splice(i, 1);
-    return events;
+    return { events, fx };
   }
 
   killEnemy(e, killerPid, now) {

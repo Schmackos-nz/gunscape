@@ -83,6 +83,9 @@
   #gold{top:8px;left:8px;border:1px solid var(--gold);color:#ffd24a;}
   #cmblvl{top:8px;left:120px;border:1px solid #b23b2e;color:#ff9b8a;}
   #biome{top:8px;left:232px;border:1px solid var(--gold);color:#cdbf9a;}
+  #netbanner{position:absolute;top:78px;left:8px;z-index:90;display:none;
+    background:rgba(60,10,10,.85);color:#ffcaba;border:1px solid #b23b2e;border-radius:6px;
+    padding:6px 12px;font-size:13px;font-weight:bold;}
   #hpwrap{top:44px;left:8px;width:220px;border:1px solid #5aa84c;padding:4px 8px;}
   #hpwrap .lab{font-size:11px;color:#bfe0b0;margin-bottom:2px;}
   #hpbar{height:10px;background:#3a0f0c;border-radius:4px;overflow:hidden;}
@@ -222,6 +225,7 @@
     <canvas id="minimap" width="150" height="150"></canvas>
     <div id="runtoggle" title="Toggle run (run uses energy)">🏃 100%</div>
     <div id="multicombat">⚠ Multicombat</div>
+    <div id="netbanner"></div>
     <div id="chat"></div>
     <div id="hint">Click to move · click monster = auto-fight · click trees to chop · hold Tab for attack style · right-click = options · right-drag turn · wheel zoom</div>
   </div>
@@ -940,6 +944,8 @@ function floater(world,text,color){
   spr.scale.set(3,1.5,1); spr.position.copy(world); spr.position.y+=3.5; scene.add(spr);
   floaters.push({spr,t:0});
 }
+// floating combat number at a world x,z (used for other players'/enemies' damage online)
+function worldFloater(x,z,text,color){floater(new THREE.Vector3(x,terrainHeight(x,z)+1,z),text,color);}
 /* ---------------- Tracers ----------------------------------- */
 const tracers=[];
 function tracer(from,to,color){
@@ -1420,7 +1426,10 @@ function moveToward(tx,tz,step){
 /* ---------------- Input ------------------------------------- */
 const keys={};
 addEventListener("keydown",e=>{keys[e.key.toLowerCase()]=true;
-  if(e.key==="Tab"){e.preventDefault(); if(!styleMenuOpen){styleMenuOpen=true;styleMenu.classList.add("show");renderStyleMenu();}}});
+  if(e.key==="Tab"){ const ae=document.activeElement;
+    if(ae&&(ae.tagName==="INPUT"||ae.tagName==="TEXTAREA"))return;   // let Tab move between text fields
+    if(!gameStarted)return;
+    e.preventDefault(); if(!styleMenuOpen){styleMenuOpen=true;styleMenu.classList.add("show");renderStyleMenu();}}});
 addEventListener("keyup",e=>{keys[e.key.toLowerCase()]=false;
   if(e.key==="Tab"){styleMenuOpen=false;styleMenu.classList.remove("show");}});
 /* ---------------- Attack-style overlay (hold Tab) ---------- */
@@ -2031,17 +2040,39 @@ function updateServerWorld(dt,now){
   }
   for(const sl of serverLoot.values())if(sl.mesh.visible)sl.mesh.position.y=terrainHeight(sl.x,sl.z)+1+Math.sin(now/350+sl.x)*0.15;
 }
+const netBanner=document.getElementById("netbanner");
+function showBanner(t){netBanner.textContent=t;netBanner.style.display="block";}
+function hideBanner(){netBanner.style.display="none";}
+function beginReconnect(){
+  if(NET.reconnecting)return; NET.reconnecting=true; NET.reconnectStart=performance.now();
+  showBanner("⚠ Connection lost — reconnecting…"); tryReconnect();
+}
+function tryReconnect(){
+  if(!NET.reconnecting)return;
+  if(performance.now()-NET.reconnectStart>20000){ // give up after 20s → back to login
+    NET.reconnecting=false; hideBanner();
+    log("Couldn't reconnect — returning to login.","bad");
+    document.getElementById("login").style.display="flex";
+    document.getElementById("lg-msg").textContent="Lost connection. Log in to rejoin.";
+    return; }
+  const left=Math.ceil((20000-(performance.now()-NET.reconnectStart))/1000);
+  showBanner("⚠ Reconnecting… ("+left+"s)");
+  if(NET.creds) netConnect(NET.creds.url,"login",NET.creds.user,NET.creds.pass);
+  NET._retry=setTimeout(tryReconnect,3000);
+}
 function netConnect(url,mode,user,pass){
-  const msgEl=document.getElementById("lg-msg"); msgEl.className=""; msgEl.textContent="Connecting…";
+  NET.creds={url,user,pass};   // remembered for auto-reconnect
+  const msgEl=document.getElementById("lg-msg"); msgEl.className=""; if(!NET.reconnecting)msgEl.textContent="Connecting…";
   let ws; try{ws=new WebSocket(url);}catch(e){msgEl.textContent="Bad server address.";return;}
   NET.ws=ws;
   ws.onopen=()=>ws.send(JSON.stringify({t:mode,user,pass}));
-  ws.onerror=()=>{msgEl.textContent="Could not reach that server.";};
-  ws.onclose=()=>{ if(NET.online){log("Disconnected from server.","bad");NET.online=false;
-    for(const id of [...remotes.keys()])removeRemote(id); clearServerWorld();} };
+  ws.onerror=()=>{ if(!NET.reconnecting)msgEl.textContent="Could not reach that server."; };
+  ws.onclose=()=>{ if(NET.online){NET.online=false;
+    for(const id of [...remotes.keys()])removeRemote(id); clearServerWorld(); beginReconnect();} };
   ws.onmessage=(ev)=>{let m;try{m=JSON.parse(ev.data);}catch{return;}
-    if(m.t==="authfail"){msgEl.className="";msgEl.textContent=m.why;}
+    if(m.t==="authfail"){msgEl.className="";msgEl.textContent=m.why; NET.reconnecting=false; clearTimeout(NET._retry); hideBanner();}
     else if(m.t==="authok"){NET.id=m.id;NET.user=m.user;NET.online=true;
+      if(NET.reconnecting){NET.reconnecting=false;clearTimeout(NET._retry);hideBanner();log("Reconnected.","xp");}
       applyProfile(m.profile); startGame(true); }
     else if(m.t==="snapshot"){const seen=new Set();
       for(const p of m.players){ if(p.id===NET.id){ if(typeof p.hp==="number")player.hp=p.hp; continue; }
@@ -2054,9 +2085,10 @@ function netConnect(url,mode,user,pass){
     else if(m.t==="chat"){log(`${m.from}: ${m.msg}`, m.from===NET.user?"loot":"sys");}
     else if(m.t==="xp"){ const ks=STYLES[attackStyle].xp; for(const k of ks)gainXp(k,m.xp*0.7/ks.length);
       gainXp("vitality",m.xp*0.3); log("You killed the "+m.name+".","cmb"); sfxKill(); }
-    else if(m.t==="hurt"){ floater(player.pos,String(m.dmg),"#ff6a5a"); sfxHurt();
+    else if(m.t==="hurt"){ sfxHurt();   // damage number comes via the shared 'fx' broadcast
       gainXp("armour",m.dmg*3); gainXp("composure",m.dmg*1.5); player.combatUntil=performance.now()+6000;
       if(Math.random()>flinchResist())player.flinchUntil=performance.now()+450; }
+    else if(m.t==="fx"){ for(const f of m.list) worldFloater(f.x,f.z,String(f.dmg),f.k==="phit"?"#ff6a5a":"#ffd24a"); }
     else if(m.t==="death"){ onlineDeath(); }
     else if(m.t==="looted"){ addItem(m.k,m.n); (m.k==="coins"?sfxCoin:sfxPickup)(); checkQuestProgress();
       log(`You pick up ${m.n>1?m.n+" ":""}${ITEMS[m.k]?ITEMS[m.k].name:m.k}.`,"loot"); }
@@ -2083,24 +2115,21 @@ function startGame(online){
 function lsGet(k,d){try{const v=localStorage.getItem(k);return v==null?d:v;}catch{return d;}}
 function lsSet(k,v){try{localStorage.setItem(k,v);}catch{}}
 function loadServers(){try{return JSON.parse(lsGet("gs_servers","[]"))||[];}catch{return[];}}
-function defaultSrv(){return location.protocol.startsWith("http")?("ws://"+location.host):"ws://localhost:8787";}
-function normSrv(s){s=(s||"").trim(); if(!s)return "";
-  if(/^wss?:\/\//i.test(s))return s;
-  if(/^https:\/\//i.test(s))return s.replace(/^https:\/\//i,"wss://");
-  if(/^http:\/\//i.test(s))return s.replace(/^http:\/\//i,"ws://");
-  return "ws://"+s;}                                   // no need to type ws://
-function rememberSrv(url){let list=loadServers().filter(s=>s!==url); list.unshift(url);
-  lsSet("gs_servers",JSON.stringify(list.slice(0,12))); lsSet("gs_lastServer",url); populateServers();}
+function defaultSrv(){return "localhost:8787";}        // shown without scheme
+function stripScheme(s){return (s||"").trim().replace(/^wss?:\/\//i,"").replace(/^https?:\/\//i,"");}
+function normSrv(s){s=stripScheme(s); return s?("ws://"+s):"";}  // add ws:// only when connecting
+function rememberSrv(disp){disp=stripScheme(disp); let list=loadServers().filter(s=>s!==disp); list.unshift(disp);
+  lsSet("gs_servers",JSON.stringify(list.slice(0,12))); lsSet("gs_lastServer",disp); populateServers();}
 function populateServers(){document.getElementById("lg-servers").innerHTML=
-  loadServers().map(s=>`<option value="${s}"></option>`).join("");}
+  loadServers().map(s=>`<option value="${stripScheme(s)}"></option>`).join("");}
 (function initLogin(){
   const srv=document.getElementById("lg-server");
   populateServers();
-  srv.value = lsGet("gs_lastServer","") || defaultSrv();
+  srv.value = stripScheme(lsGet("gs_lastServer","")) || defaultSrv();   // never shows ws://
   const u=()=>document.getElementById("lg-user").value, p=()=>document.getElementById("lg-pass").value;
   const needCreds=()=>{const ok=u().trim()&&p();if(!ok)document.getElementById("lg-msg").textContent="Enter a username and password.";return ok;};
-  const go=(mode)=>{ if(!needCreds())return; const url=normSrv(srv.value)||defaultSrv();
-    srv.value=url; rememberSrv(url); netConnect(url,mode,u().trim(),p()); };
+  const go=(mode)=>{ if(!needCreds())return; const disp=stripScheme(srv.value)||defaultSrv();
+    srv.value=disp; rememberSrv(disp); netConnect(normSrv(disp),mode,u().trim(),p()); };
   document.getElementById("lg-login").onclick=()=>go("login");
   document.getElementById("lg-register").onclick=()=>go("register");
   document.getElementById("lg-offline").onclick=()=>startGame(false);

@@ -165,7 +165,8 @@ function login(ws, session, user) {
 
 // periodic authoritative tick: presence + world simulation
 setInterval(() => {
-  const events = world.tick(TICK_MS / 1000, Date.now());
+  const { events, fx } = world.tick(TICK_MS / 1000, Date.now());
+  if (fx.length) broadcast({ t: 'fx', list: fx });   // damage numbers everyone can see
   const players = [];
   for (const s of clients.values()) if (s.authed) {
     const wp = world.players.get(s.id);                 // server-authoritative HP
