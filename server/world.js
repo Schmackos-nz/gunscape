@@ -91,12 +91,13 @@ export class World {
       if (dist(p, e) > COMBAT_RANGE + 0.5) continue;          // client walks into range
       if (now - p.lastShot < wc.fireRate) continue;
       p.lastShot = now;
+      fx.push({ k: 'shot', pid, sx: p.x, sz: p.z, tx: e.x, tz: e.z, w: p.weapon });  // gunshot sound + tracer for others
       const stats = ENEMY_STATS[e.type];
       const acc = 100 / (1 + wc.bloom * 0.06) * (1 + p.aim / 99);
       if (Math.random() < acc / (acc + stats.armour)) {
         const dmg = randint(wc.dmgMin, wc.dmgMax); e.hp -= dmg;
         fx.push({ k: 'ehit', x: e.x, z: e.z, dmg });
-        if (e.hp <= 0) { this.killEnemy(e, pid, now); events.push({ pid, t: 'xp', xp: stats.xp, name: stats.name }); }
+        if (e.hp <= 0) { this.killEnemy(e, pid, now); events.push({ pid, t: 'xp', xp: stats.xp, name: stats.name }); fx.push({ k: 'kill', pid, x: e.x, z: e.z }); }
       }
     }
 
@@ -117,6 +118,7 @@ export class World {
           e.ry = Math.atan2(tgt.x - e.x, tgt.z - e.z);
           if (now - e.lastShot >= stats.fireRate) {
             e.lastShot = now;
+            fx.push({ k: 'eshot', sx: e.x, sz: e.z, tx: tgt.x, tz: tgt.z });  // enemy gunshot for everyone nearby
             const acc = stats.aim + 8;
             if (Math.random() < acc / (acc + tgt.armour)) {
               let dmg = randint(stats.dmg[0], stats.dmg[1]); dmg = Math.max(1, dmg - Math.floor(tgt.armour * 0.12));

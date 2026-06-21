@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.1",
+ "version": "1.0.2",
  "generated": "2026-06-21",
  "patches": [
+  {
+   "version": "1.0.2",
+   "date": "2026-06-21",
+   "title": "Networked combat audio + tracers for other players and enemies",
+   "notes": []
+  },
   {
    "version": "1.0.1",
    "date": "2026-06-21",
