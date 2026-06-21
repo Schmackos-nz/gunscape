@@ -644,30 +644,35 @@ function makeHouse(x,z,w,d,color,opts){
 const FLOOR_H=5.2;            // vertical offset of the upstairs floor
 const stairsList=[];          // clickable staircases
 function addUpstairs(g,bld,x,z,w,d,h,wallCol,roofCol){
-  const hw=w/2,hd=d/2;
-  // upstairs floor slab (leave a stair hole in the NE corner)
-  const slab=box(w,0.3,d,0x8a5a2e); slab.position.set(0,FLOOR_H,0); slab.userData.noOutline=true; g.add(slab);
-  // raise the (existing pitched) roof so there's headroom upstairs
+  const hw=w/2,hd=d/2,t=0.4,HS=3.4;   // HS = stair-hole size in the SE corner
+  // ---- upstairs floor: full slab MINUS a hole in the SE corner for the stairs ----
+  function slabPiece(cx,cz,ww,dd){const s=box(ww,0.3,dd,0x8a5a2e);s.position.set(cx,FLOOR_H,cz);s.userData.noOutline=true;g.add(s);}
+  slabPiece(0,(-hd+(hd-HS))/2, w, d-HS);                 // north strip (full width)
+  slabPiece((-hw+(hw-HS))/2,(hd-HS+hd)/2, w-HS, HS);     // south-west strip (leaves SE hole open)
+  // raise the roof for headroom
   bld.roof.position.y += FLOOR_H;
-  // low railings around the upstairs edge (floor-1 collision), gap at the stair hole
-  const rh=1.2, rt=0.25;
-  function rail(cx,cz,ww,dd){const m=box(ww,rh,dd,0x6e441f);m.position.set(cx,FLOOR_H+0.3+rh/2,cz);m.userData.noOutline=true;g.add(m);
+  // ---- full upstairs walls (floor-1 collision), with windows ----
+  const uh=4;
+  function uwall(cx,cz,ww,dd){const m=box(ww,uh,dd,wallCol);m.position.set(cx,FLOOR_H+0.3+uh/2,cz);m.userData.noOutline=true;g.add(m);
     const wl=addWall(x+cx,z+cz,ww/2,dd/2); wl.floor=1;}
-  rail(0,-hd+0.2,w,rt);                         // back rail
-  rail(-hw+0.2,0,rt,d);                         // west rail
-  rail(0,hd-0.2,w*0.6,rt);                      // front rail (partial; door side)
-  rail(hw-0.2,-d*0.25,rt,d*0.5);               // east rail upper (leave SE open for stairs)
-  // staircase: steps from ground (SE corner) up to the slab
-  const steps=7, sw=2.4;
-  const stair=new THREE.Group(); g.add(stair);
-  for(let i=0;i<steps;i++){const st=box(sw,0.4,1.2,0x7a5230);
-    st.position.set(hw-1.6, 0.4+i*(FLOOR_H/steps), hd-1.0-i*1.0); st.userData.noOutline=true; stair.add(st);}
-  // clickable stair trigger at the base
-  const baseX=x+hw-1.6, baseZ=z+hd-1.0;
-  const sObj={x:baseX,z:baseZ,group:bld,topX:x+hw-1.6,topZ:z+hd-1.0-(steps-1)*1.0};
-  const hit=box(sw,FLOOR_H,1.4,0x000000); hit.material.transparent=true; hit.material.opacity=0;
-  hit.position.set(hw-1.6,FLOOR_H/2,hd-1.0); hit.userData.noOutline=true; hit.userData.stairs=sObj; stair.add(hit);
-  sObj.mesh=hit; stairsList.push(sObj);
+  uwall(0,-hd,w,t); uwall(-hw,0,t,d); uwall(hw,0,t,d); uwall(0,hd,w,t);   // enclosed second storey
+  function uwin(cx,cz,horiz){const p=box(horiz?1.6:0.18,1.1,horiz?0.18:1.6,0x9fd3e6);p.position.set(cx,FLOOR_H+2.4,cz);p.userData.noOutline=true;g.add(p);}
+  uwin(-w*0.25,-hd,true); uwin(w*0.25,-hd,true); uwin(-hw,0,false);
+  // ---- railings around the stair hole so you don't walk into it (floor 1) ----
+  function railEdge(cx,cz,ww,dd){const m=box(ww,1.1,dd,0x6e441f);m.position.set(cx,FLOOR_H+0.3+0.55,cz);m.userData.noOutline=true;g.add(m);
+    const wl=addWall(x+cx,z+cz,ww/2,dd/2); wl.floor=1;}
+  railEdge(hw-HS/2,hd-HS,HS,0.25);     // north edge of the hole
+  railEdge(hw-HS,hd-HS/2,0.25,HS);     // west edge of the hole
+  // ---- staircase steps rising through the hole (cosmetic) ----
+  const steps=7, sw=2.6, cxS=hw-HS/2;
+  for(let i=0;i<steps;i++){const st=box(sw,0.4,0.55,0x7a5230);
+    st.position.set(cxS, 0.4+i*(FLOOR_H/steps), hd-0.7-i*((HS-0.8)/steps)); st.userData.noOutline=true; g.add(st);}
+  // ---- clickable stair volume (spans both floors; visible through the hole) ----
+  const hit=box(HS-0.4,FLOOR_H+1,HS-0.4,0x000000); hit.material.transparent=true; hit.material.opacity=0;
+  hit.position.set(hw-HS/2,(FLOOR_H+1)/2,hd-HS/2); hit.userData.noOutline=true; g.add(hit);
+  const sObj={ x:x+hw-HS/2, z:z+hd-0.9,                 // ground spot (foot of stairs)
+    topX:x+hw-HS-1.2, topZ:z+hd-HS/2, mesh:hit };       // upstairs landing (on the SW slab beside the hole)
+  hit.userData.stairs=sObj; stairsList.push(sObj);
   bld.upstairs=true;
 }
 // trees register for woodcutting

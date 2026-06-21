@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.11",
+ "version": "1.0.13",
  "generated": "2026-06-21",
  "patches": [
+  {
+   "version": "1.0.13",
+   "date": "2026-06-21",
+   "title": "Fix upstairs: stair hole in the floor, full enclosing walls, two-way stairs",
+   "notes": []
+  },
   {
    "version": "1.0.11",
    "date": "2026-06-21",
