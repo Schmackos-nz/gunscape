@@ -9,9 +9,12 @@ server `{t:"snapshot", enemies, loot}` (via `serverEnemies`/`serverLoot`), sends
 `{t:"attack"}`/`{t:"pickup"}`/`{t:"heal"}`/`{t:"droploot"}` intents, and uses
 server-owned HP + `xp`/`hurt`/`death` events. Offline still runs the local sim.
 
+PvP is also server-authoritative now: duels register via `duelstart`, attack via
+`duelattack`; `world.js` resolves hits/death and emits `pvpxp`/`duelwin`. Combat
+audio + tracers are networked (server broadcasts `fx` shot/eshot/kill; clients play
+them distance-attenuated, skipping their own).
+
 ## ⏭️ Next planned changes
-- **Server-authoritative PvP** — duels still use attacker-reported `pvphit`; move PvP
-  damage into `server/world.js` like PvE.
 - **Smart pathfinding** through open doors/around walls (only `nearestOpen` exists).
 - **Single-combat enforcement** outside the multi-combat zones (server-side).
 - **10s logout-linger** with death-counts.
