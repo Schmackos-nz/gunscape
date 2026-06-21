@@ -99,6 +99,12 @@
   #multicombat{position:absolute;top:196px;right:8px;width:150px;text-align:center;display:none;
     background:rgba(40,0,0,.6);color:#ff8a6a;font-weight:bold;font-size:12px;padding:4px 0;
     border-radius:8px;border:2px solid #b23b2e;}
+  #questtracker{position:absolute;top:228px;right:8px;width:170px;display:none;
+    background:rgba(0,0,0,.55);border:1px solid var(--gold);border-radius:8px;padding:6px 9px;}
+  #questtracker .qt-h{color:var(--gold);font-weight:bold;font-size:12px;margin-bottom:4px;letter-spacing:1px;}
+  #questtracker .qt-q{font-size:11px;color:var(--txt);margin:3px 0;line-height:1.3;}
+  #questtracker .qt-q small{color:var(--dim);}
+  #questtracker .qt-q.done{color:#7fd06a;} #questtracker .qt-q.done small{color:#7fd06a;}
   #hint{position:absolute;bottom:8px;right:8px;width:46%;text-align:center;
     color:#cdbf9a;font-size:12px;background:rgba(0,0,0,.4);padding:5px;
     border-radius:6px;pointer-events:none;}
@@ -226,6 +232,7 @@
     <div id="runtoggle" title="Toggle run (run uses energy)">🏃 100%</div>
     <div id="multicombat">⚠ Multicombat</div>
     <div id="netbanner"></div>
+    <div id="questtracker"></div>
     <div id="chat"></div>
     <div id="hint">Click to move · click monster = auto-fight · click trees to chop · hold Tab for attack style · right-click = options · right-drag turn · wheel zoom</div>
   </div>
@@ -385,6 +392,7 @@ const player={
   lastChop:0, lastCook:0, quests:{},
   running:true, energy:100, runTimer:0,
   prayer:1, activePrayers:{}, autoRetaliate:true,
+  floor:0, yOffset:0, stairTarget:null,
 };
 
 /* ============================================================ *
@@ -580,38 +588,82 @@ function makeScorpion(o){
  * ============================================================ */
 // Enterable building: 4 walls with a doorway gap, a toggle door, a hideable
 // roof and an interior floor. Walls collide as AABBs so you walk in the door.
-function makeHouse(x,z,w,d,color){
+const ROOF_COLS=[0x6e3b2a,0x7a4a2a,0x4a5a6a,0x5a6a4a,0x8a7a3a,0x6a3a4a];
+const WALL_COLS=[0xd8c89a,0xc7b07a,0xbfa98c,0xa8967a,0xb8a07a,0xc9b389];
+// Enterable building. opts: {wall, roof, flat(bool), twoStorey(bool), npc(builderId)}
+function makeHouse(x,z,w,d,color,opts){
+  opts=opts||{};
   const g=new THREE.Group(); g.position.set(x,terrainHeight(x,z),z);
   const h=5, t=0.4;            // wall height / thickness
   const hw=w/2, hd=d/2, gap=4; // doorway width
+  const wallCol=opts.wall||color||WALL_COLS[Math.floor(Math.random()*WALL_COLS.length)];
+  const roofCol=opts.roof||ROOF_COLS[Math.floor(Math.random()*ROOF_COLS.length)];
   // wooden floor (plank-toned)
   const floor=box(w,0.3,d,0x8a5a2e); floor.position.y=0.16; floor.userData.noOutline=true; g.add(floor);
   for(let px=-w/2+0.6;px<w/2;px+=1.2){const pl=box(0.08,0.32,d-0.4,0x6e441f);pl.position.set(px,0.18,0);pl.userData.noOutline=true;g.add(pl);}
-  function wall(cx,cz,ww,dd){const m=box(ww,h,dd,color);m.position.set(cx,h/2,cz);g.add(m);
+  // window: pale glass pane sunk into a wall (cosmetic, no collision)
+  function windowOn(cx,cz,horiz){const pane=box(horiz?1.6:0.18,1.2,horiz?0.18:1.6,0x9fd3e6);
+    pane.position.set(cx,2.6,cz); pane.userData.noOutline=true; g.add(pane);
+    const frame=box(horiz?1.9:0.26,1.5,horiz?0.26:1.9,0x4a3526); frame.position.set(cx,2.6,cz); frame.userData.noOutline=true; g.add(frame); g.add(pane);}
+  function wall(cx,cz,ww,dd){const m=box(ww,h,dd,wallCol);m.position.set(cx,h/2,cz);g.add(m);
     addWall(x+cx,z+cz,ww/2,dd/2);}
-  // back + sides (solid)
   wall(0,-hd,w,t);            // north (back)
   wall(-hw,0,t,d);            // west
   wall(hw,0,t,d);             // east
-  // front (south) wall split around a central doorway
-  const seg=(hw-gap/2);
+  const seg=(hw-gap/2);       // front wall split around the doorway
   wall(-(gap/2+seg/2),hd,seg,t);
   wall(  gap/2+seg/2 ,hd,seg,t);
-  // toggle door filling the gap
-  const door=box(gap,h*0.85,t*0.8,0x3a2a1a);
-  door.position.set(0,h*0.45,hd); door.userData.noOutline=true; g.add(door);
-  const doorState={open:true,mesh:door,hinge:Math.PI*0.55,base:new THREE.Vector3(0,h*0.45,hd)};
-  const doorWall=addWall(x,z+hd,gap/2,t/2,doorState); // blocker while closed
-  doorState.wall=doorWall; door.userData.door=doorState;
-  // seed the open-door transform so it doesn't appear shut on load
-  const dhw=gap/2; door.rotation.y=doorState.hinge;
-  door.position.set(-dhw+Math.cos(doorState.hinge)*dhw, h*0.45, hd+Math.sin(doorState.hinge)*dhw);
-  // pitched roof (hidden when you're inside)
-  const roof=new THREE.Mesh(new THREE.ConeGeometry(Math.max(w,d)*0.78,2.6,4),toonMat({color:0x6e3b2a}));
-  roof.rotation.y=Math.PI/4; roof.position.y=h+1.3; roof.userData.noOutline=true; g.add(roof);
+  // windows on back + sides
+  windowOn(-w*0.25,-hd,true); windowOn(w*0.25,-hd,true);
+  windowOn(-hw,-d*0.22,false); windowOn(hw,d*0.22,false);
+  // ---- door on a proper hinge (pivot group at the left edge of the gap) ----
+  const pivot=new THREE.Group(); pivot.position.set(-gap/2,h*0.45,hd); g.add(pivot);
+  const door=box(gap,h*0.85,t*0.8,0x3a2a1a); door.position.set(gap/2,0,0); door.userData.noOutline=true; pivot.add(door);
+  const doorState={open:true,pivot,mesh:door,hinge:-Math.PI*0.5};
+  pivot.rotation.y=doorState.hinge;
+  const doorWall=addWall(x,z+hd,gap/2,t/2,doorState); doorState.wall=doorWall; door.userData.door=doorState;
+  // ---- roof (pitched cone or flat slab), hidden when you're inside ----
+  let roof;
+  if(opts.flat){ roof=box(w+0.6,0.5,d+0.6,roofCol); roof.position.y=h+0.25; }
+  else { roof=new THREE.Mesh(new THREE.ConeGeometry(Math.max(w,d)*0.78,2.6,4),toonMat({color:roofCol}));
+    roof.rotation.y=Math.PI/4; roof.position.y=h+1.3; }
+  roof.userData.noOutline=true; g.add(roof);
+  const chimney=box(0.7,1.6,0.7,0x5a4434); chimney.position.set(hw*0.5,h+1.4,-hd*0.4); chimney.userData.noOutline=true; g.add(chimney);
+  const bld={fx:x,fz:z,hw,hd,roof,door:doorState,group:g};
+  buildings.push(bld);
+  // ---- optional upstairs (slab + railings on floor 1 + staircase) ----
+  if(opts.twoStorey){ addUpstairs(g,bld,x,z,w,d,h,wallCol,roofCol); }
   scene.add(g);
-  buildings.push({fx:x,fz:z,hw,hd,roof,door:doorState});
-  return g;
+  return bld;
+}
+const FLOOR_H=5.2;            // vertical offset of the upstairs floor
+const stairsList=[];          // clickable staircases
+function addUpstairs(g,bld,x,z,w,d,h,wallCol,roofCol){
+  const hw=w/2,hd=d/2;
+  // upstairs floor slab (leave a stair hole in the NE corner)
+  const slab=box(w,0.3,d,0x8a5a2e); slab.position.set(0,FLOOR_H,0); slab.userData.noOutline=true; g.add(slab);
+  // raise the (existing pitched) roof so there's headroom upstairs
+  bld.roof.position.y += FLOOR_H;
+  // low railings around the upstairs edge (floor-1 collision), gap at the stair hole
+  const rh=1.2, rt=0.25;
+  function rail(cx,cz,ww,dd){const m=box(ww,rh,dd,0x6e441f);m.position.set(cx,FLOOR_H+0.3+rh/2,cz);m.userData.noOutline=true;g.add(m);
+    const wl=addWall(x+cx,z+cz,ww/2,dd/2); wl.floor=1;}
+  rail(0,-hd+0.2,w,rt);                         // back rail
+  rail(-hw+0.2,0,rt,d);                         // west rail
+  rail(0,hd-0.2,w*0.6,rt);                      // front rail (partial; door side)
+  rail(hw-0.2,-d*0.25,rt,d*0.5);               // east rail upper (leave SE open for stairs)
+  // staircase: steps from ground (SE corner) up to the slab
+  const steps=7, sw=2.4;
+  const stair=new THREE.Group(); g.add(stair);
+  for(let i=0;i<steps;i++){const st=box(sw,0.4,1.2,0x7a5230);
+    st.position.set(hw-1.6, 0.4+i*(FLOOR_H/steps), hd-1.0-i*1.0); st.userData.noOutline=true; stair.add(st);}
+  // clickable stair trigger at the base
+  const baseX=x+hw-1.6, baseZ=z+hd-1.0;
+  const sObj={x:baseX,z:baseZ,group:bld,topX:x+hw-1.6,topZ:z+hd-1.0-(steps-1)*1.0};
+  const hit=box(sw,FLOOR_H,1.4,0x000000); hit.material.transparent=true; hit.material.opacity=0;
+  hit.position.set(hw-1.6,FLOOR_H/2,hd-1.0); hit.userData.noOutline=true; hit.userData.stairs=sObj; stair.add(hit);
+  sObj.mesh=hit; stairsList.push(sObj);
+  bld.upstairs=true;
 }
 // trees register for woodcutting
 function makeTree(x,z,kind){
@@ -652,17 +704,23 @@ function makePath(cx,cz,w,d,rot){
   m.rotation.x=-Math.PI/2; if(rot)m.rotation.z=rot;
   m.position.set(cx,terrainHeight(cx,cz)+0.06,cz); m.userData.noOutline=true; scene.add(m);
 }
+function overlapsBuilding(cx,cz,hw,hd){for(const b of buildings)if(Math.abs(cx-b.fx)<hw+b.hw+2.5&&Math.abs(cz-b.fz)<hd+b.hd+2.5)return true;return false;}
 function buildTown(center,houses,name){
-  const palette=[0xd8c89a,0xc7b07a,0xbfa98c,0xa8967a];
-  // ring road + spokes to each house
+  // ring of houses, kept clear of each other and of the central quest-giver houses
   for(let i=0;i<houses;i++){
-    const a=(i/houses)*Math.PI*2, rad=22+Math.random()*8;
+    const a=(i/houses)*Math.PI*2, rad=27+Math.random()*9;
     const x=center.x+Math.cos(a)*rad, z=center.z+Math.sin(a)*rad;
+    const w=8+Math.random()*3, d=8+Math.random()*3;
+    if(overlapsBuilding(x,z,w/2,d/2))continue;          // don't cram buildings together
     makePath(center.x+Math.cos(a)*rad*0.5, center.z+Math.sin(a)*rad*0.5, 3, rad, -a); // spoke
-    makeHouse(x,z,8+Math.random()*2,8+Math.random()*2,palette[i%palette.length]);
+    const two=Math.random()<0.4;
+    makeHouse(x,z,w,d,null,{twoStorey:two, flat:!two&&Math.random()<0.3});
+    if(two&&Math.random()<0.6){                          // ambient resident upstairs, occasionally
+      const r=makeHumanoid({height:3.6,shirt:WALL_COLS[(i*3)%WALL_COLS.length],skin:0xd0a878,gun:false});
+      addOutline(r); r.position.set(x,terrainHeight(x,z)+FLOOR_H,z); scene.add(r);
+    }
   }
   makePath(center.x,center.z,46,46); // town square base
-  // central well / fountain
   const well=cyl(2,2.4,1.2,0x7a7066); well.position.set(center.x,terrainHeight(center.x,center.z)+0.6,center.z); scene.add(well);
   addBlocker(center.x,center.z,2.4);
 }
@@ -813,7 +871,16 @@ function updateMarkers(){
     else {npc.marker.visible=true;drawMarker(npc.marker,"!","#ffd24a");}
   }
 }
-function checkQuestProgress(){updateMarkers();if(dialogOpen)renderDialog(dialogNpc);}
+function checkQuestProgress(){updateMarkers();updateQuestTracker();if(dialogOpen)renderDialog(dialogNpc);}
+function updateQuestTracker(){
+  const el=document.getElementById("questtracker");
+  const act=Object.keys(player.quests||{}).filter(id=>player.quests[id]==="active"&&QUESTS[id]);
+  if(!act.length){el.style.display="none";return;}
+  el.style.display="block";
+  el.innerHTML='<div class="qt-h">✦ Quests</div>'+act.map(id=>{const q=QUESTS[id];
+    const have=Math.min(invCount(q.need),q.count);
+    return `<div class="qt-q ${have>=q.count?'done':''}">${q.title}<br><small>${ITEMS[q.need].ic} ${ITEMS[q.need].name}: ${have}/${q.count}${have>=q.count?' ✓ — hand in!':''}</small></div>`;}).join("");
+}
 
 /* ---------------- Quest dialog ------------------------------ */
 const dialogEl=document.getElementById("dialog");
@@ -1041,7 +1108,7 @@ let camYaw=0, camPitch=0.62, camDist=26;
 function updateCamera(){
   const hx=Math.sin(camYaw)*Math.cos(camPitch), hz=Math.cos(camYaw)*Math.cos(camPitch);
   const hy=Math.sin(camPitch);
-  const ph=terrainHeight(player.pos.x,player.pos.z);
+  const ph=terrainHeight(player.pos.x,player.pos.z)+(player.yOffset||0);
   camera.position.set(player.pos.x+hx*camDist, ph+hy*camDist+2, player.pos.z+hz*camDist);
   camera.lookAt(player.pos.x,ph+2.5,player.pos.z);
 }
@@ -1396,8 +1463,10 @@ function onlineDeath(){
 const PR=0.8; // player collision radius
 function tryMove(nx,nz){
   if(Math.abs(nx)>HALF-4||Math.abs(nz)>HALF-4) return false;
-  for(const b of blockers){ if(Math.hypot(nx-b.x,nz-b.z)<b.r+PR) return false; }
+  const fl=player.floor||0;
+  if(fl===0)for(const b of blockers){ if(Math.hypot(nx-b.x,nz-b.z)<b.r+PR) return false; }
   for(const w of wallBoxes){ if(w.door&&w.door.open) continue;
+    if((w.floor||0)!==fl) continue;           // only collide with walls on your floor
     if(Math.abs(nx-w.x)<w.hw+PR && Math.abs(nz-w.z)<w.hd+PR) return false; }
   return true;
 }
@@ -1504,7 +1573,7 @@ function castAt(clientX,clientY){
   const r=renderer.domElement.getBoundingClientRect();
   mouse.x=((clientX-r.left)/r.width)*2-1; mouse.y=-((clientY-r.top)/r.height)*2+1;
   raycaster.setFromCamera(mouse,camera);
-  const res={enemy:null,npc:null,shop:false,drop:null,tree:null,door:null,altar:null,player:null,point:null};
+  const res={enemy:null,npc:null,shop:false,drop:null,tree:null,door:null,altar:null,player:null,stairs:null,point:null};
   if(NET.online){ // server-driven enemies + loot
     const eh=raycaster.intersectObjects([...serverEnemies.values()].map(s=>s.mesh),true);
     if(eh.length){let o=eh[0].object;while(o&&o.userData.serverEnemy==null)o=o.parent;if(o)res.enemy=serverEnemies.get(o.userData.serverEnemy);}
@@ -1527,6 +1596,8 @@ function castAt(clientX,clientY){
   if(th.length){let o=th[0].object;while(o&&!o.userData.tree)o=o.parent;if(o)res.tree=o.userData.tree;}
   const ah=raycaster.intersectObjects(altars.map(a=>a.mesh),true);
   if(ah.length){let o=ah[0].object;while(o&&!o.userData.altar)o=o.parent;if(o)res.altar=o.userData.altar;}
+  const sh=raycaster.intersectObjects(stairsList.map(s=>s.mesh),false);
+  if(sh.length)res.stairs=sh[0].object.userData.stairs;
   const gh=raycaster.intersectObject(ground);
   if(gh.length)res.point=new THREE.Vector3(gh[0].point.x,0,gh[0].point.z);
   return res;
@@ -1534,8 +1605,10 @@ function castAt(clientX,clientY){
 function toggleDoor(ds){ds.open=!ds.open;sfxClick();log(ds.open?"You open the door.":"You close the door.");}
 function clearActions(){player.target=null;player.dest=null;player.pickupTarget=null;
   player.talkTarget=null;player.chopTarget=null;player.doorTarget=null;player.altarTarget=null;
-  player.clickMark=null;player.pvpTarget=null;player.path=null;
+  player.clickMark=null;player.pvpTarget=null;player.path=null;player.stairTarget=null;
   if(dialogOpen)closeDialog();}
+function useStairs(s){ if(player.floor===0){player.floor=1;player.yOffset=FLOOR_H;player.pos.set(s.topX,0,s.topZ);log("You climb the stairs.");}
+  else{player.floor=0;player.yOffset=0;player.pos.set(s.x,0,s.z);log("You go downstairs.");} sfxClick(); }
 
 // right-click ALWAYS opens the in-game context menu (never moves the camera)
 renderer.domElement.addEventListener("contextmenu",e=>{e.preventDefault();openWorldMenu(e.clientX,e.clientY);});
@@ -1549,6 +1622,7 @@ renderer.domElement.addEventListener("mousedown",e=>{
   if(h.npc){clearActions();player.talkTarget=h.npc;return;}
   if(h.door){clearActions();player.doorTarget=h.door;return;}
   if(h.altar){clearActions();player.altarTarget=h.altar;return;}
+  if(h.stairs){clearActions();player.stairTarget=h.stairs;return;}
   if(h.drop){clearActions();player.pickupTarget=h.drop;return;}
   if(h.tree){clearActions();player.chopTarget=h.tree;return;}
   if(h.point){clearActions();const t=nearestOpen(h.point.x,h.point.z);
@@ -1596,6 +1670,7 @@ function openWorldMenu(cx,cy){
   if(h.shop) opts.push(["Trade with Shopkeeper",()=>openShop()]);
   if(h.door) opts.push([h.door.open?"Close door":"Open door",()=>{clearActions();player.doorTarget=h.door;}]);
   if(h.altar) opts.push(["Pray at altar",()=>{clearActions();player.altarTarget=h.altar;}]);
+  if(h.stairs) opts.push([player.floor===0?"Climb stairs":"Go downstairs",()=>{clearActions();player.stairTarget=h.stairs;}]);
   if(h.tree) opts.push(["Chop down tree",()=>{clearActions();player.chopTarget=h.tree;}]);
   if(h.drop) opts.push(["Take "+ITEMS[h.drop.k].name+(h.drop.n>1?" x"+h.drop.n:""),()=>{clearActions();player.pickupTarget=h.drop;}]);
   if(h.point) opts.push(["Walk here",()=>{clearActions();const t=nearestOpen(h.point.x,h.point.z);
@@ -1656,6 +1731,10 @@ function loop(now){
       if(dist2(player.pos,dp)>3){ if(moveToward(dp.x,dp.z,step))moving=true; } // only toggle when beside it
       else { toggleDoor(ds); player.doorTarget=null; }
     }
+    else if(player.stairTarget){ const s=player.stairTarget; const sp=player.floor===0?{x:s.x,z:s.z}:{x:s.topX,z:s.topZ};
+      if(dist2(player.pos,sp)>2.5){ if(moveToward(sp.x,sp.z,step))moving=true; }
+      else { useStairs(s); player.stairTarget=null; }
+    }
     else if(player.altarTarget){ const al=player.altarTarget;
       if(dist2(player.pos,al.pos)>3.5){ if(moveToward(al.pos.x,al.pos.z,step))moving=true; }
       else { if(player.prayer<maxPrayer()){player.prayer=maxPrayer();
@@ -1678,7 +1757,7 @@ function loop(now){
   else moveMarker.visible=false;
   player.walk+=moving?dt*(isRunning?15:10):0; if(!moving)player.walk*=0.8;
   animateLegs(player.mesh,player.walk,moving?0.6:0.05);
-  player.mesh.position.set(player.pos.x,terrainHeight(player.pos.x,player.pos.z),player.pos.z);
+  player.mesh.position.set(player.pos.x,terrainHeight(player.pos.x,player.pos.z)+(player.yOffset||0),player.pos.z);
 
   /* --- run energy: drain while running, regen always, agility xp --- */
   if(moving&&isRunning){
@@ -1754,13 +1833,9 @@ function loop(now){
     f.flame.scale.y=1+Math.sin(now/80+i)*0.18; f.flame.rotation.y+=dt*4;
     if(now>=f.expireAt){scene.remove(f.mesh);fires.splice(i,1);}}
 
-  /* --- doors: animate swing --- */
-  for(const b of buildings){const ds=b.door; const tgt=ds.open?Math.PI*0.55:0;
-    if(Math.abs(ds.hinge-tgt)>0.01){ds.hinge+=(tgt-ds.hinge)*Math.min(1,dt*8);
-      const m=ds.mesh, hw=m.geometry.parameters.width/2;
-      m.rotation.y=ds.hinge; // swing around left edge
-      m.position.x=ds.base.x - hw + Math.cos(ds.hinge)*hw;
-      m.position.z=ds.base.z + Math.sin(ds.hinge)*hw; }
+  /* --- doors: swing on their hinge (pivot group rotates) --- */
+  for(const b of buildings){const ds=b.door; const tgt=ds.open?-Math.PI*0.5:0;
+    if(Math.abs(ds.hinge-tgt)>0.005){ ds.hinge+=(tgt-ds.hinge)*Math.min(1,dt*8); ds.pivot.rotation.y=ds.hinge; }
   }
 
   /* --- roofs hide when you're inside a building --- */
@@ -1780,7 +1855,7 @@ function loop(now){
   renderer.render(scene,camera);
 
   uiTick+=dt;
-  if(uiTick>0.15){uiTick=0;updateTopBar();updateMinimap();updateRunUI();
+  if(uiTick>0.15){uiTick=0;updateTopBar();updateMinimap();updateRunUI();updateQuestTracker();
     if(activeTab==="skills"||activeTab==="equip")refreshUI();}
   requestAnimationFrame(loop);
 }

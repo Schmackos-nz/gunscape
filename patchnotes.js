@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.7",
+ "version": "1.0.8",
  "generated": "2026-06-21",
  "patches": [
+  {
+   "version": "1.0.8",
+   "date": "2026-06-21",
+   "title": "Hinged doors, building variety, upstairs floors, and a quest tracker",
+   "notes": []
+  },
   {
    "version": "1.0.7",
    "date": "2026-06-21",
