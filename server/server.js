@@ -148,16 +148,29 @@ wss.on('connection', (ws) => {
     if (s && s.authed) {
       const acc = accounts[s.user];
       if (acc) { acc.profile = Object.assign(acc.profile, s.state); saveAccounts(); }
-      world.removePlayer(s.id);
-      broadcast({ t: 'leave', id: s.id });
-      console.log(`- ${s.user} left (${clients.size - 1} online)`);
+      // logout-linger: your character stays in the world for 10s; if it dies in that
+      // window it's a real death (gear drops). Don't remove or broadcast leave yet.
+      lingering.set(s.id, { user: s.user, removeAt: Date.now() + 10000, appearance: s.state.appearance });
+      console.log(`~ ${s.user} logging out (10s linger)`);
     }
     clients.delete(ws);
   });
 });
 
+const lingering = new Map();   // pid -> { user, removeAt } : characters left in-world after disconnect
+function gearFromProfile(acc) {
+  const p = (acc && acc.profile) || {}, items = [];
+  for (const it of (p.inv || [])) if (it && it.k) items.push({ k: it.k, n: it.n });
+  const eq = p.equip || {};
+  for (const slot of ['weapon', 'head', 'body', 'legs']) { const k = eq[slot]; if (k && k !== 'fists') items.push({ k, n: 1 }); }
+  return items;
+}
+function wipeGear(acc) { if (acc && acc.profile) { acc.profile.inv = []; acc.profile.equip = { weapon: 'fists', head: null, body: null, legs: null }; } }
+
 function clamp(v) { return Math.max(-(WORLD_HALF - 4), Math.min(WORLD_HALF - 4, v)); }
 function login(ws, session, user) {
+  // if this account is still lingering from a recent disconnect, reclaim it cleanly
+  for (const [pid, info] of lingering) if (info.user === user) { world.removePlayer(pid); broadcast({ t: 'leave', id: pid }); lingering.delete(pid); }
   session.user = user; session.authed = true;
   session.state = Object.assign(defaultProfile(), accounts[user].profile, { name: user });
   world.addPlayer(session.id, session.state);
@@ -168,13 +181,35 @@ function login(ws, session, user) {
 
 // periodic authoritative tick: presence + world simulation
 setInterval(() => {
-  const { events, fx } = world.tick(TICK_MS / 1000, Date.now());
+  const now = Date.now();
+  const { events, fx } = world.tick(TICK_MS / 1000, now);
   if (fx.length) broadcast({ t: 'fx', list: fx });   // damage numbers everyone can see
+
+  // process logged-out characters lingering in the world
+  for (const [pid, info] of lingering) {
+    const wp = world.players.get(pid);
+    if (!wp) { lingering.delete(pid); continue; }
+    if (wp.dead) {                                    // killed while logged out → real death
+      world.dropLoot(pid, gearFromProfile(accounts[info.user]), wp.x, wp.z, true);
+      wipeGear(accounts[info.user]); saveAccounts();
+      world.removePlayer(pid); broadcast({ t: 'leave', id: pid }); lingering.delete(pid);
+      console.log(`x ${info.user} was killed while logged out — gear dropped`);
+    } else if (now >= info.removeAt) {                // survived the window → just leave
+      const acc = accounts[info.user]; if (acc) { acc.profile = Object.assign(acc.profile, { x: wp.x, z: wp.z, hp: wp.hp }); saveAccounts(); }
+      world.removePlayer(pid); broadcast({ t: 'leave', id: pid }); lingering.delete(pid);
+      console.log(`- ${info.user} left`);
+    }
+  }
+
   const players = [];
   for (const s of clients.values()) if (s.authed) {
     const wp = world.players.get(s.id);                 // server-authoritative HP
     players.push({ id: s.id, user: s.user, x: s.state.x, z: s.state.z, ry: s.state.ry,
       hp: wp ? Math.round(wp.hp) : s.state.hp, maxhp: wp ? wp.maxhp : s.state.maxhp, appearance: s.state.appearance });
+  }
+  for (const [pid, info] of lingering) {                 // include lingering ghosts so others see them
+    const wp = world.players.get(pid); if (!wp) continue;
+    players.push({ id: pid, user: info.user, x: wp.x, z: wp.z, ry: wp.ry, hp: Math.round(wp.hp), maxhp: wp.maxhp, appearance: info.appearance });
   }
   if (players.length) {
     const w = world.snapshot();

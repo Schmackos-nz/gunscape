@@ -1421,6 +1421,44 @@ function moveToward(tx,tz,step){
   faceTowards(player.mesh,tx,tz,player.pos.x-ux*s,player.pos.z-uz*s);
   return true;
 }
+/* ---------------- Smart pathfinding (grid A* around walls/doors) ---- */
+function lineClear(ax,az,bx,bz){const d=Math.hypot(bx-ax,bz-az),n=Math.ceil(d/1.5);
+  for(let i=1;i<=n;i++){const t=i/n; if(!tryMove(ax+(bx-ax)*t,az+(bz-az)*t))return false;} return true;}
+function smoothPath(sx,sz,path){const out=[];let cx=sx,cz=sz,i=0;
+  while(i<path.length){let j=path.length-1;
+    while(j>i){ if(lineClear(cx,cz,path[j].x,path[j].z))break; j--; }
+    out.push(path[j]); cx=path[j].x;cz=path[j].z; i=j+1;}
+  return out;}
+function findPath(sx,sz,gx,gz){
+  if(lineClear(sx,sz,gx,gz)) return [{x:gx,z:gz}];          // straight shot
+  const cell=2.5, pad=36;
+  const minX=Math.min(sx,gx)-pad, minZ=Math.min(sz,gz)-pad;
+  const cols=Math.ceil((Math.max(sx,gx)+pad-minX)/cell), rows=Math.ceil((Math.max(sz,gz)+pad-minZ)/cell);
+  if(cols*rows>12000) return null;                          // too large → caller falls back to direct
+  const wx=c=>minX+c*cell, wz=r=>minZ+r*cell;
+  const open=(c,r)=> c>=0&&r>=0&&c<=cols&&r<=rows && tryMove(wx(c),wz(r));
+  const sC=Math.round((sx-minX)/cell),sR=Math.round((sz-minZ)/cell),gC=Math.round((gx-minX)/cell),gR=Math.round((gz-minZ)/cell);
+  const key=(c,r)=>r*(cols+1)+c, g=new Map(), came=new Map();
+  const h=(c,r)=>Math.hypot(c-gC,r-gR);
+  g.set(key(sC,sR),0); const openSet=[{c:sC,r:sR,f:h(sC,sR)}];
+  const dirs=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+  let found=false,guard=0;
+  while(openSet.length&&guard++<24000){
+    let bi=0; for(let i=1;i<openSet.length;i++)if(openSet[i].f<openSet[bi].f)bi=i;
+    const cur=openSet.splice(bi,1)[0];
+    if(cur.c===gC&&cur.r===gR){found=true;break;}
+    for(const[dc,dr]of dirs){const nc=cur.c+dc,nr=cur.r+dr;
+      if(!open(nc,nr))continue;
+      if(dc&&dr&&(!open(cur.c+dc,cur.r)||!open(cur.c,cur.r+dr)))continue; // no corner cutting
+      const nk=key(nc,nr), ng=(g.get(key(cur.c,cur.r))||0)+Math.hypot(dc,dr);
+      if(ng<(g.has(nk)?g.get(nk):1e9)){g.set(nk,ng);came.set(nk,{c:cur.c,r:cur.r});openSet.push({c:nc,r:nr,f:ng+h(nc,nr)});}}
+  }
+  if(!found) return null;
+  const path=[]; let c=gC,r=gR;
+  while(!(c===sC&&r===sR)){path.push({x:wx(c),z:wz(r)});const p=came.get(key(c,r));if(!p)break;c=p.c;r=p.r;}
+  path.reverse(); path.push({x:gx,z:gz});
+  return smoothPath(sx,sz,path);
+}
 
 /* ---------------- Input ------------------------------------- */
 const keys={};
@@ -1496,7 +1534,7 @@ function castAt(clientX,clientY){
 function toggleDoor(ds){ds.open=!ds.open;sfxClick();log(ds.open?"You open the door.":"You close the door.");}
 function clearActions(){player.target=null;player.dest=null;player.pickupTarget=null;
   player.talkTarget=null;player.chopTarget=null;player.doorTarget=null;player.altarTarget=null;
-  player.clickMark=null;player.pvpTarget=null;
+  player.clickMark=null;player.pvpTarget=null;player.path=null;
   if(dialogOpen)closeDialog();}
 
 // right-click ALWAYS opens the in-game context menu (never moves the camera)
@@ -1514,7 +1552,8 @@ renderer.domElement.addEventListener("mousedown",e=>{
   if(h.drop){clearActions();player.pickupTarget=h.drop;return;}
   if(h.tree){clearActions();player.chopTarget=h.tree;return;}
   if(h.point){clearActions();const t=nearestOpen(h.point.x,h.point.z);
-    player.dest=new THREE.Vector3(t.x,0,t.z);player.clickMark=t;}
+    player.dest=new THREE.Vector3(t.x,0,t.z);player.clickMark=t;
+    player.path=findPath(player.pos.x,player.pos.z,t.x,t.z);}   // route around walls / through open doors
 });
 addEventListener("mouseup",e=>{ if(e.button===1)dragging=false; });
 addEventListener("mousemove",e=>{               // middle-drag orbits the camera
@@ -1560,7 +1599,8 @@ function openWorldMenu(cx,cy){
   if(h.tree) opts.push(["Chop down tree",()=>{clearActions();player.chopTarget=h.tree;}]);
   if(h.drop) opts.push(["Take "+ITEMS[h.drop.k].name+(h.drop.n>1?" x"+h.drop.n:""),()=>{clearActions();player.pickupTarget=h.drop;}]);
   if(h.point) opts.push(["Walk here",()=>{clearActions();const t=nearestOpen(h.point.x,h.point.z);
-    player.dest=new THREE.Vector3(t.x,0,t.z);player.clickMark=t;}]);
+    player.dest=new THREE.Vector3(t.x,0,t.z);player.clickMark=t;
+    player.path=findPath(player.pos.x,player.pos.z,t.x,t.z);}]);
   opts.push(["Cancel",()=>{}]);
   ctxEl.innerHTML="";
   for(const[label,fn]of opts){const d=document.createElement("div");d.textContent=label;
@@ -1623,7 +1663,12 @@ function loop(now){
           tone(660,0.5,"sine",0.18,990);} player.altarTarget=null; }
     }
     else if(player.dest){
-      if(dist2(player.pos,player.dest)>0.6){ if(moveToward(player.dest.x,player.dest.z,step))moving=true; }
+      if(player.path&&player.path.length){            // follow the computed route (around walls/doors)
+        const wp=player.path[0];
+        if(dist2(player.pos,{x:wp.x,z:wp.z})>0.8){ if(moveToward(wp.x,wp.z,step))moving=true; }
+        else player.path.shift();
+        if(!player.path.length){player.dest=null;player.clickMark=null;}
+      } else if(dist2(player.pos,player.dest)>0.6){ if(moveToward(player.dest.x,player.dest.z,step))moving=true; }
       else { player.dest=null; player.clickMark=null; }
     }
   }

@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.5",
+ "version": "1.0.7",
  "generated": "2026-06-21",
  "patches": [
+  {
+   "version": "1.0.7",
+   "date": "2026-06-21",
+   "title": "Loot single-combat, smart pathfinding, and 10s logout-linger",
+   "notes": []
+  },
   {
    "version": "1.0.5",
    "date": "2026-06-21",

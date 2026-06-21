@@ -74,12 +74,15 @@ export class World {
   }
   attackIntent(pid, enemyId) { const p = this.players.get(pid); if (p) p.attacking = enemyId; }
   heal(pid, amt) { const p = this.players.get(pid); if (p && !p.dead) p.hp = Math.min(p.maxhp, p.hp + Math.max(0, amt || 0)); }
-  dropLoot(pid, items, x, z) {                       // spawn a dead player's gear as ground loot
+  dropLoot(pid, items, x, z, publicNow) {            // spawn a dead player's gear as ground loot
     const now = Date.now();
-    const add = (k, n) => this.loot.push({ id: this.nid++, k, n, x: x + rnd(-2, 2), z: z + rnd(-2, 2), owner: pid, publicAt: now + 60000, despawnAt: now + 120000 });
+    const publicAt = publicNow ? now : now + 60000;
+    const add = (k, n) => this.loot.push({ id: this.nid++, k, n, x: x + rnd(-2, 2), z: z + rnd(-2, 2), owner: pid, publicAt, despawnAt: now + 120000 });
     add('bones', 1);
     for (const it of (items || [])) if (it && it.k) add(it.k, it.n || 1);
   }
+  isDead(pid) { const p = this.players.get(pid); return !!(p && p.dead); }
+  playerPos(pid) { const p = this.players.get(pid); return p ? { x: p.x, z: p.z } : null; }
 
   // returns { events (per-owner: xp/hurt/death), fx (broadcast: damage numbers) }
   tick(dt, now) {
@@ -189,10 +192,12 @@ export class World {
   }
 
   killEnemy(e, killerPid, now) {
-    e.dead = true; e.respawnAt = now + 9000; e.target = null;
+    e.dead = true; e.respawnAt = now + 9000; e.target = null; e.engagedBy = null;
     const s = ENEMY_STATS[e.type];
+    const multi = !!inMulti(e.x, e.z);                 // multi-combat loot is shared immediately
+    const publicAt = multi ? now : now + 60000;        // single-combat: killer's for 60s
     const at = () => ({ x: e.x + rnd(-1.5, 1.5), z: e.z + rnd(-1.5, 1.5) });
-    const drop = (k, n) => { const a = at(); this.loot.push({ id: this.nid++, k, n, x: a.x, z: a.z, owner: killerPid, publicAt: now + 60000, despawnAt: now + 120000 }); };
+    const drop = (k, n) => { const a = at(); this.loot.push({ id: this.nid++, k, n, x: a.x, z: a.z, owner: killerPid, publicAt, despawnAt: now + 120000 }); };
     drop('bones', 1);
     drop('coins', randint(s.coins[0], s.coins[1]));
     const common = []; if (s.quest) common.push(s.quest, s.quest);
