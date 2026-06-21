@@ -82,5 +82,14 @@
 
   const COMBAT_RANGE = 4.0;          // front-to-front engagement distance
 
-  return { MAP, BIOME_SPAWNS, biomeKind, WEAPON_COMBAT, ENEMY_STATS, GUN_TIERS, ARMOUR_TIERS, COMBAT_RANGE };
+  // multi-combat zones: inside these, many attackers can pile on one target;
+  // everywhere else is single-combat (one attacker per enemy at a time).
+  const MULTI_ZONES = [
+    { x: 180, z: 80, r: 60, name: 'Bandit Camp' },
+    { x: -180, z: -150, r: 90, name: 'The Scarlands' },
+    { x: 120, z: 150, r: 55, name: 'Crash Site' },
+  ];
+  function inMulti(x, z) { for (const m of MULTI_ZONES) if (Math.hypot(x - m.x, z - m.z) < m.r) return m; return null; }
+
+  return { MAP, BIOME_SPAWNS, biomeKind, WEAPON_COMBAT, ENEMY_STATS, GUN_TIERS, ARMOUR_TIERS, COMBAT_RANGE, MULTI_ZONES, inMulti };
 });

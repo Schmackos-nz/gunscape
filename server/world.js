@@ -9,7 +9,7 @@
  *  rewrite — the client renderer consumes `snapshot()`.
  * ============================================================ */
 import '../shared/world-data.js';   // UMD: under ESM `module` is undefined → assigns to globalThis
-const { MAP, BIOME_SPAWNS, biomeKind, WEAPON_COMBAT, ENEMY_STATS, GUN_TIERS, ARMOUR_TIERS, COMBAT_RANGE } = globalThis;
+const { MAP, BIOME_SPAWNS, biomeKind, WEAPON_COMBAT, ENEMY_STATS, GUN_TIERS, ARMOUR_TIERS, COMBAT_RANGE, inMulti } = globalThis;
 
 const rnd = (a, b) => a + Math.random() * (b - a);
 const randint = (a, b) => Math.floor(rnd(a, b + 1));
@@ -42,7 +42,8 @@ export class World {
       const s = ENEMY_STATS[type];
       this.enemies.push({ id: this.nid++, type, x, z, ry: 0, hx: x, hz: z,
         hp: s.hp, maxhp: s.hp, dead: false, respawnAt: 0, lastShot: 0,
-        target: null, aggro: false, wanderT: 0, wx: x, wz: z });
+        target: null, aggro: false, wanderT: 0, wx: x, wz: z,
+        engagedBy: null, engagedAt: 0 });   // single-combat lock (one player at a time)
       placed++;
     }
   }
@@ -95,6 +96,13 @@ export class World {
       if (!e) { p.attacking = null; continue; }
       const wc = WEAPON_COMBAT[p.weapon] || WEAPON_COMBAT.zip;
       if (dist(p, e) > COMBAT_RANGE + 0.5) continue;          // client walks into range
+      // single-combat: outside multi-combat zones only one player may fight an enemy
+      if (!inMulti(e.x, e.z)) {
+        if (e.engagedBy != null && e.engagedBy !== pid && now - e.engagedAt < 5000) {
+          events.push({ pid, t: 'busy' }); p.attacking = null; continue;
+        }
+        e.engagedBy = pid; e.engagedAt = now;
+      }
       if (now - p.lastShot < wc.fireRate) continue;
       p.lastShot = now;
       fx.push({ k: 'shot', pid, sx: p.x, sz: p.z, tx: e.x, tz: e.z, w: p.weapon });  // gunshot sound + tracer for others
@@ -134,19 +142,26 @@ export class World {
     for (const e of this.enemies) {
       if (e.dead) { if (now >= e.respawnAt) { e.dead = false; e.hp = e.maxhp; e.x = e.hx; e.z = e.hz; e.target = null; e.aggro = false; } continue; }
       const stats = ENEMY_STATS[e.type];
-      // acquire nearest player
+      const multi = !!inMulti(e.x, e.z);
+      // release a stale single-combat lock
+      if (e.engagedBy != null) { const ep = this.players.get(e.engagedBy);
+        if (!ep || ep.dead || now - e.engagedAt > 5000) e.engagedBy = null; }
+      // pick a target: single-combat sticks to its locked player; otherwise nearest
       let near = null, nd = 1e9;
-      for (const [pid, p] of alive) { const d = dist(e, p); if (d < nd) { nd = d; near = pid; } }
+      if (!multi && e.engagedBy != null) { near = e.engagedBy; nd = dist(e, this.players.get(near)); }
+      else { for (const [pid, p] of alive) { const d = dist(e, p); if (d < nd) { nd = d; near = pid; } } }
       const tgt = near != null ? this.players.get(near) : null;
       const peaceful = stats.tier <= 1 && Math.hypot(e.x - MAP.TOWN.x, e.z - MAP.TOWN.z) < 100;
       if (tgt && !peaceful && nd < stats.aggro) e.aggro = true;
       if (e.aggro && (!tgt || nd > stats.aggro + 12)) e.aggro = false;
+      // single-combat: claim the player it aggros onto
+      if (e.aggro && tgt && !multi && e.engagedBy == null) { e.engagedBy = near; e.engagedAt = now; }
 
       if (e.aggro && tgt) {
         if (nd <= COMBAT_RANGE + 0.4) {
           e.ry = Math.atan2(tgt.x - e.x, tgt.z - e.z);
           if (now - e.lastShot >= stats.fireRate) {
-            e.lastShot = now;
+            e.lastShot = now; e.engagedAt = now;   // refresh lock while actively fighting
             fx.push({ k: 'eshot', sx: e.x, sz: e.z, tx: tgt.x, tz: tgt.z });  // enemy gunshot for everyone nearby
             const acc = stats.aim + 8;
             if (Math.random() < acc / (acc + tgt.armour)) {

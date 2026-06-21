@@ -755,14 +755,8 @@ addPOI("Forest Outpost",OUTPOST.x,OUTPOST.z);
 makeAltar(TOWN.x-12,TOWN.z-12);
 makeAltar(OUTPOST.x+10,OUTPOST.z+10);
 
-// Multi-combat zones: inside these, more than one attacker can pile on a
-// single target. Everywhere else is single-combat (1 attacker per target).
-const MULTI_ZONES=[
-  {x:180,z:80,r:60,name:"Bandit Camp"},      // around the bandit camp
-  {x:-180,z:-150,r:90,name:"The Scarlands"}, // badlands / warlord country
-  {x:120,z:150,r:55,name:"Crash Site"},
-];
-function inMultiCombat(x,z){for(const z2 of MULTI_ZONES)if(Math.hypot(x-z2.x,z-z2.z)<z2.r)return z2;return null;}
+// Multi-combat zones come from shared/world-data.js (MULTI_ZONES / inMulti).
+function inMultiCombat(x,z){return inMulti(x,z);}
 
 /* ============================================================ *
  *  NPCs & QUESTS
@@ -2104,6 +2098,8 @@ function netConnect(url,mode,user,pass){
     else if(m.t==="death"){ onlineDeath(); }
     else if(m.t==="duelwin"){ endDuel(); log("You won the duel!","cmb"); sfxLevel(); }
     else if(m.t==="pvpxp"){ awardCombatXp(m.dmg); }
+    else if(m.t==="busy"){ if(player.target&&player.target.server)player.target=null;
+      log("Someone is already fighting that — find your own (or head to a Multicombat area).","bad"); }
     else if(m.t==="looted"){ addItem(m.k,m.n); (m.k==="coins"?sfxCoin:sfxPickup)(); checkQuestProgress();
       log(`You pick up ${m.n>1?m.n+" ":""}${ITEMS[m.k]?ITEMS[m.k].name:m.k}.`,"loot"); }
     else if(m.t==="p2p"){handleP2P(m);}

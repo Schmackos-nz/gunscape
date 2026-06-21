@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.3",
+ "version": "1.0.5",
  "generated": "2026-06-21",
  "patches": [
+  {
+   "version": "1.0.5",
+   "date": "2026-06-21",
+   "title": "Enemies obey multi-combat rules (single-combat lock outside zones)",
+   "notes": []
+  },
   {
    "version": "1.0.3",
    "date": "2026-06-21",
