@@ -48,6 +48,18 @@
     padding:6px 8px;margin-bottom:5px;font-size:12px;}
   .eqrow b{color:var(--dim);font-weight:normal;}
   .eqrow span{color:var(--txt);font-weight:bold;text-align:right;}
+  #paperdoll{display:flex;flex-direction:column;align-items:center;gap:8px;
+    background:var(--panel2);border:1px solid var(--frame);border-radius:6px;
+    padding:12px;margin-bottom:6px;
+    background-image:radial-gradient(circle at 50% 38%, #4a4030 0 70px, transparent 71px);}
+  .pdrow{display:flex;gap:36px;justify-content:center;}
+  .pdoll{width:62px;height:62px;background:#1c1712;border:1px solid var(--frame);
+    border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    position:relative;}
+  .pdoll .pl{font-size:8px;color:var(--dim);text-transform:uppercase;position:absolute;top:3px;}
+  .pdoll .pic{font-size:26px;}
+  .pdoll.full{border-color:var(--gold);cursor:pointer;background:#2b2419;}
+  .pdoll.full:hover{outline:2px solid var(--gold);}
   .statline{display:flex;justify-content:space-between;font-size:12px;
     padding:3px 2px;border-bottom:1px dotted var(--panel2);}
   .statline b{color:var(--dim);font-weight:normal;}
@@ -90,6 +102,13 @@
     border-radius:5px;display:none;min-width:120px;overflow:hidden;}
   #ctx div{padding:7px 12px;font-size:12px;cursor:pointer;}
   #ctx div:hover{background:var(--gold);color:#1c1712;}
+  #dialog{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);z-index:70;
+    width:520px;max-width:80%;background:#0d0a07;border:2px solid var(--gold);
+    border-radius:8px;padding:14px 18px;display:none;box-shadow:0 6px 24px rgba(0,0,0,.7);}
+  #dialog .who{color:var(--gold);font-weight:bold;font-size:15px;margin-bottom:6px;}
+  #dialog .say{color:var(--txt);font-size:13px;line-height:1.5;margin-bottom:10px;}
+  #dialog .prog{color:#7fbfff;font-size:12px;margin-bottom:10px;}
+  #dialog .acts{display:flex;gap:8px;justify-content:flex-end;}
   #loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
     background:#0a0a12;color:var(--gold);font-size:20px;z-index:80;}
   ::-webkit-scrollbar{width:8px;}
@@ -107,7 +126,7 @@
     <div id="hpwrap" class="hudbox"><div class="lab">Vitality</div><div id="hpbar"><i></i></div></div>
     <canvas id="minimap" width="150" height="150"></canvas>
     <div id="chat"></div>
-    <div id="hint">WASD or click ground to move · click a monster to attack · right-drag to turn · wheel to zoom</div>
+    <div id="hint">WASD / click to move · click monster = auto-fight · click loot to grab · right-click = options · right-drag turn · wheel zoom</div>
   </div>
   <div id="side">
     <div id="tabs">
@@ -121,6 +140,7 @@
 </div>
 <div id="tip"></div>
 <div id="ctx"></div>
+<div id="dialog"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
@@ -165,9 +185,26 @@ const ARMOUR={
 const CONSUMABLES={
   bandage:{name:"Bandage",ic:"🩹",price:25,heal:12,cat:"food",desc:"Heals 12 vitality."},
   medkit:{name:"Med-Kit",ic:"🧰",price:120,heal:40,cat:"food",desc:"Heals 40 vitality."},
-  scrap:{name:"Scrap",ic:"⚙️",price:0,cat:"misc",desc:"Junk. Sells for coins."},
 };
-const ITEMS=Object.assign({},WEAPONS,ARMOUR,CONSUMABLES,{coins:{name:"Coins",ic:"⛁",cat:"coins",desc:"Shiny money."}});
+const MISC={
+  scrap:{name:"Scrap",ic:"⚙️",price:4,cat:"misc",desc:"Salvaged junk. Sells for coins."},
+  bones:{name:"Bones",ic:"🦴",price:1,cat:"misc",desc:"The remains of the fallen. Grim."},
+  rat_tail:{name:"Rat Tail",ic:"🐀",price:3,cat:"misc",desc:"A scrawny rat tail."},
+  hound_fang:{name:"Hound Fang",ic:"🦷",price:6,cat:"misc",desc:"A sharp mutant fang."},
+  scorpion_tail:{name:"Scorpion Tail",ic:"🦂",price:10,cat:"misc",desc:"A venomous stinger."},
+  dog_tags:{name:"Dog Tags",ic:"🪖",price:18,cat:"misc",desc:"Mercenary identification tags."},
+};
+const ITEMS=Object.assign({},WEAPONS,ARMOUR,CONSUMABLES,MISC,{coins:{name:"Coins",ic:"⛁",cat:"coins",desc:"Shiny money."}});
+// loot tiers (index = strength). Used by enemy drop tables.
+const GUN_TIERS=[["zip"],["zip","revolver"],["revolver","smg"],["smg","shotgun"],["shotgun","rifle"],["rifle","ak"]];
+const ARMOUR_TIERS=[
+  ["cloth_hood","cloth_shirt","cloth_pants"],
+  ["cloth_shirt","card_helm","card_legs"],
+  ["card_helm","card_vest","card_legs"],
+  ["card_vest","metal_helm","metal_legs"],
+  ["metal_helm","metal_plate","metal_legs"],
+  ["metal_plate","kev_helm","kev_vest","kev_legs"],
+];
 const ARMOUR_TINT={Cloth:0xb9a37a,Cardboard:0xb98a4a,Metal:0x8d96a0,Kevlar:0x2e3b34};
 
 /* ---------------- Player state ------------------------------ */
@@ -175,9 +212,9 @@ const player={
   pos:new THREE.Vector3(0,0,30), dest:null, target:null,
   speed:18, hp:30, lastShot:0, flinchUntil:0, walk:0, regen:0,
   skills:{aim:{xp:0,lv:1},composure:{xp:0,lv:1},armour:{xp:0,lv:1},vitality:{xp:xpForLevel(10),lv:10}},
-  equip:{weapon:"zip",head:null,body:null,legs:null},
-  inv:[{k:"zip",n:1},{k:"bandage",n:3},{k:"coins",n:25}],
-  mesh:null,
+  equip:{weapon:"zip",head:null,body:"cloth_shirt",legs:"cloth_pants"},
+  inv:[{k:"bandage",n:5},{k:"cloth_hood",n:1},{k:"coins",n:40}],
+  mesh:null, pickupTarget:null, talkTarget:null, quests:{},
 };
 
 /* ============================================================ *
@@ -200,9 +237,9 @@ const sun=new THREE.DirectionalLight(0xfff3d0,0.9);
 sun.position.set(60,120,40);scene.add(sun);
 
 /* ---------------- World constants ---------------------------- */
-const HALF=200;                       // world spans -200..200
+const HALF=300;                       // world spans -300..300
 const TOWN=new THREE.Vector3(0,0,0);  // main town centre
-const OUTPOST=new THREE.Vector3(120,0,-120);
+const OUTPOST=new THREE.Vector3(150,0,-150);
 const blockers=[];                    // {x,z,r} solid obstacles
 function addBlocker(x,z,r){blockers.push({x,z,r});}
 
@@ -211,10 +248,10 @@ function addBlocker(x,z,r){blockers.push({x,z,r});}
 function biomeAt(x,z){
   if(Math.hypot(x-TOWN.x,z-TOWN.z)<34) return BIOMES.town;
   if(Math.hypot(x-OUTPOST.x,z-OUTPOST.z)<22) return BIOMES.town;
-  if(z<-45) return BIOMES.grass;
-  if(x>45)  return BIOMES.forest;
-  if(z>45)  return BIOMES.desert;
-  if(x<-45) return BIOMES.badlands;
+  if(z<-55) return BIOMES.grass;
+  if(x>55)  return BIOMES.forest;
+  if(z>55)  return BIOMES.desert;
+  if(x<-55) return BIOMES.badlands;
   return BIOMES.grass;
 }
 const BIOMES={
@@ -382,11 +419,12 @@ const shopSign=box(2,1.2,0.2,0xffd24a); shopSign.position.set(6,4,8); scene.add(
 
 // scatter biome flora
 function scatterFlora(){
-  for(let i=0;i<260;i++){
+  for(let i=0;i<620;i++){
     const x=(Math.random()*2-1)*(HALF-8), z=(Math.random()*2-1)*(HALF-8);
     const b=biomeAt(x,z);
     if(b===BIOMES.town) continue;
     if(Math.hypot(x-TOWN.x,z-TOWN.z)<40) continue;
+    if(Math.hypot(x-OUTPOST.x,z-OUTPOST.z)<22) continue;
     const r=Math.random();
     if(b===BIOMES.desert){ if(r<0.5)makeTree(x,z,"cactus"); else if(r<0.62)makeRock(x,z,1+Math.random()*1.5); }
     else if(b===BIOMES.badlands){ if(r<0.45)makeRock(x,z,1.2+Math.random()*2); }
@@ -397,27 +435,173 @@ function scatterFlora(){
 scatterFlora();
 
 /* ============================================================ *
+ *  POINTS OF INTEREST (landmarks shown on the minimap)
+ * ============================================================ */
+const POIS=[];
+function addPOI(name,x,z){POIS.push({name,x,z});}
+function buildGasStation(x,z){
+  const g=new THREE.Group();
+  const shop=box(10,5,8,0xcfc8b0); shop.position.y=2.5; g.add(shop);
+  const canopy=box(14,0.6,9,0xc23b2e); canopy.position.set(0,6.4,7); g.add(canopy);
+  for(const px of[-5,5]){const p=cyl(0.4,0.4,6.4,0x888);p.position.set(px,3.2,11);g.add(p);}
+  const pump=box(1.2,2,1,0xdddddd); pump.position.set(0,1,7); g.add(pump);
+  g.position.set(x,0,z); scene.add(g); addBlocker(x,z,7); addPOI("Gas Station",x,z);
+}
+function buildCrashedPlane(x,z){
+  const g=new THREE.Group();
+  const fuse=cyl(2,2,16,0xb8bcc0,12); fuse.rotation.z=Math.PI/2; fuse.rotation.y=0.3; fuse.position.y=2; g.add(fuse);
+  const wing=box(20,0.5,4,0xa8acb0); wing.position.y=2; wing.rotation.y=0.3; g.add(wing);
+  const tail=box(0.5,5,4,0xa8acb0); tail.position.set(-7,3.5,1.5); g.add(tail);
+  g.position.set(x,0,z); scene.add(g); addBlocker(x,z,8); addPOI("Crash Site",x,z);
+}
+function buildRadioTower(x,z){
+  const g=new THREE.Group();
+  for(let i=0;i<5;i++){const seg=box(3-i*0.4,5,3-i*0.4,0x777);seg.position.y=2.5+i*5;g.add(seg);}
+  const dish=cyl(0,2.4,1,0xcccccc); dish.rotation.x=1.2; dish.position.y=27; g.add(dish);
+  g.position.set(x,0,z); scene.add(g); addBlocker(x,z,3); addPOI("Radio Tower",x,z);
+}
+function buildBunker(x,z){
+  const g=new THREE.Group();
+  const dome=new THREE.Mesh(new THREE.SphereGeometry(6,16,8,0,Math.PI*2,0,Math.PI/2),
+    new THREE.MeshLambertMaterial({color:0x5a5e52,flatShading:true}));
+  g.add(dome);
+  const door=box(2.5,3,0.5,0x2a2a2a); door.position.set(0,1.5,6); g.add(door);
+  g.position.set(x,0,z); scene.add(g); addBlocker(x,z,6); addPOI("Old Bunker",x,z);
+}
+function buildGraveyard(x,z){
+  const g=new THREE.Group();
+  for(let i=0;i<10;i++){const s=box(0.8,1.2,0.2,0x8a8378);
+    s.position.set(rand(-7,7),0.6,rand(-7,7));s.rotation.y=rand(-0.3,0.3);g.add(s);}
+  const gate=box(6,4,0.5,0x4a4438); gate.position.set(0,2,-8); g.add(gate);
+  g.position.set(x,0,z); scene.add(g); addPOI("Old Graveyard",x,z);
+}
+function buildBanditCamp(x,z){
+  const g=new THREE.Group();
+  for(let i=0;i<4;i++){const a=i/4*6.28;
+    const tent=new THREE.Mesh(new THREE.ConeGeometry(2.5,3,4),new THREE.MeshLambertMaterial({color:0x6a5a3a}));
+    tent.position.set(Math.cos(a)*6,1.5,Math.sin(a)*6);tent.rotation.y=0.8;g.add(tent);}
+  const fire=cyl(1.2,1.4,0.4,0x3a2a1a); fire.position.y=0.2; g.add(fire);
+  const flame=new THREE.Mesh(new THREE.ConeGeometry(0.8,1.6,6),new THREE.MeshLambertMaterial({color:0xff7a2a}));
+  flame.position.y=1; g.add(flame);
+  g.position.set(x,0,z); scene.add(g); addBlocker(x,z,2); addPOI("Bandit Camp",x,z);
+}
+buildGasStation(70,30);
+buildCrashedPlane(120,150);
+buildRadioTower(-160,-150);
+buildBunker(-120,120);
+buildGraveyard(-40,-120);
+buildBanditCamp(180,80);
+addPOI("Riverside",TOWN.x,TOWN.z);
+addPOI("Forest Outpost",OUTPOST.x,OUTPOST.z);
+
+/* ============================================================ *
+ *  NPCs & QUESTS
+ * ============================================================ */
+const QUESTS={
+  pest:   {giver:"Farmer Joss", title:"Pest Control",  need:"rat_tail",      count:3, reward:{coins:160,xp:40},   text:"Sewer Rats are everywhere! Bring me 3 Rat Tails and I'll pay you well."},
+  fangs:  {giver:"Hunter Bex",  title:"Tooth Collector",need:"hound_fang",   count:4, reward:{coins:320,xp:90},   text:"Those mutant hounds in the fields... I need 4 Hound Fangs for a trophy."},
+  sting:  {giver:"Quartermaster",title:"Sting Operation",need:"scorpion_tail",count:3, reward:{coins:650,xp:160,item:"revolver"},text:"The desert scorpions are a menace. Fetch me 3 Scorpion Tails."},
+  scrap:  {giver:"Tinker Ada",  title:"Scrap Drive",    need:"scrap",        count:8, reward:{coins:400,xp:80,item:"card_vest"},text:"I can build something great with 8 pieces of Scrap. Help me out?"},
+  tags:   {giver:"Sgt. Mercer", title:"No Loose Ends",  need:"dog_tags",     count:5, reward:{coins:1500,xp:400,item:"smg"},text:"Mercenaries and Marksmen wronged us. Bring me 5 Dog Tags for justice."},
+};
+const npcs=[];
+function makeMarker(){
+  const cvs=document.createElement("canvas");cvs.width=64;cvs.height=64;
+  const tex=new THREE.CanvasTexture(cvs);
+  const spr=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,depthTest:false,transparent:true}));
+  spr.scale.set(2,2,1); spr.userData={cvs,tex}; return spr;
+}
+function drawMarker(spr,ch,col){const{cvs,tex}=spr.userData;const c=cvs.getContext("2d");
+  c.clearRect(0,0,64,64);c.font="bold 56px Trebuchet MS";c.textAlign="center";
+  c.lineWidth=6;c.strokeStyle="#000";c.strokeText(ch,32,52);c.fillStyle=col;c.fillText(ch,32,52);
+  tex.needsUpdate=true;}
+function spawnNpc(questId,x,z,shirt){
+  const q=QUESTS[questId];
+  const mesh=makeHumanoid({height:3.6,shirt:shirt||0x6a6acc,skin:0xd0a878,gun:false});
+  mesh.position.set(x,0,z); scene.add(mesh);
+  // name tag
+  const tag=makePlate({mesh:{userData:{baseHeight:3.6}}});
+  const npc={questId,name:q.giver,mesh,pos:new THREE.Vector3(x,0,z)};
+  // draw static name plate
+  {const{cvs,tex}=tag.userData;const c=cvs.getContext("2d");c.clearRect(0,0,256,64);
+   c.font="bold 22px Trebuchet MS";c.textAlign="center";c.lineWidth=4;c.strokeStyle="#000";
+   c.fillStyle="#ffe070";c.strokeText(q.giver,128,40);c.fillText(q.giver,128,40);tex.needsUpdate=true;}
+  tag.position.y=4.9; mesh.add(tag);
+  const marker=makeMarker(); marker.position.y=6.2; mesh.add(marker); npc.marker=marker;
+  mesh.userData.npc=npc; npcs.push(npc); return npc;
+}
+spawnNpc("pest",  -8, 6,  0x4a7a3a);
+spawnNpc("fangs", -10,-6,  0x7a5a2a);
+spawnNpc("sting", OUTPOST.x+4, OUTPOST.z+4, 0x3a5a7a);
+spawnNpc("scrap", 80,40, 0x9a6a3a);          // near the gas station
+spawnNpc("tags",  -130,130, 0x556655);       // near the bunker
+
+player.quests={}; // questId -> "active" | "done"
+function questState(id){return player.quests[id];}
+function questItemCount(id){return invCount(QUESTS[id].need);}
+function questReady(id){return questState(id)==="active"&&questItemCount(id)>=QUESTS[id].count;}
+function updateMarkers(){
+  for(const npc of npcs){const st=questState(npc.questId);
+    if(st==="done") drawMarker(npc.marker,"","#000"),npc.marker.visible=false;
+    else if(questReady(npc.questId)){npc.marker.visible=true;drawMarker(npc.marker,"?","#5fe06a");}
+    else if(st==="active"){npc.marker.visible=true;drawMarker(npc.marker,"…","#cccccc");}
+    else {npc.marker.visible=true;drawMarker(npc.marker,"!","#ffd24a");}
+  }
+}
+function checkQuestProgress(){updateMarkers();if(dialogOpen)renderDialog(dialogNpc);}
+
+/* ---------------- Quest dialog ------------------------------ */
+const dialogEl=document.getElementById("dialog");
+let dialogOpen=false, dialogNpc=null;
+function openDialog(npc){dialogNpc=npc;dialogOpen=true;dialogEl.style.display="block";renderDialog(npc);}
+function closeDialog(){dialogOpen=false;dialogNpc=null;dialogEl.style.display="none";}
+function renderDialog(npc){
+  if(!npc)return; const q=QUESTS[npc.questId]; const st=questState(npc.questId);
+  let say,acts="";
+  if(st==="done"){ say="Thanks again for your help, friend."; acts=btn("Close",()=>closeDialog()); }
+  else if(!st){ say=q.text+`<br><br><i>Reward: ⛁${q.reward.coins}`+
+      (q.reward.item?`, a ${ITEMS[q.reward.item].name}`:"")+`, and ${q.reward.xp} xp.</i>`;
+    acts=btn("Accept",()=>{player.quests[npc.questId]="active";log(`Quest started: ${q.title}.`,"xp");checkQuestProgress();})
+        +btn("Maybe later",()=>closeDialog()); }
+  else { // active
+    const have=questItemCount(npc.questId);
+    if(have>=q.count){ say=`You've got them all! Hand over the ${q.count} ${ITEMS[q.need].name}s?`;
+      acts=btn("Complete",()=>completeQuest(npc.questId))+btn("Not yet",()=>closeDialog()); }
+    else { say=`Have you got my ${q.count} ${ITEMS[q.need].name}s yet? Keep at it!`;
+      acts=btn("OK",()=>closeDialog()); }
+  }
+  const prog=(st==="active")?`<div class="prog">${ITEMS[q.need].ic} ${ITEMS[q.need].name}: ${Math.min(questItemCount(npc.questId),q.count)} / ${q.count}</div>`:"";
+  dialogEl.innerHTML=`<div class="who">${q.giver} — ${q.title}</div><div class="say">${say}</div>${prog}<div class="acts" id="dlgacts"></div>`;
+  const wrap=dialogEl.querySelector("#dlgacts"); wrap.innerHTML="";
+  dlgButtons.forEach(b=>wrap.appendChild(b)); dlgButtons=[];
+}
+let dlgButtons=[];
+function btn(label,fn){const b=document.createElement("button");b.className="btn";b.textContent=label;
+  b.onclick=fn;dlgButtons.push(b);return "";}
+function completeQuest(id){const q=QUESTS[id];
+  removeItem(q.need,q.count); player.quests[id]="done";
+  addItem("coins",q.reward.coins);
+  gainXp("aim",q.reward.xp); gainXp("composure",q.reward.xp*0.5);
+  if(q.reward.item) addItem(q.reward.item,1);
+  log(`Quest complete: ${q.title}! +⛁${q.reward.coins}`+(q.reward.item?`, ${ITEMS[q.reward.item].name}`:"")+".","xp");
+  updateMarkers(); refreshUI(); closeDialog();
+}
+
+/* ============================================================ *
  *  MONSTERS
  * ============================================================ */
+// tier = loot tier (0-5). coins=[min,max]. quest = collectable drop key.
+// gunChance/armChance = chance to roll a tier-appropriate gun / armour.
 const ENEMY_TYPES={
-  rat:    {name:"Sewer Rat",   cmb:2, hp:6,  aim:2, dmg:[1,2],  armour:1, fireRate:1400,range:9, xp:14, speed:9, aggro:14, build:()=>makeBeast({color:0x7a6a55,size:0.7}),
-           loot:[["coins",2,8,1],["scrap",1,1,.4]]},
-  wolf:   {name:"Mutant Hound",cmb:9, hp:24, aim:10,dmg:[3,7],  armour:3, fireRate:850, range:7, xp:48, speed:17,aggro:18, build:()=>makeBeast({color:0x6a6a72,size:1.05}),
-           loot:[["coins",4,16,1],["bandage",1,1,.3]]},
-  thug:   {name:"Street Thug", cmb:7, hp:18, aim:6, dmg:[2,5],  armour:4, fireRate:1100,range:16,xp:34, speed:10,aggro:16, build:()=>makeHumanoid({height:3.5,shirt:0x8a4b3a,gunColor:0x333,gunLen:1.0}),
-           loot:[["coins",5,20,1],["bandage",1,1,.35],["cloth_shirt",1,1,.08],["zip",1,1,.05]]},
-  raider: {name:"Raider",      cmb:18,hp:36, aim:14,dmg:[4,9],  armour:10,fireRate:900, range:18,xp:80, speed:10,aggro:18, build:()=>makeHumanoid({height:3.7,shirt:0x44597a,pants:0x2a2f3a,gunLen:1.3}),
-           loot:[["coins",15,55,1],["medkit",1,1,.2],["card_vest",1,1,.08],["revolver",1,1,.05]]},
-  scorpion:{name:"Dust Scorpion",cmb:20,hp:42,aim:16,dmg:[5,11],armour:14,fireRate:1100,range:7,xp:98, speed:12,aggro:16, build:()=>makeScorpion({color:0x9a6a3a,size:1.4}),
-           loot:[["coins",10,40,1],["scrap",1,2,.5],["card_helm",1,1,.1]]},
-  mercenary:{name:"Mercenary", cmb:38,hp:62, aim:28,dmg:[7,15], armour:20,fireRate:700, range:20,xp:165,speed:11,aggro:20, build:()=>makeHumanoid({height:3.9,shirt:0x3a7a4a,pants:0x223322,gunColor:0x111,gunLen:1.6}),
-           loot:[["coins",40,120,1],["medkit",1,2,.3],["metal_plate",1,1,.06],["smg",1,1,.05]]},
-  sniper: {name:"Marksman",    cmb:40,hp:46, aim:42,dmg:[16,30],armour:12,fireRate:1900,range:42,xp:185,speed:9, aggro:46, build:()=>makeHumanoid({height:3.9,shirt:0x55503a,pants:0x33301f,gunColor:0x000,gunLen:2.4}),
-           loot:[["coins",50,140,1],["medkit",1,1,.4],["rifle",1,1,.07]]},
-  brute:  {name:"Scrap Brute", cmb:60,hp:120,aim:22,dmg:[10,20],armour:30,fireRate:800, range:12,xp:360,speed:9, aggro:18, build:()=>makeHumanoid({height:4.8,shirt:0x6a4a3a,pants:0x3a2a22,skin:0xa07a5a,gunColor:0x222,gunLen:1.4}),
-           loot:[["coins",80,220,1],["medkit",1,2,.5],["metal_legs",1,1,.1],["shotgun",1,1,.06]]},
-  warlord:{name:"Warlord",     cmb:85,hp:170,aim:50,dmg:[12,26],armour:40,fireRate:550, range:24,xp:620,speed:10,aggro:26, build:()=>makeHumanoid({height:5.2,shirt:0x7a2a6a,pants:0x3a173a,skin:0xb88,gunColor:0x000,gunLen:2.0}),
-           loot:[["coins",200,500,1],["medkit",1,3,.6],["kev_vest",1,1,.08],["rifle",1,1,.06],["ak",1,1,.03]]},
+  rat:    {name:"Sewer Rat",   cmb:2, hp:6,  aim:2, dmg:[1,2],  armour:1, fireRate:1400,range:9, xp:14, speed:9, aggro:13, tier:0,coins:[2,10],  quest:"rat_tail",     gunChance:.03,armChance:.06, build:()=>makeBeast({color:0x7a6a55,size:0.7})},
+  wolf:   {name:"Mutant Hound",cmb:9, hp:24, aim:10,dmg:[3,7],  armour:3, fireRate:850, range:7, xp:48, speed:16,aggro:18, tier:1,coins:[6,22],  quest:"hound_fang",   gunChance:.05,armChance:.08, build:()=>makeBeast({color:0x6a6a72,size:1.05})},
+  thug:   {name:"Street Thug", cmb:7, hp:18, aim:6, dmg:[2,5],  armour:4, fireRate:1100,range:16,xp:34, speed:10,aggro:16, tier:1,coins:[8,30],  quest:null,           gunChance:.08,armChance:.1,  build:()=>makeHumanoid({height:3.5,shirt:0x8a4b3a,gunColor:0x333,gunLen:1.0})},
+  raider: {name:"Raider",      cmb:18,hp:36, aim:14,dmg:[4,9],  armour:10,fireRate:900, range:18,xp:80, speed:10,aggro:18, tier:2,coins:[20,70], quest:null,           gunChance:.1, armChance:.12, build:()=>makeHumanoid({height:3.7,shirt:0x44597a,pants:0x2a2f3a,gunLen:1.3})},
+  scorpion:{name:"Dust Scorpion",cmb:20,hp:42,aim:16,dmg:[5,11],armour:14,fireRate:1100,range:7,xp:98, speed:12,aggro:16, tier:2,coins:[15,55], quest:"scorpion_tail",gunChance:.08,armChance:.12, build:()=>makeScorpion({color:0x9a6a3a,size:1.4})},
+  mercenary:{name:"Mercenary", cmb:38,hp:62, aim:28,dmg:[7,15], armour:20,fireRate:700, range:20,xp:165,speed:11,aggro:20, tier:3,coins:[50,150],quest:"dog_tags",     gunChance:.14,armChance:.14, build:()=>makeHumanoid({height:3.9,shirt:0x3a7a4a,pants:0x223322,gunColor:0x111,gunLen:1.6})},
+  sniper: {name:"Marksman",    cmb:40,hp:46, aim:42,dmg:[16,30],armour:12,fireRate:1900,range:42,xp:185,speed:9, aggro:48, tier:4,coins:[60,170],quest:"dog_tags",     gunChance:.18,armChance:.12, build:()=>makeHumanoid({height:3.9,shirt:0x55503a,pants:0x33301f,gunColor:0x000,gunLen:2.4})},
+  brute:  {name:"Scrap Brute", cmb:60,hp:120,aim:22,dmg:[10,20],armour:30,fireRate:800, range:12,xp:360,speed:9, aggro:18, tier:4,coins:[100,260],quest:null,          gunChance:.2, armChance:.2,  build:()=>makeHumanoid({height:4.8,shirt:0x6a4a3a,pants:0x3a2a22,skin:0xa07a5a,gunColor:0x222,gunLen:1.4})},
+  warlord:{name:"Warlord",     cmb:85,hp:170,aim:50,dmg:[12,26],armour:40,fireRate:550, range:24,xp:620,speed:10,aggro:26, tier:5,coins:[250,600],quest:null,          gunChance:.45,armChance:.4,  build:()=>makeHumanoid({height:5.2,shirt:0x7a2a6a,pants:0x3a173a,skin:0xb88,gunColor:0x000,gunLen:2.0})},
 };
 const enemies=[];
 function spawnEnemy(type,x,z){
@@ -425,7 +609,8 @@ function spawnEnemy(type,x,z){
   const mesh=t.build(); mesh.position.set(x,0,z); scene.add(mesh);
   const e={type,name:t.name,cmb:t.cmb,maxhp:t.hp,hp:t.hp,aim:t.aim,dmg:t.dmg,
     armour:t.armour,fireRate:t.fireRate,range:t.range,xp:t.xp,speed:t.speed,
-    aggroR:t.aggro,loot:t.loot,mesh,home:new THREE.Vector3(x,0,z),
+    aggroR:t.aggro,tier:t.tier,coins:t.coins,quest:t.quest,gunChance:t.gunChance,
+    armChance:t.armChance,mesh,home:new THREE.Vector3(x,0,z),
     pos:new THREE.Vector3(x,0,z),dead:false,respawnAt:0,aggro:false,
     lastShot:0,walk:0,wanderT:0,wanderTo:null,hpDirty:true};
   mesh.userData.enemy=e;
@@ -434,7 +619,7 @@ function spawnEnemy(type,x,z){
 }
 function populateWorld(){
   let placed=0, guard=0;
-  while(placed<70 && guard<4000){
+  while(placed<130 && guard<8000){
     guard++;
     const x=(Math.random()*2-1)*(HALF-12), z=(Math.random()*2-1)*(HALF-12);
     const b=biomeAt(x,z);
@@ -493,9 +678,21 @@ function tracer(from,to,color){
 }
 /* ---------------- Ground loot ------------------------------- */
 const drops=[];
+const DROP_COLORS={coins:0xffd24a,bones:0xe8e0d0};
 function makeDrop(k,n,x,z){
-  const m=box(0.6,0.6,0.6,0xffd24a); m.position.set(x,0.6,z);
-  scene.add(m); drops.push({k,n,mesh:m,x,z,t:0});
+  const col=DROP_COLORS[k]||(WEAPONS[k]?0xff8844:ARMOUR[k]?0x66aaff:0xbbbbbb);
+  const sz=WEAPONS[k]?0.8:0.55;
+  const m=box(sz,sz,sz,col); m.position.set(x,0.5,z);
+  scene.add(m);
+  const dp={k,n,mesh:m,x,z,t:0}; m.userData.drop=dp;
+  drops.push(dp); return dp;
+}
+function removeDrop(dp){const i=drops.indexOf(dp);if(i>=0){scene.remove(dp.mesh);drops.splice(i,1);}}
+function pickUpDrop(dp){
+  if(addItem(dp.k,dp.n)){
+    log(`You pick up ${dp.n>1?dp.n+" ":""}${ITEMS[dp.k].name}.`,"loot");
+    removeDrop(dp); checkQuestProgress();
+  }
 }
 
 /* ============================================================ *
@@ -568,6 +765,12 @@ function equipItem(k){const it=ITEMS[k];if(!it)return;
   else if(it.cat==="armour"){const slot=it.slot,old=player.equip[slot];
     player.equip[slot]=k;removeItem(k,1);if(old)addItem(old,1);log(`You put on the ${it.name}.`);}
   buildPlayerMesh();refreshUI();}
+function unequip(slot){
+  const k=player.equip[slot]; if(!k||k==="fists")return;
+  if(player.inv.length>=INV_MAX){log("Inventory full — can't unequip.","bad");return;}
+  player.equip[slot]=(slot==="weapon")?"fists":null; addItem(k,1);
+  log(`You remove the ${ITEMS[k].name}.`); buildPlayerMesh(); refreshUI();
+}
 function useItem(k){const it=ITEMS[k];if(!it)return;
   if(it.cat==="food"){if(player.hp>=maxHp()){log("Already at full health.");return;}
     player.hp=Math.min(maxHp(),player.hp+it.heal);removeItem(k,1);
@@ -585,7 +788,8 @@ function faceTowards(mesh,tx,tz,px,pz){mesh.rotation.y=Math.atan2(tx-px,tz-pz);}
 function muzzle(mesh,h){const f=forwardOf(mesh);return new THREE.Vector3(
   mesh.position.x+f.x*1.2, (h||3.6)*0.55, mesh.position.z+f.z*1.2);}
 
-function attack(e){player.target=e;e.aggro=true;e.hpDirty=true;log(`You attack the ${e.name}.`,"cmb");}
+function attack(e){player.dest=null;player.pickupTarget=null;player.talkTarget=null;
+  player.target=e;e.aggro=true;e.hpDirty=true;log(`You attack the ${e.name}.`,"cmb");}
 function playerShoot(now){
   const e=player.target; if(!e||e.dead){player.target=null;return;}
   const w=curWeapon(); const d=dist2(player.pos,e.pos);
@@ -606,12 +810,33 @@ function playerShoot(now){
     if(e.hp<=0) killEnemy(e);
   }else{ floater(e.pos,"miss","#cccccc"); gainXp("aim",2); }
 }
+function pick(arr){return arr[Math.floor(Math.random()*arr.length)];}
 function killEnemy(e){
   e.dead=true; e.respawnAt=performance.now()+9000; e.mesh.visible=false; player.target=null;
   log(`You killed the ${e.name}.`,"cmb");
   gainXp("aim",e.xp*0.4);gainXp("composure",e.xp*0.3);gainXp("vitality",e.xp*0.3);
-  for(const[k,mn,mx,ch]of e.loot){if(Math.random()<ch)makeDrop(k,randint(mn,mx),
-    e.pos.x+rand(-1,1),e.pos.z+rand(-1,1));}
+  rollDrops(e);
+}
+// Every kill: bones + coins + one random common drop. Chance of a tier-
+// appropriate gun and/or armour piece. Top-tier foes drop "insane" guns.
+function rollDrops(e){
+  const sx=()=>e.pos.x+rand(-1.5,1.5), sz=()=>e.pos.z+rand(-1.5,1.5);
+  makeDrop("bones",1,sx(),sz());
+  makeDrop("coins",randint(e.coins[0],e.coins[1]),sx(),sz());
+  // common roll: quest item / scrap / supplies
+  const common=[]; if(e.quest) common.push(e.quest,e.quest);
+  common.push("scrap","scrap","bandage"); if(e.tier>=3) common.push("medkit");
+  makeDrop(pick(common),1,sx(),sz());
+  // gun roll (within this enemy's level band)
+  if(Math.random()<e.gunChance){
+    const pool=GUN_TIERS[e.tier];
+    // bias toward the strongest gun the band allows
+    const g=Math.random()<0.5?pool[pool.length-1]:pick(pool);
+    makeDrop(g,1,sx(),sz());
+    log(`${e.name} dropped a ${ITEMS[g].name}!`,"loot");
+  }
+  // armour roll
+  if(Math.random()<e.armChance) makeDrop(pick(ARMOUR_TIERS[e.tier]),1,sx(),sz());
 }
 function enemyShoot(e,now){
   if(now-e.lastShot<e.fireRate)return; e.lastShot=now;
@@ -627,9 +852,23 @@ function enemyShoot(e,now){
 }
 function playerDeath(){
   log("Oh dear, you are dead!","bad");
-  const c=coins();if(c>0){const lost=Math.floor(c/2);removeItem("coins",lost);log(`You lost ${lost} coins.`,"bad");}
-  player.hp=maxHp();player.target=null;player.dest=null;player.flinchUntil=0;
-  player.pos.set(0,0,30);player.mesh.position.copy(player.pos);refreshUI();
+  const dx=player.pos.x, dz=player.pos.z;
+  const scatter=()=>[dx+rand(-2.5,2.5),dz+rand(-2.5,2.5)];
+  // drop a pile of bones to mark the grave
+  makeDrop("bones",1,dx,dz);
+  // drop everything you were wearing
+  for(const slot of ["weapon","head","body","legs"]){
+    const k=player.equip[slot];
+    if(k&&k!=="fists"){const[a,b]=scatter();makeDrop(k,1,a,b);}
+  }
+  player.equip={weapon:"fists",head:null,body:null,legs:null};
+  // drop the whole inventory
+  for(const it of player.inv){const[a,b]=scatter();makeDrop(it.k,it.n,a,b);}
+  player.inv=[];
+  log("Your gear scattered across the ground. Run back to reclaim it!","bad");
+  player.hp=maxHp();player.target=null;player.dest=null;player.pickupTarget=null;
+  player.talkTarget=null;player.flinchUntil=0;
+  player.pos.set(0,0,30);buildPlayerMesh();refreshUI();
 }
 
 /* ============================================================ *
@@ -658,34 +897,69 @@ const keys={};
 addEventListener("keydown",e=>{keys[e.key.toLowerCase()]=true;});
 addEventListener("keyup",e=>{keys[e.key.toLowerCase()]=false;});
 const raycaster=new THREE.Raycaster(), mouse=new THREE.Vector2();
-let dragging=false, lastX=0, lastY=0;
+let dragging=false, didDrag=false, lastX=0, lastY=0;
+
+function castAt(clientX,clientY){
+  const r=renderer.domElement.getBoundingClientRect();
+  mouse.x=((clientX-r.left)/r.width)*2-1; mouse.y=-((clientY-r.top)/r.height)*2+1;
+  raycaster.setFromCamera(mouse,camera);
+  const res={enemy:null,npc:null,shop:false,drop:null,point:null};
+  const eh=raycaster.intersectObjects(enemies.filter(e=>!e.dead).map(e=>e.mesh),true);
+  if(eh.length){let o=eh[0].object;while(o&&!o.userData.enemy)o=o.parent;if(o)res.enemy=o.userData.enemy;}
+  const nh=raycaster.intersectObjects(npcs.map(n=>n.mesh),true);
+  if(nh.length){let o=nh[0].object;while(o&&!o.userData.npc)o=o.parent;if(o)res.npc=o.userData.npc;}
+  if(raycaster.intersectObject(shopkeeper,true).length) res.shop=true;
+  const dh=raycaster.intersectObjects(drops.map(d=>d.mesh),false);
+  if(dh.length)res.drop=dh[0].object.userData.drop;
+  const gh=raycaster.intersectObject(ground);
+  if(gh.length)res.point=new THREE.Vector3(gh[0].point.x,0,gh[0].point.z);
+  return res;
+}
+function clearActions(){player.target=null;player.dest=null;player.pickupTarget=null;player.talkTarget=null;
+  if(dialogOpen)closeDialog();}
+
 renderer.domElement.addEventListener("contextmenu",e=>e.preventDefault());
 renderer.domElement.addEventListener("mousedown",e=>{
-  if(e.button===2){dragging=true;lastX=e.clientX;lastY=e.clientY;return;}
+  if(e.button===2){dragging=true;didDrag=false;lastX=e.clientX;lastY=e.clientY;return;}
   if(e.button!==0)return;
-  const r=renderer.domElement.getBoundingClientRect();
-  mouse.x=((e.clientX-r.left)/r.width)*2-1; mouse.y=-((e.clientY-r.top)/r.height)*2+1;
-  raycaster.setFromCamera(mouse,camera);
-  // monsters first
-  const meshes=enemies.filter(e=>!e.dead).map(e=>e.mesh);
-  const hitsE=raycaster.intersectObjects(meshes,true);
-  if(hitsE.length){let o=hitsE[0].object;while(o&&!o.userData.enemy)o=o.parent;
-    if(o&&o.userData.enemy){attack(o.userData.enemy);return;}}
-  // shopkeeper
-  const hitsS=raycaster.intersectObject(shopkeeper,true);
-  if(hitsS.length){openShop();return;}
-  // ground
-  const hitsG=raycaster.intersectObject(ground);
-  if(hitsG.length){player.target=null;player.dest=new THREE.Vector3(hitsG[0].point.x,0,hitsG[0].point.z);}
+  ctxEl.style.display="none";
+  const h=castAt(e.clientX,e.clientY);
+  if(h.enemy){attack(h.enemy);return;}
+  if(h.shop){openShop();return;}
+  if(h.npc){clearActions();player.talkTarget=h.npc;return;}
+  if(h.drop){clearActions();player.pickupTarget=h.drop;return;}
+  if(h.point){clearActions();player.dest=h.point;}
 });
-addEventListener("mouseup",()=>dragging=false);
+addEventListener("mouseup",e=>{
+  if(e.button===2){
+    dragging=false;
+    if(!didDrag) openWorldMenu(e.clientX,e.clientY); // right-click (no drag) = menu
+  }
+});
 addEventListener("mousemove",e=>{
   if(!dragging)return;
+  if(Math.abs(e.clientX-lastX)+Math.abs(e.clientY-lastY)>4) didDrag=true;
   camYaw-=(e.clientX-lastX)*0.005; camPitch+=(e.clientY-lastY)*0.004;
   camPitch=Math.max(0.18,Math.min(1.3,camPitch)); lastX=e.clientX;lastY=e.clientY;
 });
 renderer.domElement.addEventListener("wheel",e=>{e.preventDefault();
-  camDist=Math.max(10,Math.min(60,camDist+e.deltaY*0.03));},{passive:false});
+  camDist=Math.max(10,Math.min(70,camDist+e.deltaY*0.03));},{passive:false});
+
+// right-click world context menu
+function openWorldMenu(cx,cy){
+  const h=castAt(cx,cy); const opts=[];
+  if(h.enemy) opts.push(["Attack "+h.enemy.name,()=>attack(h.enemy)]);
+  if(h.npc) opts.push(["Talk to "+h.npc.name,()=>{clearActions();player.talkTarget=h.npc;}]);
+  if(h.shop) opts.push(["Trade with Shopkeeper",()=>openShop()]);
+  if(h.drop) opts.push(["Take "+ITEMS[h.drop.k].name+(h.drop.n>1?" x"+h.drop.n:""),()=>{clearActions();player.pickupTarget=h.drop;}]);
+  if(h.point) opts.push(["Walk here",()=>{clearActions();player.dest=h.point;}]);
+  opts.push(["Cancel",()=>{}]);
+  ctxEl.innerHTML="";
+  for(const[label,fn]of opts){const d=document.createElement("div");d.textContent=label;
+    d.onclick=()=>{fn();ctxEl.style.display="none";};ctxEl.appendChild(d);}
+  ctxEl.style.display="block";
+  ctxEl.style.left=Math.min(cx,innerWidth-160)+"px";ctxEl.style.top=cy+"px";
+}
 
 /* ============================================================ *
  *  GAME LOOP
@@ -710,16 +984,26 @@ function loop(now){
   if(keys["w"])mv.add(fwd); if(keys["s"])mv.sub(fwd);
   if(keys["d"])mv.add(right); if(keys["a"])mv.sub(right);
   if(now>=player.flinchUntil){
-    if(mv.lengthSq()>0){mv.normalize();player.target=null;player.dest=null;
-      if(moveToward(player.pos.x+mv.x,player.pos.z+mv.z,step))moving=true;}
-    else if(player.target&&!player.target.dead){ playerShoot(now); }
+    if(mv.lengthSq()>0){ mv.normalize(); clearActions();
+      if(moveToward(player.pos.x+mv.x,player.pos.z+mv.z,step))moving=true; }
+    else if(player.target&&!player.target.dead){
+      playerShoot(now); // automated: closes in & keeps firing
+      if(player.dest&&moveToward(player.dest.x,player.dest.z,step))moving=true;
+    }
+    else if(player.pickupTarget){ const dp=player.pickupTarget;
+      if(drops.indexOf(dp)<0){player.pickupTarget=null;}
+      else if(dist2(player.pos,{x:dp.x,z:dp.z})>1.8){ if(moveToward(dp.x,dp.z,step))moving=true; }
+      else { pickUpDrop(dp); player.pickupTarget=null; }
+    }
+    else if(player.talkTarget){ const n=player.talkTarget;
+      if(dist2(player.pos,n.pos)>4){ if(moveToward(n.pos.x,n.pos.z,step))moving=true; }
+      else { faceTowards(player.mesh,n.pos.x,n.pos.z,player.pos.x,player.pos.z);
+        openDialog(n); player.talkTarget=null; }
+    }
     else if(player.dest){
       if(dist2(player.pos,player.dest)>0.6){ if(moveToward(player.dest.x,player.dest.z,step))moving=true; }
       else player.dest=null;
     }
-    // if chasing target we may also need to move (handled by playerShoot setting dest)
-    if(player.target&&!player.target.dead&&player.dest){
-      if(moveToward(player.dest.x,player.dest.z,step))moving=true;}
   }
   player.walk+=moving?dt*10:0; if(!moving)player.walk*=0.8;
   animateLegs(player.mesh,player.walk,moving?0.6:0.05);
@@ -760,12 +1044,8 @@ function loop(now){
     if(e.hpDirty) drawPlate(e);
   }
 
-  /* --- pickups --- */
-  for(let i=drops.length-1;i>=0;i--){const dp=drops[i];dp.mesh.rotation.y+=dt*2;
-    dp.mesh.position.y=0.6+Math.sin(now/250)*0.15;
-    if(dist2(player.pos,{x:dp.x,z:dp.z})<2.2){
-      if(addItem(dp.k,dp.n)){log(`You pick up ${dp.n>1?dp.n+" ":""}${ITEMS[dp.k].name}.`,"loot");
-        scene.remove(dp.mesh);drops.splice(i,1);} } }
+  /* --- ground loot bob (pick up by clicking) --- */
+  for(const dp of drops){dp.mesh.rotation.y+=dt*1.6;dp.mesh.position.y=0.5+Math.sin(now/250+dp.x)*0.12;}
 
   /* --- floaters / tracers --- */
   for(let i=floaters.length-1;i>=0;i--){const f=floaters[i];f.t+=dt;f.spr.position.y+=dt*2.5;
@@ -800,11 +1080,16 @@ function updateMinimap(){
     mmx.fillStyle="#"+biomeAt(wx,wz).ground.toString(16).padStart(6,"0");
     mmx.fillRect(x,y,10,10);}
   const toMM=(wx,wz)=>[MMR+wx*MMSCALE,MMR+wz*MMSCALE];
-  // towns
-  mmx.fillStyle="#ffe070";for(const t of[TOWN,OUTPOST]){const[a,b]=toMM(t.x,t.z);mmx.fillRect(a-2,b-2,4,4);}
   // enemies
   for(const e of enemies){if(e.dead)continue;const[a,b]=toMM(e.pos.x,e.pos.z);
     mmx.fillStyle=e.aggro?"#ff4030":"#c04030";mmx.fillRect(a-1,b-1,2,2);}
+  // ground loot
+  mmx.fillStyle="#ffe89a";for(const dp of drops){const[a,b]=toMM(dp.x,dp.z);mmx.fillRect(a-0.5,b-0.5,1.5,1.5);}
+  // points of interest (white squares)
+  mmx.fillStyle="#ffffff";mmx.font="6px sans-serif";mmx.textAlign="center";
+  for(const p of POIS){const[a,b]=toMM(p.x,p.z);mmx.fillStyle="#fff";mmx.fillRect(a-1.5,b-1.5,3,3);}
+  // NPCs (yellow !)
+  mmx.fillStyle="#ffd24a";for(const n of npcs){const[a,b]=toMM(n.pos.x,n.pos.z);mmx.fillRect(a-1.5,b-1.5,3,3);}
   // player
   const[px,pz]=toMM(player.pos.x,player.pos.z);
   mmx.fillStyle="#4ad0ff";mmx.beginPath();mmx.arc(px,pz,3,0,7);mmx.fill();
@@ -854,20 +1139,28 @@ function renderInv(){let cells="";
     el.addEventListener("contextmenu",ev=>{ev.preventDefault();const it=player.inv[idx];if(it)showItemCtx(ev,it.k);});});
   bindTips();}
 function renderEquip(){const w=curWeapon();
-  const row=(label,k,empty)=>!k?`<div class="eqrow"><b>${label}</b><span style="color:var(--dim)">${empty}</span></div>`:
-    `<div class="eqrow" data-tip="item:${k}"><b>${label}</b><span>${ITEMS[k].ic} ${ITEMS[k].name}</span></div>`;
+  const slotKey={weapon:player.equip.weapon==="fists"?null:player.equip.weapon,
+    head:player.equip.head,body:player.equip.body,legs:player.equip.legs};
+  const cell=(slot,label)=>{const k=slotKey[slot];
+    return `<div class="pdoll ${k?'full':''}" data-slot="${slot}" ${k?`data-tip="item:${k}"`:""}>
+      <div class="pl">${label}</div><div class="pic">${k?ITEMS[k].ic:"·"}</div></div>`;};
   panel.innerHTML=`<h2>Worn Equipment</h2>
-    ${row("Weapon",player.equip.weapon==="fists"?null:player.equip.weapon,"— unarmed —")}
-    ${row("Head",player.equip.head,"— none —")}${row("Body",player.equip.body,"— none —")}
-    ${row("Legs",player.equip.legs,"— none —")}
-    <h2 style="margin-top:14px">Weapon Stats</h2>
+    <div id="paperdoll">
+      <div class="pdrow">${cell("head","Head")}</div>
+      <div class="pdrow">${cell("weapon","Weapon")}${cell("body","Body")}</div>
+      <div class="pdrow">${cell("legs","Legs")}</div>
+    </div>
+    <p style="font-size:11px;color:var(--dim);text-align:center;margin:4px 0 10px">Click a worn item to take it off.</p>
+    <h2>Weapon Stats</h2>
     <div class="statline"><b>Weapon</b><span>${w.ic} ${w.name}</span></div>
     <div class="statline"><b>Grade</b><span>${w.grade}</span></div>
     <div class="statline"><b>Damage</b><span>${w.dmgMin}–${w.dmgMax}</span></div>
     <div class="statline"><b>Fire rate</b><span>${(1000/w.fireRate).toFixed(1)}/s</span></div>
     <div class="statline"><b>Range</b><span>${w.range}</span></div>
     <div class="statline"><b>Your bloom</b><span>${effectiveBloom().toFixed(1)}</span></div>
-    <div class="statline"><b>Total armour</b><span>${totalArmour()}</span></div>`;bindTips();}
+    <div class="statline"><b>Total armour</b><span>${totalArmour()}</span></div>`;
+  panel.querySelectorAll(".pdoll.full").forEach(el=>el.addEventListener("click",()=>unequip(el.dataset.slot)));
+  bindTips();}
 let shopFilter="weapon";
 function renderShop(){const cats=[["weapon","Guns"],["armour","Armour"],["food","Supplies"]];
   let tabs=`<div style="display:flex;gap:4px;margin-bottom:8px">`;
@@ -924,9 +1217,11 @@ document.addEventListener("click",e=>{if(e.target.closest("#ctx"))return;ctxEl.s
  * ============================================================ */
 resize();
 document.getElementById("loading").remove();
+updateMarkers();
 log("Welcome to Gunscape Classic 3D!","sys");
 log("Explore: Greenfields (N), Mistwood (E), Dust Reach (S), Scarlands (W).","sys");
-log("Train Aim & Composure by fighting. Click the shopkeeper to trade.","sys");
+log("Talk to townsfolk with a ! above their head for quests. Click the shopkeeper to trade.","sys");
+log("Click a monster to auto-fight it. Right-click for options. Don't die — you drop everything!","sys");
 log("Goal: reach the mighty AK-47 (Aim 45) and topple the Warlords.","sys");
 refreshUI();
 requestAnimationFrame(loop);
