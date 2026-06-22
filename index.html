@@ -441,19 +441,20 @@ const ARMOUR_TINT={Cloth:0xb9a37a,Cardboard:0xb98a4a,Metal:0x8d96a0,Kevlar:0x2e3
 //  aim=accuracy %, flinch=flinch-resist %, dodge=dodge chance, dmg=damage %, soak=damage reduction %
 const PRAYERS=[
   {id:"sharp_eye",  name:"Sharp Eye",   lvl:1,  type:"aim",    drain:1.2, aim:0.06,   desc:"+6% accuracy"},
-  {id:"steady",     name:"Steady Hands",lvl:1,  type:"comp",   drain:1.2, flinch:0.10,desc:"+10% flinch resist"},
-  {id:"light_step", name:"Light Step",  lvl:4,  type:"dodge",  drain:1.8, dodge:0.05, desc:"+5% dodge"},
-  {id:"brutality",  name:"Brutality",   lvl:8,  type:"power",  drain:2.4, dmg:0.10,   desc:"+10% damage"},
-  {id:"keen_aim",   name:"Keen Aim",    lvl:14, type:"aim",    drain:3,   aim:0.14,   desc:"+14% accuracy"},
-  {id:"iron_will",  name:"Iron Will",   lvl:14, type:"comp",   drain:3,   flinch:0.22,desc:"+22% flinch resist"},
-  {id:"evasion",    name:"Evasion",     lvl:20, type:"dodge",  drain:4,   dodge:0.12, desc:"+12% dodge"},
-  {id:"stone_skin", name:"Stone Skin",  lvl:26, type:"protect",drain:5,   soak:0.20,  desc:"-20% damage taken"},
-  {id:"protect_proj",name:"Protect Projectiles",lvl:30,type:"protect",drain:30,soak:0.40,overhead:"proj",desc:"-40% projectile damage (huge drain)"},
-  {id:"eagle_eye",  name:"Eagle Eye",   lvl:32, type:"aim",    drain:6,   aim:0.25,   desc:"+25% accuracy"},
-  {id:"stone_nerve",name:"Stone Nerve", lvl:32, type:"comp",   drain:6,   flinch:0.40,desc:"+40% flinch resist"},
-  {id:"savagery",   name:"Savagery",    lvl:38, type:"power",  drain:8,   dmg:0.25,   desc:"+25% damage"},
-  {id:"phantom",    name:"Phantom Step",lvl:44, type:"dodge",  drain:9,   dodge:0.22, desc:"+22% dodge"},
-  {id:"bulwark",    name:"Bulwark",     lvl:50, type:"protect",drain:11,  soak:0.40,  desc:"-40% damage taken"},
+  {id:"steady",     name:"Steady Hands",lvl:5,  type:"comp",   drain:1.2, flinch:0.10,desc:"+10% flinch resist"},
+  {id:"light_step", name:"Light Step",  lvl:9,  type:"dodge",  drain:1.8, dodge:0.05, desc:"+5% dodge"},
+  {id:"brutality",  name:"Brutality",   lvl:14, type:"power",  drain:2.4, dmg:0.10,   desc:"+10% damage"},
+  {id:"keen_aim",   name:"Keen Aim",    lvl:20, type:"aim",    drain:3,   aim:0.14,   desc:"+14% accuracy"},
+  {id:"iron_will",  name:"Iron Will",   lvl:26, type:"comp",   drain:3,   flinch:0.22,desc:"+22% flinch resist"},
+  {id:"evasion",    name:"Evasion",     lvl:32, type:"dodge",  drain:4,   dodge:0.12, desc:"+12% dodge"},
+  {id:"stone_skin", name:"Stone Skin",  lvl:37, type:"protect",drain:5,   soak:0.15,  desc:"-15% damage taken"},
+  {id:"dampen_harm",name:"Dampen Harm", lvl:40, type:"protect",drain:30,  soakMelee:0.40,overhead:"melee",desc:"-40% melee/AoE (non-projectile) damage (huge drain)"},
+  {id:"eagle_eye",  name:"Eagle Eye",   lvl:46, type:"aim",    drain:6,   aim:0.25,   desc:"+25% accuracy"},
+  {id:"stone_nerve",name:"Stone Nerve", lvl:52, type:"comp",   drain:6,   flinch:0.40,desc:"+40% flinch resist"},
+  {id:"savagery",   name:"Savagery",    lvl:58, type:"power",  drain:8,   dmg:0.25,   desc:"+25% damage"},
+  {id:"phantom",    name:"Phantom Step",lvl:64, type:"dodge",  drain:9,   dodge:0.22, desc:"+22% dodge"},
+  {id:"protect_proj",name:"Protect Projectiles",lvl:70,type:"protect",drain:30,soakProj:0.40,overhead:"proj",desc:"-40% projectile damage (huge drain)"},
+  {id:"bulwark",    name:"Bulwark",     lvl:80, type:"protect",drain:14,  soak:0.20,  desc:"-20% damage taken (all)"},
 ];
 const PRAYER_BY_ID={}; for(const p of PRAYERS) PRAYER_BY_ID[p.id]=p;
 
@@ -1243,7 +1244,7 @@ function moveBoss(tx,tz,dt,spd){const d=darude,dx=tx-d.pos.x,dz=tz-d.pos.z,l=Mat
 function moveBossDir(dir,dt,spd){const d=darude,s=spd*dt;
   d.pos.x+=Math.sin(dir)*s; d.pos.z+=Math.cos(dir)*s; d.mesh.position.set(d.pos.x,terrainHeight(d.pos.x,d.pos.z),d.pos.z);}
 function bossDamage(dmg){ if(player.dead)return;
-  dmg=Math.max(1,Math.round(dmg*(1-prayerEffect("soak"))));
+  dmg=Math.max(1,Math.round(dmg*(1-soakFor(false))));   // boss circles/cone = non-projectile AoE (Dampen Harm / Stone Skin / Bulwark)
   if(NET.online){ netSend({t:"selfhurt",dmg}); player.hp=Math.max(0,player.hp-dmg); }
   else { player.hp-=dmg; }
   floater(player.pos,String(dmg),"#ff3a2a"); sfxHurt();
@@ -1684,15 +1685,22 @@ const playerPlate=(()=>{const cvs=document.createElement("canvas");cvs.width=256
   const tex=new THREE.CanvasTexture(cvs);
   const spr=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,depthTest:false,transparent:true}));
   spr.scale.set(6,1.7,1); spr.visible=false; scene.add(spr); spr.userData={cvs,tex}; return spr;})();
-// overhead prayer icon (e.g. Protect Projectiles = a bullet with a red X)
-const prayerIcon=(()=>{const cvs=document.createElement("canvas");cvs.width=cvs.height=64;
-  const c=cvs.getContext("2d");
-  c.fillStyle="#2a2a2a";c.beginPath();c.ellipse(32,34,12,20,0,0,7);c.fill();      // bullet body
-  c.fillStyle="#caa84a";c.beginPath();c.ellipse(32,18,12,12,0,Math.PI,0);c.fill();// brass tip
-  c.strokeStyle="#ff2a2a";c.lineWidth=8;c.beginPath();c.moveTo(8,8);c.lineTo(56,56);c.moveTo(56,8);c.lineTo(8,56);c.stroke();
+// overhead prayer icons: a crossed-out symbol of what's being blocked
+function makeOverheadIcon(draw){const cvs=document.createElement("canvas");cvs.width=cvs.height=64;const c=cvs.getContext("2d");
+  draw(c);
+  c.strokeStyle="#ff2a2a";c.lineWidth=8;c.beginPath();c.moveTo(8,8);c.lineTo(56,56);c.moveTo(56,8);c.lineTo(8,56);c.stroke();   // big red X
   const tex=new THREE.CanvasTexture(cvs);
   const spr=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,depthTest:false,transparent:true}));
-  spr.scale.set(2,2,1);spr.visible=false;scene.add(spr);return spr;})();
+  spr.scale.set(2,2,1);spr.visible=false;scene.add(spr);return spr;}
+const prayerIcons={
+  proj: makeOverheadIcon(c=>{                                  // Protect Projectiles = a bullet
+    c.fillStyle="#2a2a2a";c.beginPath();c.ellipse(32,34,12,20,0,0,7);c.fill();
+    c.fillStyle="#caa84a";c.beginPath();c.ellipse(32,18,12,12,0,Math.PI,0);c.fill();}),
+  melee: makeOverheadIcon(c=>{                                 // Dampen Harm = a fist
+    c.fillStyle="#c8956a";c.beginPath();c.roundRect?c.roundRect(20,26,24,22,5):c.rect(20,26,24,22);c.fill();   // knuckles
+    c.fillStyle="#b07a52";for(let i=0;i<4;i++){c.beginPath();c.arc(25+i*6,27,3,0,7);c.fill();}
+    c.fillStyle="#c8956a";c.beginPath();c.roundRect?c.roundRect(18,34,12,16,4):c.rect(18,34,12,16);c.fill();}),// thumb
+};
 function bar(c,x,y,w,h,frac,fill,back){c.fillStyle="#000";c.fillRect(x-2,y-2,w+4,h+4);
   c.fillStyle=back;c.fillRect(x,y,w,h);c.fillStyle=fill;c.fillRect(x,y,w*Math.max(0,frac),h);}
 function drawPlayerPlate(){const{cvs,tex}=playerPlate.userData;const c=cvs.getContext("2d");
@@ -1812,6 +1820,9 @@ function prayerActive(id){return player.activePrayers[PRAYER_BY_ID[id].type]===i
 function prayerEffect(field){let v=0;
   for(const type in player.activePrayers){const p=PRAYER_BY_ID[player.activePrayers[type]];if(p&&p[field])v+=p[field];}
   return v;}
+// damage-soak from the active protect prayer, applied by damage type (projectile vs melee/AoE)
+function soakFor(isProj){ const id=player.activePrayers["protect"]; if(!id)return 0; const p=PRAYER_BY_ID[id];
+  let v=p.soak||0; v += isProj ? (p.soakProj||0) : (p.soakMelee||0); return Math.min(0.6,v); }
 function prayerDrain(){let d=0;for(const type in player.activePrayers){d+=PRAYER_BY_ID[player.activePrayers[type]].drain;}return d;}
 function togglePrayer(id){const p=PRAYER_BY_ID[id];if(!p)return;
   if(player.skills.prayer.lv<p.lvl){log(`You need Prayer ${p.lvl} for ${p.name}.`,"bad");sfxClick();return;}
@@ -2057,7 +2068,7 @@ function enemyShoot(e,now){
     floater(player.pos,"dodge","#7fe0ff"); gainXp("armour",4); gainXp("agility",12); return; }
   if(Math.random()<hit){
     let dmg=randint(e.dmg[0],e.dmg[1]); dmg=dmg-Math.floor(totalArmour()*0.12);
-    dmg=Math.max(1,Math.round(dmg*(1-prayerEffect("soak"))));   // Stone Skin / Bulwark soak
+    dmg=Math.max(1,Math.round(dmg*(1-soakFor(true))));   // enemy gunfire = projectile (Protect Projectiles / Stone Skin / Bulwark)
     player.hp-=dmg; floater(player.pos,String(dmg),"#ff6a5a"); sfxHurt();
     gainXp("armour",dmg*3);gainXp("composure",dmg*1.5);
     if(Math.random()>flinchResist()){player.flinchUntil=now+450;floater(player.pos,"flinch!","#ff9b5a");}
@@ -2494,9 +2505,10 @@ function loop(now){
   const inCombat=(player.target&&!player.target.dead)||now<(player.combatUntil||0);
   playerPlate.visible=inCombat;
   if(inCombat){playerPlate.position.set(player.pos.x,5.6,player.pos.z);drawPlayerPlate();}
-  /* --- overhead prayer icon (Protect Projectiles etc) --- */
-  prayerIcon.visible=!!(player.activePrayers.protect&&PRAYER_BY_ID[player.activePrayers.protect].overhead);
-  if(prayerIcon.visible)prayerIcon.position.set(player.pos.x,7.4,player.pos.z);
+  /* --- overhead prayer icon (Protect Projectiles / Dampen Harm) --- */
+  const overheadKind=player.activePrayers.protect&&PRAYER_BY_ID[player.activePrayers.protect].overhead;
+  for(const k in prayerIcons){ const on=(k===overheadKind); prayerIcons[k].visible=on;
+    if(on)prayerIcons[k].position.set(player.pos.x,7.4,player.pos.z); }
 
   /* --- regen out of combat (offline; server owns HP online) --- */
   if(!NET.online&&!player.target&&player.hp<maxHp()){player.regen+=dt;

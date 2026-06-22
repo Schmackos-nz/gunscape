@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.30",
+ "version": "1.0.31",
  "generated": "2026-06-22",
  "patches": [
+  {
+   "version": "1.0.31",
+   "date": "2026-06-22",
+   "title": "Prayer rebalance + Dampen Harm; soak capped at 20% except the two Protects",
+   "notes": []
+  },
   {
    "version": "1.0.30",
    "date": "2026-06-22",
