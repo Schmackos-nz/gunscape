@@ -2171,38 +2171,49 @@ function enemyShoot(e,now){
     if(player.hp<=0)playerDeath();
   }else floater(player.pos,"miss","#aaaaaa");
 }
+/* ---------------- Gravestones (death loot) ------------------ */
+const graves=[];   // offline graves: {mesh,pos,items,breakAt}
+function makeGraveMesh(){ const g=new THREE.Group();
+  const base=box(1.5,0.35,1.0,0x6a665e); base.position.y=0.18; g.add(base);
+  const slab=box(1.05,1.5,0.3,0x9a948c,TEX.plaster); slab.position.y=1.05; g.add(slab);
+  const cb=box(0.55,0.16,0.34,0x756f66); cb.position.set(0,1.3,0.02); cb.userData.noOutline=true; g.add(cb);   // cross
+  const cv=box(0.16,0.7,0.34,0x756f66); cv.position.set(0,1.2,0.02); cv.userData.noOutline=true; g.add(cv);
+  return g; }
+function makeGrave(x,z,items){ const g=makeGraveMesh(); g.position.set(x,terrainHeight(x,z),z); scene.add(g);
+  const gr={mesh:g,pos:new THREE.Vector3(x,0,z),items:(items||[]).filter(i=>i&&i.k),breakAt:performance.now()+300000};
+  g.userData.grave=gr; graves.push(gr); return gr; }
+function reclaimGrave(gr){ for(const it of gr.items) addItem(it.k,it.n||1);
+  scene.remove(gr.mesh); const i=graves.indexOf(gr); if(i>=0)graves.splice(i,1);
+  log("You reclaim your belongings from the grave.","loot"); sfxCoin(); refreshUI(); }
+function breakGrave(gr){ const now=performance.now();
+  for(const it of gr.items){ const dp=makeDrop(it.k,it.n||1,gr.pos.x+rand(-0.4,0.4),gr.pos.z+rand(-0.4,0.4),"me");
+    dp.publicAt=now; dp.despawnAt=now+60000; }                      // public ground loot for 1 minute
+  scene.remove(gr.mesh); const i=graves.indexOf(gr); if(i>=0)graves.splice(i,1);
+  log("A grave crumbled — its loot scattered to the ground.","sys"); }
+function deathRespawn(){ player.hp=maxHp();player.target=null;player.dest=null;player.pickupTarget=null;
+  player.bossTarget=null;player.talkTarget=null;player.flinchUntil=0;clearPrayers();player.prayer=0;
+  player.energy=100;player.pos.set(0,0,40);buildPlayerMesh();refreshUI(); }
 function playerDeath(){
   if(NET.online){onlineDeath();return;}   // server owns death/loot online
   log("Oh dear, you are dead!","bad");
-  const dx=player.pos.x, dz=player.pos.z;
-  const scatter=()=>[dx+rand(-2.5,2.5),dz+rand(-2.5,2.5)];
-  // drop a pile of bones to mark the grave
-  makeDrop("bones",1,dx,dz);
-  // drop everything you were wearing
-  for(const slot of ["weapon","head","body","legs"]){
-    const k=player.equip[slot];
-    if(k&&k!=="fists"){const[a,b]=scatter();makeDrop(k,1,a,b);}
-  }
-  player.equip={weapon:"fists",head:null,body:null,legs:null};
-  // drop the whole inventory
-  for(const it of player.inv){const[a,b]=scatter();makeDrop(it.k,it.n,a,b);}
-  player.inv=[];
-  log("Your gear scattered across the ground. Run back to reclaim it!","bad");
-  player.hp=maxHp();player.target=null;player.dest=null;player.pickupTarget=null;
-  player.talkTarget=null;player.flinchUntil=0;clearPrayers();player.prayer=0;
-  player.energy=100;player.pos.set(0,0,40);buildPlayerMesh();refreshUI();
+  const items=[];
+  for(const slot of ["weapon","head","body","legs"]){const k=player.equip[slot];if(k&&k!=="fists")items.push({k,n:1});}
+  for(const it of player.inv)items.push({k:it.k,n:it.n});
+  makeGrave(player.pos.x,player.pos.z,items);                       // gravestone instead of a scattered pile
+  player.equip={weapon:"fists",head:null,body:null,legs:null}; player.inv=[];
+  log("Your belongings rest in a grave where you fell — go reclaim them within 5 minutes!","bad");
+  deathRespawn();
 }
-// online death: server spawns your dropped gear as shared loot; client just clears
+// online death: items go to a server-side gravestone (owner-only, breaks to public loot after 5min)
 function onlineDeath(){
   log("Oh dear, you are dead!","bad");
   const items=[];
   for(const slot of ["weapon","head","body","legs"]){const k=player.equip[slot];if(k&&k!=="fists")items.push({k,n:1});}
   for(const it of player.inv)items.push({k:it.k,n:it.n});
-  netSend({t:"droploot",items});
+  netSend({t:"droploot",items,grave:true});
   player.equip={weapon:"fists",head:null,body:null,legs:null}; player.inv=[];
-  clearActions(); player.duel=null; player.flinchUntil=0; clearPrayers(); player.prayer=0;
-  player.energy=100; player.pos.set(0,0,40); buildPlayerMesh(); refreshUI();
-  log("Your gear dropped where you fell — run back for it!","bad");
+  clearActions(); player.duel=null; deathRespawn();
+  log("Your belongings rest in a grave where you fell — reclaim them within 5 minutes!","bad");
 }
 
 /* ============================================================ *
@@ -2323,7 +2334,7 @@ function castAt(clientX,clientY){
   const r=renderer.domElement.getBoundingClientRect();
   mouse.x=((clientX-r.left)/r.width)*2-1; mouse.y=-((clientY-r.top)/r.height)*2+1;
   raycaster.setFromCamera(mouse,camera);
-  const res={enemy:null,npc:null,vendor:null,drop:null,tree:null,door:null,altar:null,player:null,stairs:null,workshop:null,ore:null,boss:null,point:null};
+  const res={enemy:null,npc:null,vendor:null,drop:null,tree:null,door:null,altar:null,player:null,stairs:null,workshop:null,ore:null,boss:null,grave:null,point:null};
   if(NET.online){ // server-driven enemies + loot
     const eh=raycaster.intersectObjects([...serverEnemies.values()].map(s=>s.mesh),true);
     if(eh.length){let o=eh[0].object;while(o&&o.userData.serverEnemy==null)o=o.parent;if(o)res.enemy=serverEnemies.get(o.userData.serverEnemy);}
@@ -2354,6 +2365,9 @@ function castAt(clientX,clientY){
   const oh=raycaster.intersectObjects(oreNodes.filter(n=>!n.depleted).map(n=>n.group),true);
   if(oh.length){let o=oh[0].object;while(o&&!o.userData.ore)o=o.parent;if(o)res.ore=o.userData.ore;}
   if(darude&&darude.alive&&raycaster.intersectObject(darude.mesh,true).length) res.boss=darude;
+  const grh=raycaster.intersectObjects(graves.map(g=>g.mesh).concat([...serverGraves.values()].map(s=>s.mesh)),true);
+  if(grh.length){let o=grh[0].object;while(o&&!o.userData.grave&&o.userData.serverGrave==null)o=o.parent;
+    if(o)res.grave=o.userData.grave||serverGraves.get(o.userData.serverGrave);}
   const gh=raycaster.intersectObject(ground);
   if(gh.length)res.point=new THREE.Vector3(gh[0].point.x,0,gh[0].point.z);
   return res;
@@ -2361,8 +2375,12 @@ function castAt(clientX,clientY){
 function toggleDoor(ds){ds.open=!ds.open;sfxClick();log(ds.open?"You open the door.":"You close the door.");}
 function clearActions(){player.target=null;player.dest=null;player.pickupTarget=null;
   player.talkTarget=null;player.chopTarget=null;player.doorTarget=null;player.altarTarget=null;
-  player.clickMark=null;player.pvpTarget=null;player.path=null;player.stairTarget=null;player.workshopTarget=null;player.mineTarget=null;player.bossTarget=null;player.shopTarget=null;
+  player.clickMark=null;player.pvpTarget=null;player.path=null;player.stairTarget=null;player.workshopTarget=null;player.mineTarget=null;player.bossTarget=null;player.shopTarget=null;player.graveTarget=null;
   if(dialogOpen)closeDialog();}
+function collectGrave(gr){
+  if(gr.items){ reclaimGrave(gr); }                              // offline grave
+  else { if(gr.pid!==NET.id){log("This grave isn't yours.","bad");return;} netSend({t:"gravecollect",id:gr.id}); }
+}
 function useStairs(s){ if(player.floor===0){player.floor=1;player.yOffset=FLOOR_H;player.pos.set(s.topX,0,s.topZ);log("You climb the stairs.");}
   else{player.floor=0;player.yOffset=0;player.pos.set(s.x,0,s.z);log("You go downstairs.");} sfxClick(); }
 
@@ -2371,6 +2389,7 @@ renderer.domElement.addEventListener("contextmenu",e=>{e.preventDefault();openWo
 function worldPrimary(cx,cy){            // left-click / tap on the 3D world
   ctxEl.style.display="none";
   const h=castAt(cx,cy);
+  if(h.grave){clearActions();player.graveTarget=h.grave;return;}
   if(h.boss){clearActions();player.bossTarget=h.boss;log("You attack Darude!","cmb");return;}
   if(h.enemy){attack(h.enemy);return;}
   if(h.vendor){clearActions();player.shopTarget=h.vendor;return;}
@@ -2462,6 +2481,7 @@ function updateRunUI(){const on=player.running&&player.energy>0.5;
 // right-click world context menu
 function openWorldMenu(cx,cy){
   const h=castAt(cx,cy); const opts=[];
+  if(h.grave) opts.push(["Loot grave",()=>{clearActions();player.graveTarget=h.grave;}]);
   if(h.boss) opts.push(["Attack Darude",()=>{clearActions();player.bossTarget=h.boss;}]);
   if(h.enemy) opts.push(["Attack "+h.enemy.name,()=>attack(h.enemy)]);
   if(h.player){ const rp=h.player;
@@ -2548,6 +2568,10 @@ function loop(now){
       if(!d.alive){player.bossTarget=null;}
       else if(dist2(player.pos,d.pos)>COMBAT_RANGE+6){ if(moveToward(d.pos.x,d.pos.z,step))moving=true; }
       else { faceTowards(player.mesh,d.pos.x,d.pos.z,player.pos.x,player.pos.z); bossPlayerShoot(now); }
+    }
+    else if(player.graveTarget){ const gr=player.graveTarget;
+      if(dist2(player.pos,gr.pos)>3.2){ if(moveToward(gr.pos.x,gr.pos.z,step))moving=true; }
+      else { collectGrave(gr); player.graveTarget=null; }
     }
     else if(player.doorTarget){ const ds=player.doorTarget, dp={x:ds.wall.x,z:ds.wall.z};
       if(dist2(player.pos,dp)>3){ if(moveToward(dp.x,dp.z,step))moving=true; } // only toggle when beside it
@@ -2662,6 +2686,7 @@ function loop(now){
   /* --- trees respawn --- */
   for(const tr of trees){ if(tr.depleted&&now>=tr.respawnAt){tr.depleted=false;tr.foliage.visible=true;} }
   for(const nd of oreNodes){ if(nd.depleted&&now>=nd.respawnAt){nd.depleted=false;nd.group.visible=true;} }
+  for(let i=graves.length-1;i>=0;i--){ if(now>=graves[i].breakAt) breakGrave(graves[i]); }   // 5-min grave → public loot
 
   /* --- campfires: flicker + expire --- */
   for(let i=fires.length-1;i>=0;i--){const f=fires[i];
@@ -2994,6 +3019,13 @@ function netTick(now){
  * ============================================================ */
 const serverEnemies=new Map(); // id -> {mesh,type,tx,tz,ry,hp,maxhp,plate,shown}
 const serverLoot=new Map();    // id -> {mesh,k,n,x,z,owner,publicAt}
+const serverGraves=new Map();  // id -> {mesh,pos,pid,id}  (online gravestones)
+function syncServerGraves(list){ const seen=new Set();
+  for(const gv of (list||[])){ seen.add(gv.id); let s=serverGraves.get(gv.id);
+    if(!s){ const m=makeGraveMesh(); m.position.set(gv.x,terrainHeight(gv.x,gv.z),gv.z); m.userData.serverGrave=gv.id; scene.add(m);
+      s={id:gv.id,pid:gv.pid,pos:new THREE.Vector3(gv.x,0,gv.z),mesh:m,server:true}; serverGraves.set(gv.id,s); } }
+  for(const id of [...serverGraves.keys()]) if(!seen.has(id)){ scene.remove(serverGraves.get(id).mesh); serverGraves.delete(id); }
+}
 function seDraw(se){const{cvs,tex}=se.plate.userData;const c=cvs.getContext("2d");
   const st=ENEMY_STATS[se.type]||{name:se.type,cmb:1};
   c.clearRect(0,0,256,64);c.font="bold 20px Trebuchet MS";c.textAlign="center";c.lineWidth=4;c.strokeStyle="#000";
@@ -3029,6 +3061,7 @@ function syncServerLoot(list){
 function clearServerWorld(){
   for(const se of serverEnemies.values())scene.remove(se.mesh); serverEnemies.clear();
   for(const sl of serverLoot.values())scene.remove(sl.mesh); serverLoot.clear();
+  for(const sg of serverGraves.values())scene.remove(sg.mesh); serverGraves.clear();
 }
 function updateServerWorld(dt,now){
   for(const se of serverEnemies.values()){
@@ -3087,7 +3120,8 @@ function netConnect(url,mode,user,pass){
         seen.add(p.id);upsertRemote(p);}
       for(const id of [...remotes.keys()])if(!seen.has(id))removeRemote(id);
       if(m.enemies)syncServerEnemies(m.enemies);
-      if(m.loot)syncServerLoot(m.loot);}
+      if(m.loot)syncServerLoot(m.loot);
+      syncServerGraves(m.graves);}
     else if(m.t==="join"){/* presence appears via snapshot */}
     else if(m.t==="leave"){removeRemote(m.id);}
     else if(m.t==="chat"){log(`${m.from}: ${m.msg}`, m.from==="SERVER"?"xp":(m.from===NET.user?"loot":"sys"));}

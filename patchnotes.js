@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.40",
+ "version": "1.0.41",
  "generated": "2026-06-22",
  "patches": [
+  {
+   "version": "1.0.41",
+   "date": "2026-06-22",
+   "title": "Death drops a gravestone (owner-only) that breaks to public loot after 5min",
+   "notes": []
+  },
   {
    "version": "1.0.40",
    "date": "2026-06-22",
@@ -204,12 +210,6 @@ window.PATCHNOTES={
    "version": "1.0.2",
    "date": "2026-06-21",
    "title": "Networked combat audio + tracers for other players and enemies",
-   "notes": []
-  },
-  {
-   "version": "1.0.1",
-   "date": "2026-06-21",
-   "title": "Auto-reconnect, shared damage numbers, and login polish",
    "notes": []
   }
  ]

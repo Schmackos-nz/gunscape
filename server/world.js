@@ -28,6 +28,7 @@ export class World {
   constructor() {
     this.enemies = [];
     this.loot = [];
+    this.graves = [];            // { id, pid, x, z, items[], breakAt } — owner-only death loot
     this.players = new Map();    // pid -> {x,z,ry,hp,maxhp,armour,aim,weapon,attacking,lastShot,dead,respawnAt}
     this.nid = 1;
     this.spawn();
@@ -83,6 +84,12 @@ export class World {
   }
   attackIntent(pid, enemyId) { const p = this.players.get(pid); if (p) p.attacking = enemyId; }
   heal(pid, amt) { const p = this.players.get(pid); if (p && !p.dead) p.hp = Math.min(p.maxhp, p.hp + Math.max(0, amt || 0)); }
+  // death grave: owner-only for 5 min, then breaks into public ground loot
+  addGrave(pid, items, x, z) {
+    this.graves.push({ id: this.nid++, pid, x, z, items: (items || []).filter(i => i && i.k), breakAt: Date.now() + 300000 });
+  }
+  collectGrave(pid, id) { const i = this.graves.findIndex(g => g.id === id && g.pid === pid);
+    if (i < 0) return null; const items = this.graves[i].items; this.graves.splice(i, 1); return items; }
   dropLoot(pid, items, x, z, publicNow) {            // spawn a dead player's gear as ground loot
     const now = Date.now();
     const publicAt = publicNow ? now : now + 60000;
@@ -195,6 +202,12 @@ export class World {
       }
     }
 
+    // ---- graves break after 5 min → spill items as public loot for 1 min ----
+    for (let i = this.graves.length - 1; i >= 0; i--) { const g = this.graves[i]; if (now < g.breakAt) continue;
+      for (const it of g.items) this.loot.push({ id: this.nid++, k: it.k, n: it.n || 1,
+        x: g.x + rnd(-0.4, 0.4), z: g.z + rnd(-0.4, 0.4), owner: null, publicAt: now, despawnAt: now + 60000 });
+      this.graves.splice(i, 1);
+    }
     // ---- loot despawn (120s) ----
     for (let i = this.loot.length - 1; i >= 0; i--) if (now >= this.loot[i].despawnAt) this.loot.splice(i, 1);
     return { events, fx };
@@ -233,6 +246,7 @@ export class World {
     return {
       enemies: this.enemies.filter(e => !e.dead).map(e => ({ id: e.id, type: e.type, x: +e.x.toFixed(2), z: +e.z.toFixed(2), ry: +e.ry.toFixed(2), hp: e.hp, maxhp: e.maxhp })),
       loot: this.loot.map(l => ({ id: l.id, k: l.k, n: l.n, x: l.x, z: l.z, owner: l.owner, publicAt: l.publicAt })),
+      graves: this.graves.map(g => ({ id: g.id, pid: g.pid, x: g.x, z: g.z })),
     };
   }
 }

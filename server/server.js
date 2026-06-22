@@ -159,7 +159,10 @@ wss.on('connection', (ws) => {
             if (wp.hp <= 0) { wp.dead = true; wp.respawnAt = Date.now() + 4000; send(ws, { t: 'death' }); } } }
         break;
       }
-      case 'droploot': { if (session.authed) { const wp = world.players.get(session.id); if (wp) world.dropLoot(session.id, msg.items, wp.x, wp.z); } break; }
+      case 'droploot': { if (session.authed) { const wp = world.players.get(session.id);
+        if (wp) { if (msg.grave) world.addGrave(session.id, msg.items, wp.x, wp.z); else world.dropLoot(session.id, msg.items, wp.x, wp.z); } } break; }
+      case 'gravecollect': { if (session.authed) { const items = world.collectGrave(session.id, msg.id);
+        if (items) for (const it of items) send(ws, { t: 'give', k: it.k, n: it.n || 1 }); } break; }
       case 'p2p': {   // relay a player-to-player message (duel/trade) to one target
         if (!session.authed) break;
         const tw = wsById(msg.to);
@@ -258,7 +261,7 @@ setInterval(() => {
   }
   if (players.length) {
     const w = world.snapshot();
-    broadcast({ t: 'snapshot', players, enemies: w.enemies, loot: w.loot });
+    broadcast({ t: 'snapshot', players, enemies: w.enemies, loot: w.loot, graves: w.graves });
   }
   for (const ev of events) { const w = wsById(ev.pid); if (w) send(w, ev); } // xp / death notices
 }, TICK_MS);
