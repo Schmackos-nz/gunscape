@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.25",
+ "version": "1.0.26",
  "generated": "2026-06-22",
  "patches": [
+  {
+   "version": "1.0.26",
+   "date": "2026-06-22",
+   "title": "Don't let a WebGL failure brick the whole page",
+   "notes": []
+  },
   {
    "version": "1.0.25",
    "date": "2026-06-22",

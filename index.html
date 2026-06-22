@@ -472,12 +472,31 @@ const player={
 const stage=document.getElementById("stage");
 const scene=new THREE.Scene();
 const camera=new THREE.PerspectiveCamera(55,1,0.1,900);
-const renderer=new THREE.WebGLRenderer({antialias:true});
-renderer.setPixelRatio(Math.min(devicePixelRatio,2));
-renderer.outputEncoding=THREE.sRGBEncoding;
-renderer.toneMapping=THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure=1.08;
-stage.appendChild(renderer.domElement);
+// robust renderer creation: try a couple of option sets, and never let a WebGL
+// failure abort the whole script (which would kill the menu, patch notes & buttons)
+let renderer=null, glOK=true;
+for(const opts of [{antialias:true,powerPreference:"high-performance"},{antialias:false},{antialias:false,failIfMajorPerformanceCaveat:false}]){
+  try{ renderer=new THREE.WebGLRenderer(opts); break; }catch(e){ /* try next */ }
+}
+if(!renderer){                                  // WebGL unavailable — keep the page alive with a clear message
+  glOK=false;
+  const cv=document.createElement("canvas");
+  renderer={ domElement:cv, setPixelRatio(){}, setSize(){}, render(){},
+    outputEncoding:0, toneMapping:0, toneMappingExposure:1 };
+  const warn=document.createElement("div");
+  warn.style.cssText="position:fixed;inset:0;z-index:400;display:flex;align-items:center;justify-content:center;text-align:center;background:#0d0a07;color:#d9b65a;font-family:sans-serif;font-size:18px;padding:24px;line-height:1.6;";
+  warn.innerHTML="⚠ Gunscape needs WebGL, which your browser couldn't start.<br><br>"+
+    "<span style='color:#9c8f73;font-size:14px'>Enable hardware acceleration (or try Chrome/Edge), then reload.<br>"+
+    "chrome://settings → System → \"Use graphics acceleration when available\".</span>";
+  (document.body||document.documentElement).appendChild(warn);
+}
+try{
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.outputEncoding=THREE.sRGBEncoding;
+  renderer.toneMapping=THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure=1.08;
+  stage.appendChild(renderer.domElement);
+}catch(e){}
 function resize(){
   const de=document.documentElement; if(de&&de.style)de.style.setProperty("--vh",(window.innerHeight*0.01)+"px");  // real viewport unit (mobile URL-bar safe)
   const w=stage.clientWidth,h=stage.clientHeight;
