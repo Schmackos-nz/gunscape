@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.34",
+ "version": "1.0.35",
  "generated": "2026-06-22",
  "patches": [
+  {
+   "version": "1.0.35",
+   "date": "2026-06-22",
+   "title": "Admin /give and /itemids commands",
+   "notes": []
+  },
   {
    "version": "1.0.34",
    "date": "2026-06-22",

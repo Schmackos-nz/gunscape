@@ -90,7 +90,10 @@ function adminCommand(ws, session, line) {
       sysTo(ws, `Banned ${u}.`); break; }
     case 'unban': { const u = rest.toLowerCase(); if (accounts[u]) { accounts[u].banned = false; saveAccounts(); } sysTo(ws, `Unbanned ${u}.`); break; }
     case 'who': sysTo(ws, 'Online: ' + [...clients.values()].filter(s => s.authed).map(s => s.user).join(', ')); break;
-    default: sysTo(ws, 'Admin cmds: /broadcast <m> · /announce <m> · /dm <user> <m> · /kick <user> · /ban <user> · /unban <user> · /who');
+    case 'give': { const [id, amtStr] = target(); const n = Math.max(1, Math.min(1000, parseInt(amtStr) || 1));
+      if (!id) { sysTo(ws, 'Usage: /give <itemid> <amount> — see /itemids'); break; }
+      send(ws, { t: 'give', k: id, n }); sysTo(ws, `Gave you ${n}× ${id}.`); break; }
+    default: sysTo(ws, 'Admin cmds: /broadcast · /announce · /dm <user> <m> · /kick · /ban · /unban · /who · /give <itemid> <n> · /itemids');
   }
 }
 

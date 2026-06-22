@@ -2988,6 +2988,7 @@ function netConnect(url,mode,user,pass){
     else if(m.t==="leave"){removeRemote(m.id);}
     else if(m.t==="chat"){log(`${m.from}: ${m.msg}`, m.from==="SERVER"?"xp":(m.from===NET.user?"loot":"sys"));}
     else if(m.t==="announce"){ showAnnounce(m.msg, m.ms||180000); }
+    else if(m.t==="give"){ giveItem(m.k, m.n); }
     else if(m.t==="kicked"){ NET.kicked=true; log(m.why||"You were disconnected.","bad");
       try{NET.ws.close();}catch(e){} document.getElementById("login").style.display="flex";
       document.getElementById("lg-msg").textContent=m.why||"Disconnected."; }
@@ -3059,11 +3060,12 @@ function populateServers(){document.getElementById("lg-servers").innerHTML=
   document.getElementById("lg-register").onclick=()=>go("register");
   document.getElementById("lg-offline").onclick=()=>startGame(false);
   document.getElementById("lg-pass").addEventListener("keydown",e=>{if(e.key==="Enter")document.getElementById("lg-login").click();});
-  // chat input (online)
+  // chat input
   const cb=document.getElementById("chatbox");
   cb.addEventListener("keydown",e=>{e.stopPropagation();
     if(e.key==="Enter"){const v=cb.value.trim();
-      if(v){ if(NET.online) netSend(v[0]==="/"?{t:"admin",line:v}:{t:"chat",msg:v}); else log("You: "+v,"loot"); }
+      if(v){ if(v[0]==="/"){ if(!handleLocalCmd(v)){ if(NET.online)netSend({t:"admin",line:v}); else log("Unknown command.","bad"); } }
+        else if(NET.online) netSend({t:"chat",msg:v}); else log("You: "+v,"loot"); }
       cb.value="";cb.blur();}
     if(e.key==="Escape"){cb.value="";cb.blur();}});
   // Enter focuses the chat box when not already typing
@@ -3163,6 +3165,21 @@ document.getElementById("tw-cancel").onclick=()=>closeTrade("Trade cancelled.");
 document.getElementById("tw-close").onclick=()=>closeTrade("Trade cancelled.");
 
 /* ---------------- Version chip + changelog ----------------- */
+// give a player an item (used by /give offline and the server's give message)
+function giveItem(id,n){ n=Math.max(1,Math.min(1000,n||1));
+  if(!ITEMS[id]){log("No such item id: "+id+" — try /itemids","bad");return;}
+  addItem(id,n); log(`Received ${n}× ${ITEMS[id].name}.`,"xp"); refreshUI(); }
+function listItemIds(){
+  const fmt=o=>Object.keys(o).filter(k=>k!=="fists").map(k=>k+" — "+o[k].name).join(", ");
+  log("Guns: "+fmt(WEAPONS),"sys");
+  log("Armour: "+fmt(ARMOUR),"sys");
+}
+// client-handled chat commands (/itemids any time; /give offline). returns true if handled.
+function handleLocalCmd(v){ const sp=v.indexOf(" "), cmd=(sp<0?v:v.slice(0,sp)).toLowerCase(), rest=sp<0?"":v.slice(sp+1).trim();
+  if(cmd==="/itemids"){ listItemIds(); return true; }
+  if(cmd==="/give" && !NET.online){ const p=rest.split(/\s+/); giveItem(p[0], parseInt(p[1])||1); return true; }
+  return false;
+}
 const PN=(typeof window!=="undefined"&&window.PATCHNOTES)||{version:"dev",patches:[]};
 function clEsc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
 const CL_CATS={balance:"#ffd24a",buff:"#7fd06a",nerf:"#ff8a6a",combat:"#ff8a6a",world:"#7fd06a",ui:"#7fbfff",

@@ -52,6 +52,8 @@ and type these in the in-game chat box:
 | `/ban <user>`      | Ban an account (kicks them; blocks future logins)   |
 | `/unban <user>`    | Lift a ban                                          |
 | `/who`             | List online players                                 |
+| `/give <id> <n>`   | Give yourself N of an item (see `/itemids`)         |
+| `/itemids`         | List gun/armour item ids (handled client-side)      |
 
 Bans are stored on the account in `accounts.json`.
 
