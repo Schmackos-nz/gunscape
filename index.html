@@ -1709,12 +1709,27 @@ function drawPlayerPlate(){const{cvs,tex}=playerPlate.userData;const c=cvs.getCo
 /* ============================================================ *
  *  CAMERA CONTROL
  * ============================================================ */
-let camYaw=0, camPitch=0.62, camDist=26;
+let camYaw=0, camPitch=0.62, camDist=26, camDistCur=26;
+// spring arm: shortest unobstructed distance from the player pivot out to the camera
+function cameraSpring(ox,oy,oz,dx,dy,dz,maxD){
+  for(let d=2.5; d<maxD; d+=0.8){
+    const x=ox+dx*d, y=oy+dy*d, z=oz+dz*d;
+    if(y < terrainHeight(x,z)+0.6) return Math.max(5,d-0.8);          // ground/hill
+    for(const w of wallBoxes){ if(w.door&&w.door.open) continue;       // building walls (treated as tall occluders)
+      if(Math.abs(x-w.x)<w.hw+0.5 && Math.abs(z-w.z)<w.hd+0.5 && y<11) return Math.max(5,d-0.8); }
+  }
+  return maxD;
+}
 function updateCamera(){
   const hx=Math.sin(camYaw)*Math.cos(camPitch), hz=Math.cos(camYaw)*Math.cos(camPitch);
   const hy=Math.sin(camPitch);
   const ph=terrainHeight(player.pos.x,player.pos.z)+(player.yOffset||0);
-  camera.position.set(player.pos.x+hx*camDist, ph+hy*camDist+2, player.pos.z+hz*camDist);
+  const ox=player.pos.x, oy=ph+2.5, oz=player.pos.z;                  // pivot at the player's chest/head
+  const want=cameraSpring(ox,oy,oz, hx, hy, hz, camDist);             // clamp to first obstruction (dir is unit length)
+  camDistCur += (want-camDistCur)*0.35;                              // smooth (avoid snapping)
+  if(camDistCur>want) camDistCur=want;                               // but never overshoot into a wall
+  const d=camDistCur;
+  camera.position.set(ox+hx*d, oy+hy*d, oz+hz*d);
   camera.lookAt(player.pos.x,ph+2.5,player.pos.z);
 }
 

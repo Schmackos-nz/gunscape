@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.29",
+ "version": "1.0.30",
  "generated": "2026-06-22",
  "patches": [
+  {
+   "version": "1.0.30",
+   "date": "2026-06-22",
+   "title": "Camera spring-arm: pull in when blocked by walls/terrain",
+   "notes": []
+  },
   {
    "version": "1.0.29",
    "date": "2026-06-22",
