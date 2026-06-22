@@ -146,7 +146,7 @@ wss.on('connection', (ws) => {
         s.maxhp = +msg.maxhp || s.maxhp;
         if (msg.appearance) s.appearance = msg.appearance;
         world.input(session.id, { x: s.x, z: s.z, ry: s.ry, armour: +msg.armour || undefined,
-          aim: +msg.aim || undefined, maxhp: +msg.maxhp || undefined, weapon: msg.appearance && msg.appearance.weapon });
+          aim: +msg.aim || undefined, gdmg: +msg.gdmg || undefined, maxhp: +msg.maxhp || undefined, weapon: msg.appearance && msg.appearance.weapon });
         break;
       }
       case 'duelstart': { if (session.authed) world.setDuel(session.id, msg.opponent); break; }

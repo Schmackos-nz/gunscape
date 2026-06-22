@@ -67,6 +67,7 @@
     shotgun: { dmgMin: 8,  dmgMax: 18, fireRate: 1000, range: 13, bloom: 14 },
     rifle:   { dmgMin: 14, dmgMax: 26, fireRate: 1200, range: 38, bloom: 6  },
     ak:      { dmgMin: 12, dmgMax: 24, fireRate: 300,  range: 28, bloom: 10 },
+    plasma:  { dmgMin: 18, dmgMax: 50, fireRate: 650,  range: 18, bloom: 8  },   // Darude's rare pistol
   };
 
   // ---- enemy stats (no build()/model; client merges builders) ----

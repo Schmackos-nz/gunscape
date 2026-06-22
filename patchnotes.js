@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.39",
+ "version": "1.0.40",
  "generated": "2026-06-22",
  "patches": [
+  {
+   "version": "1.0.40",
+   "date": "2026-06-22",
+   "title": "Darude drops: Plasma Gun + Sand Tyrant set; single drop only",
+   "notes": []
+  },
   {
    "version": "1.0.39",
    "date": "2026-06-22",

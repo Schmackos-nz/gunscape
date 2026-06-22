@@ -389,6 +389,7 @@ const WEAPONS={
   shotgun:  {name:"Shotgun",      ic:"💥",reqLvl:20,reqAim:25,reqComp:20,price:1800, cat:"weapon",grade:"Adamant",desc:"Devastating up close.",...wc.shotgun},
   rifle:    {name:"Hunting Rifle",ic:"🎯",reqLvl:30,reqAim:35,reqComp:25,price:4200, cat:"weapon",grade:"Rune",   desc:"Pinpoint long-range punch.",...wc.rifle},
   ak:       {name:"AK-47",        ic:"⭐",reqLvl:40,reqAim:45,reqComp:40,price:12000,cat:"weapon",grade:"Dragon", desc:"The legend. Fast and brutal.",...wc.ak},
+  plasma:   {name:"Plasma Gun",   ic:"🔫",reqLvl:50,reqAim:55,reqComp:45,price:25000,cat:"weapon",grade:"Tyrant", desc:"Darude's searing energy pistol. 18–50 dmg.",...wc.plasma},
 };
 const ARMOUR={
   cloth_hood:{name:"Cloth Hood",ic:"🧢",slot:"head",armour:1,reqLvl:1,reqArm:1,price:15,cat:"armour",mat:"Cloth",desc:"Stops nothing, really."},
@@ -403,6 +404,10 @@ const ARMOUR={
   kev_helm:{name:"Kevlar Helm",ic:"🪖",slot:"head",armour:16,reqLvl:35,reqArm:40,price:1600,cat:"armour",mat:"Kevlar",desc:"Lightweight ballistic helmet."},
   kev_vest:{name:"Kevlar Vest",ic:"🦺",slot:"body",armour:30,reqLvl:35,reqArm:40,price:3600,cat:"armour",mat:"Kevlar",desc:"Stops most rounds cold."},
   kev_legs:{name:"Kevlar Leggings",ic:"🦵",slot:"legs",armour:21,reqLvl:35,reqArm:40,price:2400,cat:"armour",mat:"Kevlar",desc:"Flexible ballistic leg armour."},
+  // Sand Tyrant set — Darude's rare drops; each piece adds flat gun damage (gunDmg)
+  sand_helm:{name:"Sand Tyrant Helm",slot:"head",armour:18,reqLvl:50,reqArm:45,price:6000,cat:"armour",mat:"Tyrant",gunDmg:2,desc:"Crown of the Sand Tyrant. +2 gun damage."},
+  sand_body:{name:"Sand Tyrant Cuirass",slot:"body",armour:34,reqLvl:50,reqArm:45,price:14000,cat:"armour",mat:"Tyrant",gunDmg:4,desc:"Tyrant plate. +4 gun damage."},
+  sand_legs:{name:"Sand Tyrant Greaves",slot:"legs",armour:24,reqLvl:50,reqArm:45,price:9000,cat:"armour",mat:"Tyrant",gunDmg:3,desc:"Tyrant greaves. +3 gun damage."},
 };
 const CONSUMABLES={
   bandage:{name:"Bandage",ic:"🩹",price:25,heal:12,cat:"food",desc:"Heals 12 vitality."},
@@ -450,7 +455,7 @@ const MISC={
 };
 const ITEMS=Object.assign({},WEAPONS,ARMOUR,CONSUMABLES,POTIONS,RAWFOOD,TOOLS,MISC,{coins:{name:"Coins",ic:"⛁",cat:"coins",desc:"Shiny money."}});
 // loot tiers GUN_TIERS / ARMOUR_TIERS come from shared/world-data.js
-const ARMOUR_TINT={Cloth:0xb9a37a,Cardboard:0xb98a4a,Metal:0x8d96a0,Kevlar:0x2e3b34};
+const ARMOUR_TINT={Cloth:0xb9a37a,Cardboard:0xb98a4a,Metal:0x8d96a0,Kevlar:0x2e3b34,Tyrant:0xd9b25a};
 
 // Prayers (RuneScape-like). Only ONE prayer per `type` may be active at once.
 // drain = prayer points per minute (ramps with required level). Effects:
@@ -725,6 +730,11 @@ function makeGunModel(type,col){
     const mag=B(0.14,0.5,0.28,0x3a2a14);mag.position.set(0,-0.32,0.18);mag.rotation.x=-0.5;g.add(mag);
     const grip=B(0.14,0.3,0.18,wood);grip.position.set(0,-0.24,-0.18);grip.rotation.x=0.3;g.add(grip);
     const stk=B(0.14,0.22,0.7,wood);stk.position.z=-0.85;g.add(stk);
+  } else if(type==="plasma"){
+    g.add(B(0.2,0.3,0.55,0x2a2e3a));                                  // pistol body
+    const bar=tube(0.09,0.5,0x49c6e0); bar.position.z=0.5; g.add(bar);// glowing barrel
+    const coil=cyl(0.14,0.14,0.18,0x7ae0f0,10,M); coil.rotation.x=Math.PI/2; coil.position.z=0.18; g.add(coil);
+    const grip=B(0.15,0.34,0.2,0x2a2e3a); grip.position.set(0,-0.24,-0.1); grip.rotation.x=0.32; g.add(grip);
   } else {
     g.add(B(0.18,0.2,1.0,dark));
     const bar=B(0.1,0.1,0.6,steel);bar.position.z=0.7;g.add(bar);
@@ -1334,7 +1344,7 @@ function bossPlayerShoot(now){ const d=darude; const w=curWeapon(), st=STYLES[at
   if(now-(player.lastShot||0)<w.fireRate*st.fireMul) return; if(now<player.flinchUntil) return;
   player.lastShot=now; playerAttackFx(d.pos.x,d.pos.z);
   const bloom=effectiveBloom(); const acc=100/(1+bloom*0.06)*st.accMul*(1+prayerEffect("aim"));
-  if(Math.random()<acc/(acc+d.armour)){ let dmg=randint(w.dmgMin,w.dmgMax); dmg=Math.round(dmg*(1+prayerEffect("dmg")));
+  if(Math.random()<acc/(acc+d.armour)){ let dmg=randint(w.dmgMin,w.dmgMax)+gunDmgBonus(); dmg=Math.round(dmg*(1+prayerEffect("dmg")));
     d.hp-=dmg; floater(d.pos,String(dmg),"#ffd24a"); sfxHit(); awardCombatXp(dmg); bossBar();
     if(d.hp<=0) killDarude();
   } else floater(d.pos,"miss","#aaaaaa");
@@ -1342,9 +1352,13 @@ function bossPlayerShoot(now){ const d=darude; const w=curWeapon(), st=STYLES[at
 function killDarude(){ const d=darude; d.alive=false; d.mesh.visible=false; player.bossTarget=null; bossBar();
   for(const fx of bossFx) scene.remove(fx.mesh); bossFx.length=0;
   sfxKill(); log("You have slain Darude, Tyrant of the Sands!","cmb"); player.killedDarude=true;
-  awardCombatXp(900); addItem("titanium_bits",12); addItem("coins",2500);
-  if(Math.random()<0.6) addItem("rifle",1); else addItem("ak",1);
-  log("Darude's hoard: ⛁2500, 12 Titanium Bits, and a powerful gun!","loot");
+  awardCombatXp(900); addItem("coins",2500);
+  // a SINGLE drop: low chance of the Plasma Gun or a Sand Tyrant set piece, else titanium bits
+  const r=Math.random(); let drop, n=1;
+  if(r<0.06){ drop="plasma"; } else if(r<0.20){ drop=pick(["sand_helm","sand_body","sand_legs"]); }
+  else { drop="titanium_bits"; n=10; }
+  addItem(drop,n);
+  log("Darude drops: ⛁2500 and "+(n>1?n+"× ":"")+ITEMS[drop].name+(drop==="plasma"||drop.startsWith("sand")?" — rare!":"")+".","loot");
   checkQuestProgress();
   setTimeout(()=>{ if(!darude)return; d.alive=true; d.hp=d.maxhp; d.state="idle"; d.t=0; d.cd=1.2;
     d.pos.copy(d.home); d.mesh.position.set(d.home.x,terrainHeight(d.home.x,d.home.z),d.home.z); d.mesh.visible=true; },90000);
@@ -1587,15 +1601,16 @@ function drawItemIcon(g,S,k){
   // ---- guns ----
   const GUN={zip:{bl:18,bw:7,body:14,stock:0,wood:0},revolver:{bl:20,bw:6,body:13,cyl:1},
     smg:{bl:16,bw:6,body:20,mag:1,stock:1},shotgun:{bl:30,bw:8,body:14,wood:1,stock:1},
-    rifle:{bl:34,bw:5,body:12,scope:1,stock:1},ak:{bl:26,bw:6,body:18,mag:1,wood:1,stock:1}};
+    rifle:{bl:34,bw:5,body:12,scope:1,stock:1},ak:{bl:26,bw:6,body:18,mag:1,wood:1,stock:1},
+    plasma:{bl:20,bw:9,body:16,cyl:1,glow:1}};
   if(it.cat==="weapon"&&GUN[k]){const d=GUN[k]; const y=c;
     g.save(); g.translate(8,c+2);
     if(d.stock){rr(-2,-5,12,12,3);fillS("#5a3c1e");}
-    rr(6,-d.body/2,22,d.body,3); fillS("#33363c");                         // body
-    rr(26,-d.bw/2,d.bl,d.bw,2); fillS("#6a6e75");                          // barrel
+    rr(6,-d.body/2,22,d.body,3); fillS(d.glow?"#2a2e3a":"#33363c");        // body
+    rr(26,-d.bw/2,d.bl,d.bw,2); fillS(d.glow?"#49c6e0":"#6a6e75");         // barrel (plasma = glowing)
     rr(12,d.body/2-1,7,12,2); fillS(d.wood?"#6b4a2a":"#2a2a30");           // grip
     if(d.mag){rr(20,d.body/2-1,7,16,2); fillS("#4a4e55");}
-    if(d.cyl){g.beginPath();g.arc(20,0,7,0,7);fillS("#555");}
+    if(d.cyl){g.beginPath();g.arc(20,0,7,0,7);fillS(d.glow?"#7ae0f0":"#555");}
     if(d.scope){rr(22,-d.body/2-7,12,5,2);fillS("#111");}
     g.restore(); return;
   }
@@ -1888,6 +1903,7 @@ function curWeapon(){return WEAPONS[player.equip.weapon]||WEAPONS.fists;}
 function effectiveBloom(){const w=curWeapon();const reduce=player.skills.aim.lv/99*0.7;return Math.max(2,w.bloom*(1-reduce));}
 function flinchResist(){return Math.min(0.95,player.skills.composure.lv/(player.skills.composure.lv+45)+prayerEffect("flinch"));}
 function totalArmour(){let a=player.skills.armour.lv;for(const s of["head","body","legs"]){const k=player.equip[s];if(k)a+=ITEMS[k].armour;}return a;}
+function gunDmgBonus(){let d=0;for(const s of["head","body","legs"]){const k=player.equip[s];if(k&&ITEMS[k].gunDmg)d+=ITEMS[k].gunDmg;}return d;}   // Sand Tyrant set
 
 /* ---------------- Prayer ------------------------------------ */
 function maxPrayer(){return player.skills.prayer.lv;}              // RuneScape-style: 1 point per level
@@ -2092,7 +2108,7 @@ function playerShoot(now){
   const acc=100/(1+bloom*0.06)*st.accMul*(1+prayerEffect("aim"));
   const hit=acc/(acc+e.armour);
   if(Math.random()<hit){
-    let dmg=randint(w.dmgMin,w.dmgMax); dmg=Math.round(dmg*(1+prayerEffect("dmg")));
+    let dmg=randint(w.dmgMin,w.dmgMax)+gunDmgBonus(); dmg=Math.round(dmg*(1+prayerEffect("dmg")));
     e.hp-=dmg; e.hpDirty=true;
     floater(e.pos,String(dmg),"#ffd24a"); sfxHit(); awardCombatXp(dmg);
     if(e.hp<=0) killEnemy(e);
@@ -2967,7 +2983,7 @@ function netTick(now){
   if(!NET.online)return;
   if(now-NET.lastSent>100){NET.lastSent=now;
     netSend({t:"state",x:player.pos.x,z:player.pos.z,ry:player.mesh.rotation.y,
-      maxhp:maxHp(),armour:totalArmour(),aim:player.skills.aim.lv,
+      maxhp:maxHp(),armour:totalArmour(),aim:player.skills.aim.lv,gdmg:gunDmgBonus(),
       appearance:{body:player.equip.body,weapon:player.equip.weapon}});}
   if(now-NET.saveAt>15000){NET.saveAt=now;netSend({t:"save",profile:serializeProfile()});}
 }

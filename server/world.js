@@ -77,6 +77,7 @@ export class World {
     if (typeof msg.ry === 'number') p.ry = msg.ry;
     if (typeof msg.armour === 'number') p.armour = msg.armour;
     if (typeof msg.aim === 'number') p.aim = msg.aim;
+    if (typeof msg.gdmg === 'number') p.gdmg = Math.max(0, Math.min(40, msg.gdmg));   // Sand Tyrant set gun-damage bonus
     if (typeof msg.maxhp === 'number') { p.maxhp = msg.maxhp; if (p.hp > p.maxhp) p.hp = p.maxhp; }
     if (msg.weapon) p.weapon = msg.weapon;
   }
@@ -120,7 +121,7 @@ export class World {
       const stats = ENEMY_STATS[e.type];
       const acc = 100 / (1 + wc.bloom * 0.06) * (1 + p.aim / 99);
       if (Math.random() < acc / (acc + stats.armour)) {
-        const dmg = randint(wc.dmgMin, wc.dmgMax); e.hp -= dmg;
+        const dmg = randint(wc.dmgMin, wc.dmgMax) + (p.gdmg || 0); e.hp -= dmg;
         fx.push({ k: 'ehit', x: e.x, z: e.z, dmg });
         if (e.hp <= 0) { this.killEnemy(e, pid, now); events.push({ pid, t: 'xp', xp: stats.xp, name: stats.name }); fx.push({ k: 'kill', pid, x: e.x, z: e.z }); }
       }
