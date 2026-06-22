@@ -760,8 +760,10 @@ function makeHumanoid(o){
   g.add(legL,legR,hips,torso,chest,neck,head,armL,armR);
   if(o.gun!==false){
     const gun=makeGunModel(o.gunType||"rifle",o.gunColor);
-    gun.position.set(-0.05,-1.0,0.35); gun.rotation.x=0.12;   // held in the left hand (swings with the arm)
-    armL.add(gun); g.userData.gunTip=gun.userData.tip;        // remember the barrel end for muzzle/tracers
+    // align the barrel with the arm's axis so the gun follows arm rotation:
+    // arm down → points down, arm raised (aim) → points outward
+    gun.position.set(-0.05,-1.05,0.0); gun.rotation.x=Math.PI/2;
+    armL.add(gun); g.userData.gunTip=gun.userData.tip;        // barrel end → muzzle/tracers
   }
   g.add(blobShadow(0.85));
   const s=(o.height??3.6)/3.6; g.scale.setScalar(s);

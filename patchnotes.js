@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.37",
+ "version": "1.0.38",
  "generated": "2026-06-22",
  "patches": [
+  {
+   "version": "1.0.38",
+   "date": "2026-06-22",
+   "title": "World: gun barrel aligns with the arm axis so it follows arm rotation",
+   "notes": []
+  },
   {
    "version": "1.0.37",
    "date": "2026-06-22",
