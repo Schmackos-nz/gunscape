@@ -149,8 +149,9 @@
     body.mobile #multicombat{top:122px;} body.mobile #questtracker{top:150px;}
     body.mobile #chat{height:62px;}
   }
-  #craftwin,#shopwin,#escmenu{position:fixed;inset:0;z-index:120;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.55);}
-  #craftwin.show,#shopwin.show,#escmenu.show{display:flex;}
+  #craftwin,#shopwin,#escmenu,#worldmap{position:fixed;inset:0;z-index:120;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.55);}
+  #craftwin.show,#shopwin.show,#escmenu.show,#worldmap.show{display:flex;}
+  #wm-close{cursor:pointer;color:var(--dim);} #wm-close:hover{color:var(--gold);}
   #escmenu .esc-row{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;color:var(--txt);margin:8px 0;}
   #escmenu .esc-row input[type=range]{flex:1;max-width:150px;}
   #esc-close{cursor:pointer;color:var(--dim);} #esc-close:hover{color:var(--gold);}
@@ -326,6 +327,10 @@
   <div class="esc-row"><label><input id="set-grass" type="checkbox"> Grass detail</label></div>
   <button class="btn" id="esc-resume" style="width:100%;margin-top:12px;padding:9px">Resume</button>
   <button class="btn" id="esc-logout" style="width:100%;margin-top:8px;padding:9px;background:#5a5142;color:#f0e0b0">Logout</button>
+</div></div>
+<div id="worldmap"><div class="cw-box" style="width:auto;max-width:none">
+  <div class="cw-head">World Map <span style="font-size:11px;color:var(--dim);font-weight:normal">— press M to close</span> <span id="wm-close">✕</span></div>
+  <canvas id="wmcanvas" width="460" height="460" style="display:block;border:2px solid var(--frame);border-radius:6px;max-width:86vw;max-height:74vh"></canvas>
 </div></div>
 <div id="p2pdlg"><div class="p2p-box"><div id="p2p-text"></div><div class="p2p-acts"><button id="p2p-yes">Accept</button><button id="p2p-no" class="p2p-decline">Decline</button></div></div></div>
 <div id="tradewin"><div class="tw-box">
@@ -2300,6 +2305,9 @@ const keys={};
 addEventListener("keydown",e=>{keys[e.key.toLowerCase()]=true;
   if(e.key==="Escape"&&gameStarted){ const m=document.getElementById("escmenu");
     if(m.classList.contains("show"))closeEsc(); else openEsc(); return; }
+  if((e.key==="m"||e.key==="M")&&gameStarted){ const ae=document.activeElement;
+    if(ae&&(ae.tagName==="INPUT"||ae.tagName==="TEXTAREA"))return;
+    if(WM.classList.contains("show"))closeMap(); else openMap(); return; }
   if(e.key==="Tab"){ const ae=document.activeElement;
     if(ae&&(ae.tagName==="INPUT"||ae.tagName==="TEXTAREA"))return;   // let Tab move between text fields
     if(!gameStarted)return;
@@ -2775,6 +2783,12 @@ function updateMinimap(){
   if(player.clickMark&&near(player.clickMark)){const[a,b]=toMM(player.clickMark.x,player.clickMark.z);
     mmx.strokeStyle="#ff3030";mmx.lineWidth=1.5;mmx.beginPath();
     mmx.moveTo(a-3,b-3);mmx.lineTo(a+3,b+3);mmx.moveTo(a+3,b-3);mmx.lineTo(a-3,b+3);mmx.stroke();}
+  // your grave(s) — clamped to the minimap edge when out of range so you can find it
+  const myGraves=NET.online?[...serverGraves.values()].filter(g=>g.pid===NET.id):graves;
+  for(const gr of myGraves){ let dx=(gr.pos.x-player.pos.x)*MMSCALE, dz=(gr.pos.z-player.pos.z)*MMSCALE;
+    const d=Math.hypot(dx,dz); if(d>MMR-7){const k=(MMR-7)/d;dx*=k;dz*=k;} const a=MMR+dx,b=MMR+dz;
+    mmx.fillStyle="#8fe0b0"; mmx.fillRect(a-0.9,b-4,1.8,8); mmx.fillRect(a-3,b-2,6,1.8);   // grave cross
+    mmx.strokeStyle="#0d0a07"; mmx.lineWidth=0.6; mmx.strokeRect(a-3,b-4,6,8); }
   // player (always centre) with facing tick
   mmx.fillStyle="#4ad0ff";mmx.beginPath();mmx.arc(MMR,MMR,3.5,0,7);mmx.fill();
   mmx.restore();
@@ -2804,6 +2818,7 @@ function renderHelp(){panel.innerHTML=`<h2>How to play</h2>
     <p><b>Chat:</b> press <b>Enter</b> to talk.</p>
     <p><b>Run:</b> toggle with the 🏃 button (top-right); it uses energy.</p>
     <p><b>Stairs:</b> click a staircase to go up/down floors.</p>
+    <p><b>World map:</b> press <b>M</b>. <b>Menu/settings:</b> press <b>Esc</b>.</p>
   </div>
   <button class="btn" id="logoutbtn" style="width:100%;margin-top:12px;padding:9px;">Logout</button>`;
   const lb=document.getElementById("logoutbtn"); if(lb)lb.onclick=doLogout;}
@@ -3383,6 +3398,29 @@ function openEsc(){ document.getElementById("set-sfx").value=settings.sfx;
   document.getElementById("set-music").value=settings.music; document.getElementById("set-grass").checked=settings.grass;
   document.getElementById("escmenu").classList.add("show"); }
 function closeEsc(){ document.getElementById("escmenu").classList.remove("show"); }
+/* ---------------- World map (M) ---------------- */
+const WM=document.getElementById("worldmap"), wmc=document.getElementById("wmcanvas"); let wmTimer=null;
+function w2c(wx,wz){const S=wmc.width; return [ (wx+HALF)/(2*HALF)*S, (wz+HALF)/(2*HALF)*S ];}
+function drawWorldMap(){ const g=wmc.getContext("2d"), S=wmc.width; if(!g)return; g.clearRect(0,0,S,S);
+  const step=8;
+  for(let y=0;y<S;y+=step)for(let x=0;x<S;x+=step){ const wx=x/S*2*HALF-HALF, wz=y/S*2*HALF-HALF;
+    g.fillStyle="#"+biomeAt(wx,wz).ground.toString(16).padStart(6,"0"); g.fillRect(x,y,step,step); }
+  g.strokeStyle="#0d0a07"; g.lineWidth=3; g.strokeRect(0,0,S,S);
+  const label=(t,a,b,col,dy)=>{ g.font="bold 11px Trebuchet MS"; g.textAlign="center"; g.lineWidth=3; g.strokeStyle="#000";
+    g.strokeText(t,a,b+(dy||-8)); g.fillStyle=col; g.fillText(t,a,b+(dy||-8)); };
+  for(const p of POIS){ const[a,b]=w2c(p.x,p.z); g.fillStyle="#cfc7b0"; g.fillRect(a-2,b-2,4,4); }
+  for(const t of MAP.TOWNS){ const[a,b]=w2c(t.x,t.z);
+    g.fillStyle="#d9b65a"; g.beginPath(); g.arc(a,b,5,0,7); g.fill(); g.strokeStyle="#000"; g.lineWidth=1.5; g.stroke();
+    label(t.name,a,b,"#ffe9b0"); }
+  if(typeof darude!=="undefined"&&darude&&darude.alive){ const[a,b]=w2c(darude.pos.x,darude.pos.z);
+    g.fillStyle="#ff4030"; g.beginPath(); g.arc(a,b,5,0,7); g.fill(); g.strokeStyle="#000";g.lineWidth=1.5;g.stroke(); label("Darude",a,b,"#ffb0a0"); }
+  const myGraves=NET.online?[...serverGraves.values()].filter(gr=>gr.pid===NET.id):graves;
+  for(const gr of myGraves){ const[a,b]=w2c(gr.pos.x,gr.pos.z); g.fillStyle="#8fe0b0"; g.fillRect(a-1.2,b-5,2.4,10); g.fillRect(a-4,b-2.5,8,2.4); label("Grave",a,b,"#8fe0b0",-9); }
+  const[px,py]=w2c(player.pos.x,player.pos.z); g.fillStyle="#4ad0ff"; g.beginPath(); g.arc(px,py,5,0,7); g.fill(); g.strokeStyle="#000";g.lineWidth=1.5;g.stroke(); label("You",px,py,"#bfeeff"); }
+function openMap(){ drawWorldMap(); WM.classList.add("show"); if(!wmTimer)wmTimer=setInterval(()=>{ if(WM.classList.contains("show"))drawWorldMap(); },600); }
+function closeMap(){ WM.classList.remove("show"); }
+document.getElementById("wm-close").onclick=closeMap;
+WM.onclick=(e)=>{ if(e.target===WM)closeMap(); };
 
 /* ============================================================ *
  *  BOOT

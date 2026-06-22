@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.42",
+ "version": "1.0.43",
  "generated": "2026-06-22",
  "patches": [
+  {
+   "version": "1.0.43",
+   "date": "2026-06-22",
+   "title": "World map (M) + grave marker on the minimap",
+   "notes": []
+  },
   {
    "version": "1.0.42",
    "date": "2026-06-22",
@@ -204,12 +210,6 @@ window.PATCHNOTES={
    "version": "1.0.5",
    "date": "2026-06-21",
    "title": "Enemies obey multi-combat rules (single-combat lock outside zones)",
-   "notes": []
-  },
-  {
-   "version": "1.0.3",
-   "date": "2026-06-21",
-   "title": "Server-authoritative PvP duels with networked gunfire",
    "notes": []
   }
  ]
