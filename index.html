@@ -472,22 +472,34 @@ const player={
 const stage=document.getElementById("stage");
 const scene=new THREE.Scene();
 const camera=new THREE.PerspectiveCamera(55,1,0.1,900);
-// robust renderer creation: try a couple of option sets, and never let a WebGL
-// failure abort the whole script (which would kill the menu, patch notes & buttons)
-let renderer=null, glOK=true;
-for(const opts of [{antialias:true,powerPreference:"high-performance"},{antialias:false},{antialias:false,failIfMajorPerformanceCaveat:false}]){
-  try{ renderer=new THREE.WebGLRenderer(opts); break; }catch(e){ /* try next */ }
-}
-if(!renderer){                                  // WebGL unavailable — keep the page alive with a clear message
+// robust renderer creation: try several configs (incl. WebGL1), and never let a
+// WebGL failure abort the whole script (which would kill menu/patch-notes/buttons)
+let renderer=null, glOK=true, glErr="";
+const _tries=[
+  ()=>new THREE.WebGLRenderer({antialias:true,powerPreference:"high-performance"}),
+  ()=>new THREE.WebGLRenderer({antialias:false}),
+  ()=>new THREE.WebGLRenderer({antialias:false,powerPreference:"low-power"}),
+  ()=>THREE.WebGL1Renderer?new THREE.WebGL1Renderer({antialias:false}):null,   // some GPUs do WebGL1 but not 2
+];
+for(const t of _tries){ try{ const r=t(); if(r){renderer=r;break;} }catch(e){ glErr=e&&e.message||String(e); } }
+// probe a raw context so we can tell the player whether WebGL is genuinely missing
+function _hasWebGL(){ try{ const c=document.createElement("canvas");
+  return !!(c.getContext("webgl2")||c.getContext("webgl")||c.getContext("experimental-webgl")); }catch(e){ return false; } }
+if(!renderer){
   glOK=false;
-  const cv=document.createElement("canvas");
-  renderer={ domElement:cv, setPixelRatio(){}, setSize(){}, render(){},
+  renderer={ domElement:document.createElement("canvas"), setPixelRatio(){}, setSize(){}, render(){},
     outputEncoding:0, toneMapping:0, toneMappingExposure:1 };
+  const had=_hasWebGL();
   const warn=document.createElement("div");
-  warn.style.cssText="position:fixed;inset:0;z-index:400;display:flex;align-items:center;justify-content:center;text-align:center;background:#0d0a07;color:#d9b65a;font-family:sans-serif;font-size:18px;padding:24px;line-height:1.6;";
-  warn.innerHTML="⚠ Gunscape needs WebGL, which your browser couldn't start.<br><br>"+
-    "<span style='color:#9c8f73;font-size:14px'>Enable hardware acceleration (or try Chrome/Edge), then reload.<br>"+
-    "chrome://settings → System → \"Use graphics acceleration when available\".</span>";
+  warn.style.cssText="position:fixed;inset:0;z-index:400;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:#0d0a07;color:#d9b65a;font-family:sans-serif;font-size:18px;padding:24px;line-height:1.6;";
+  warn.innerHTML="⚠ Gunscape couldn't start a 3D (WebGL) context."+
+    "<div style='color:#9c8f73;font-size:14px;margin-top:14px;max-width:560px'>"+
+    (had? "Your browser supports WebGL but the GPU context failed to open — this usually means the graphics process is in a bad state from too many reloads/tabs. <b>Fully quit and reopen the browser</b> (or open <span style='color:#d9b65a'>chrome://restart</span>) and close other heavy tabs."
+        : "Your browser reports no WebGL. Turn on hardware acceleration (Settings → System → \"Use graphics acceleration when available\"), then <b>relaunch the browser</b>. Check <span style='color:#d9b65a'>chrome://gpu</span> — \"WebGL\" should say Hardware accelerated.")+
+    "<div style='font-size:11px;opacity:.6;margin-top:10px'>"+(glErr||"")+"</div></div>";
+  const btn=document.createElement("button");
+  btn.textContent="Reload"; btn.style.cssText="margin-top:18px;padding:10px 22px;font-weight:bold;background:#d9b65a;color:#1c1712;border:none;border-radius:6px;cursor:pointer;";
+  btn.onclick=()=>location.reload(); warn.appendChild(btn);
   (document.body||document.documentElement).appendChild(warn);
 }
 try{

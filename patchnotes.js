@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.26",
+ "version": "1.0.27",
  "generated": "2026-06-22",
  "patches": [
+  {
+   "version": "1.0.27",
+   "date": "2026-06-22",
+   "title": "Stronger WebGL fallback: try WebGL1, accurate diagnostics, reload button",
+   "notes": []
+  },
   {
    "version": "1.0.26",
    "date": "2026-06-22",
