@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.32",
+ "version": "1.0.33",
  "generated": "2026-06-22",
  "patches": [
+  {
+   "version": "1.0.33",
+   "date": "2026-06-22",
+   "title": "Roads between villages, drop the per-house spokes, hide admin note",
+   "notes": []
+  },
   {
    "version": "1.0.32",
    "date": "2026-06-22",

@@ -1055,7 +1055,6 @@ function buildTown(center,houses,name){
     const x=center.x+Math.cos(a)*rad, z=center.z+Math.sin(a)*rad;
     const w=8+Math.random()*3, d=8+Math.random()*3;
     if(overlapsBuilding(x,z,w/2,d/2))continue;          // don't cram buildings together
-    makePath(center.x+Math.cos(a)*rad*0.5, center.z+Math.sin(a)*rad*0.5, 3, rad, -a); // spoke
     const two=Math.random()<0.4;
     makeHouse(x,z,w,d,null,{twoStorey:two, flat:!two&&Math.random()<0.3});
     if(two&&Math.random()<0.6){                          // ambient resident upstairs, occasionally
@@ -1075,6 +1074,12 @@ buildTown(TOWN,8,"Riverside");
 buildTown(OUTPOST,5,"Forest Outpost");
 buildTown(TOWN2,6,"Tinhollow");        // new quest-giver village (Hunter Bex & Joss live here now)
 for(let i=3;i<MAP.TOWNS.length;i++){const t=MAP.TOWNS[i]; buildTown(new THREE.Vector3(t.x,0,t.z),6,t.name);}  // 5 more villages
+// worn cobble roads connecting the villages (follow the terrain)
+function drawRoad(a,b){const dx=b.x-a.x,dz=b.z-a.z,len=Math.hypot(dx,dz),th=Math.atan2(dz,dx);
+  const n=Math.max(1,Math.ceil(len/4));
+  for(let i=0;i<=n;i++){const t=i/n; makePath(a.x+dx*t,a.z+dz*t,5,6,-th);}}
+const T=MAP.TOWNS;
+for(const[i,j]of [[0,2],[2,1],[2,6],[0,3],[0,4],[4,7],[3,5],[0,5]]) drawRoad(T[i],T[j]);  // village network
 
 // specialized vendors across the towns (each opens its own shop window)
 const VENDORS={
@@ -2672,7 +2677,7 @@ function renderHelp(){panel.innerHTML=`<h2>How to play</h2>
     <p><b>Gather:</b> click trees to chop; right-click logs to light a fire and cook food.</p>
     <p><b>Camera:</b> <b>A/D</b> turn, <b>W/S</b> tilt, hold <b>middle-mouse</b> to orbit, wheel to zoom.</p>
     <p><b>Attack style / Prayers:</b> hold <b>Tab</b>.</p>
-    <p><b>Chat:</b> press <b>Enter</b>. Admins: type <b>/help</b> for commands.</p>
+    <p><b>Chat:</b> press <b>Enter</b> to talk.</p>
     <p><b>Run:</b> toggle with the 🏃 button (top-right); it uses energy.</p>
     <p><b>Stairs:</b> click a staircase to go up/down floors.</p>
   </div>
