@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.43",
+ "version": "1.0.44",
  "generated": "2026-06-22",
  "patches": [
+  {
+   "version": "1.0.44",
+   "date": "2026-06-22",
+   "title": "One-handed off-arm stays down, add a mouth, blend paths into terrain",
+   "notes": []
+  },
   {
    "version": "1.0.43",
    "date": "2026-06-22",

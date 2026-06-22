@@ -653,8 +653,8 @@ const BIOMES={
 function _flatFactor(d,r){return d<r?0:Math.min(1,(d-r)/22);}
 function terrainHeight(x,z){
   const h=Math.sin(x*0.05)*Math.cos(z*0.05)*1.2+Math.sin(x*0.13+z*0.07)*0.5;
-  let f=1;                                   // flatten the ground inside every town
-  for(const t of MAP.TOWNS) f=Math.min(f,_flatFactor(Math.hypot(x-t.x,z-t.z),t.r-6));
+  let f=1;                                   // flatten the ground inside every town (covers the cobble plaza)
+  for(const t of MAP.TOWNS) f=Math.min(f,_flatFactor(Math.hypot(x-t.x,z-t.z),t.r));
   return h*f;
 }
 /* ---------------- Terrain ----------------------------------- */
@@ -768,8 +768,10 @@ function makeHumanoid(o){
   // face on the front (+z) so facing direction is obvious
   const eyeL=ball(0.075,0x16110d); eyeL.position.set(-0.14,0.06,0.33); eyeL.userData.noOutline=true;
   const eyeR=ball(0.075,0x16110d); eyeR.position.set(0.14,0.06,0.33); eyeR.userData.noOutline=true;
-  const brow=box(0.42,0.06,0.05,0x16110d); brow.position.set(0,0.2,0.34); brow.userData.noOutline=true;
-  head.add(eyeL,eyeR,brow);
+  const browL=box(0.17,0.05,0.05,0x16110d); browL.position.set(-0.14,0.19,0.34); browL.userData.noOutline=true;   // two brows, not a unibrow
+  const browR=box(0.17,0.05,0.05,0x16110d); browR.position.set(0.14,0.19,0.34); browR.userData.noOutline=true;
+  const mouth=box(0.2,0.045,0.05,0x5a2f28); mouth.position.set(0,-0.15,0.34); mouth.userData.noOutline=true;
+  head.add(eyeL,eyeR,browL,browR,mouth);
   const armL=limb(0.15,0.12,1.1,shirt,0.18,skin,0.16); armL.position.set(-0.6,2.6,0);
   const armR=limb(0.15,0.12,1.1,shirt,0.18,skin,0.16); armR.position.set(0.6,2.55,0.15);
   g.add(legL,legR,hips,torso,chest,neck,head,armL,armR);
@@ -1056,10 +1058,12 @@ function doCraft(r){ if(!canCraft(r)){log("You can't make that yet.","bad");retu
 }
 
 // flat cobblestone path quad laid just above the (flattened) town ground
+// shared path material with polygon-offset so paths blend onto the terrain (no z-fight / clip flicker)
+const pathMat=toonMat({color:0xbfb091,map:TEX.path,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});
 function makePath(cx,cz,w,d,rot){
-  const m=new THREE.Mesh(new THREE.PlaneGeometry(w,d),toonMat({color:0xbfb091,map:TEX.path}));
+  const m=new THREE.Mesh(new THREE.PlaneGeometry(w,d),pathMat);
   m.rotation.x=-Math.PI/2; if(rot)m.rotation.z=rot;
-  m.position.set(cx,terrainHeight(cx,cz)+0.06,cz); m.userData.noOutline=true; scene.add(m);
+  m.position.set(cx,terrainHeight(cx,cz)+0.14,cz); m.userData.noOutline=true; scene.add(m);
 }
 // little homely props
 function makeFlower(x,z){const g=new THREE.Group(); g.position.set(x,terrainHeight(x,z),z);
@@ -1081,8 +1085,8 @@ function nearBlocker(x,z,pad){for(const b of blockers)if(Math.hypot(x-b.x,z-b.z)
 function overlapsBuilding(cx,cz,hw,hd){for(const b of buildings)if(Math.abs(cx-b.fx)<hw+b.hw+2.5&&Math.abs(cz-b.fz)<hd+b.hd+2.5)return true;return false;}
 function buildTown(center,houses,name){
   // textured village ground (cobble plaza) so towns read as "homely" and pathed
-  const plaza=new THREE.Mesh(new THREE.CircleGeometry(40,44),toonMat({color:0xb8a884,map:TEX.path}));
-  plaza.rotation.x=-Math.PI/2; plaza.position.set(center.x,terrainHeight(center.x,center.z)+0.03,center.z); plaza.userData.noOutline=true; scene.add(plaza);
+  const plaza=new THREE.Mesh(new THREE.CircleGeometry(36,44),pathMat);
+  plaza.rotation.x=-Math.PI/2; plaza.position.set(center.x,terrainHeight(center.x,center.z)+0.1,center.z); plaza.userData.noOutline=true; scene.add(plaza);
   // ring road around the plaza
   for(let i=0;i<28;i++){const a=i/28*6.283,a2=(i+1)/28*6.283,r=30;
     const mx=center.x+Math.cos((a+a2)/2)*r, mz=center.z+Math.sin((a+a2)/2)*r;
@@ -1114,8 +1118,8 @@ buildTown(TOWN2,6,"Tinhollow");        // new quest-giver village (Hunter Bex & 
 for(let i=3;i<MAP.TOWNS.length;i++){const t=MAP.TOWNS[i]; buildTown(new THREE.Vector3(t.x,0,t.z),6,t.name);}  // 5 more villages
 // worn cobble roads connecting the villages (follow the terrain)
 function drawRoad(a,b){const dx=b.x-a.x,dz=b.z-a.z,len=Math.hypot(dx,dz),th=Math.atan2(dz,dx);
-  const n=Math.max(1,Math.ceil(len/4));
-  for(let i=0;i<=n;i++){const t=i/n; makePath(a.x+dx*t,a.z+dz*t,5,6,-th);}}
+  const n=Math.max(1,Math.ceil(len/3));                         // dense segments hug the terrain over hills
+  for(let i=0;i<=n;i++){const t=i/n; makePath(a.x+dx*t,a.z+dz*t,5,4.5,-th);}}
 const T=MAP.TOWNS;
 for(const[i,j]of [[0,2],[2,1],[2,6],[0,3],[0,4],[4,7],[3,5],[0,5]]) drawRoad(T[i],T[j]);  // village network
 
@@ -2528,11 +2532,11 @@ function openWorldMenu(cx,cy){
 /* ============================================================ *
  *  GAME LOOP
  * ============================================================ */
-// aiming pose: gun arm raised; for two-handed (rifles) the support arm comes across to grip
+// aiming pose: gun arm raised; for two-handed (rifles) the support arm comes across to grip.
+// one-handed (pistols) raise ONLY the gun arm — the off hand stays down.
 function applyAim(mesh){const p=mesh&&mesh.userData&&mesh.userData.parts; if(!p)return;
   if(p.armL)p.armL.rotation.x=-1.4;
-  if(p.armR){ if(mesh.userData.twoHand){ p.armR.rotation.x=-1.25; p.armR.rotation.z=-0.8; }   // reach over to the foregrip
-    else { p.armR.rotation.x=-0.7; } }}
+  if(p.armR&&mesh.userData.twoHand){ p.armR.rotation.x=-1.25; p.armR.rotation.z=-0.8; }}
 function animateLegs(mesh,phase,amp){const p=mesh.userData.parts;if(!p)return;
   if(p.armR)p.armR.rotation.z=0;   // reset cross-grip roll (re-applied by applyAim while aiming)
   if(p.legL)p.legL.rotation.x=Math.sin(phase)*amp;
