@@ -61,6 +61,12 @@ houses with a stair hole + enclosed upstairs + floor-aware collision via
 - After changes, smoke-test headlessly: stub THREE + DOM (+ localStorage) in a `.cjs`,
   concat the inline + local-`src` scripts, append `startGame(false)`, drive rAF frames.
 - Commit messages auto-become changelog entries; version is `1.0.<commit-count>`.
+- **Patch-note style:** commit-body bullet lines become the in-game patch notes. Start
+  a bullet with a category tag so the changelog renders it nicely, e.g.
+  `Combat:`, `Balance:`, `Nerf:`, `Buff:`, `World:`, `UI:`, `Vendors:`, `Prayer:`,
+  `Skills:`, `Bugfix:`, `Feature:`. For any nerf/buff give **before → after** values
+  with an arrow, e.g. `Nerf: Bulwark damage soak 40% → 20%`. The changelog UI tags the
+  category and strikes/greens the before/after values automatically.
 
 ## Deploy
 Static client → Cloudflare (mirrors the Stormfall setup): `npm run build` → `dist/`,

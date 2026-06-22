@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.33",
+ "version": "1.0.34",
  "generated": "2026-06-22",
  "patches": [
+  {
+   "version": "1.0.34",
+   "date": "2026-06-22",
+   "title": "Detailed patch notes: category tags + before/after values",
+   "notes": []
+  },
   {
    "version": "1.0.33",
    "date": "2026-06-22",

@@ -250,7 +250,9 @@
   .cl-h span{color:var(--dim);font-weight:normal;font-size:11px;margin-left:8px;}
   .cl-t{color:var(--txt);font-size:13px;margin:3px 0;}
   .cl-p ul{margin:4px 0 0;padding-left:18px;}
-  .cl-p li{color:var(--dim);font-size:12px;line-height:1.5;}
+  .cl-p li{color:var(--dim);font-size:12px;line-height:1.6;}
+  .cl-cat{display:inline-block;font-size:9px;font-weight:bold;color:#1c1712;padding:1px 5px;border-radius:3px;margin-right:5px;vertical-align:middle;letter-spacing:.5px;}
+  .cl-was{color:#ff8a7a;text-decoration:line-through;} .cl-now{color:#7fd06a;font-weight:bold;}
   /* p2p prompt + trade window */
   #p2pdlg{position:fixed;inset:0;z-index:130;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.5);}
   #p2pdlg.show{display:flex;}
@@ -3163,11 +3165,21 @@ document.getElementById("tw-close").onclick=()=>closeTrade("Trade cancelled.");
 /* ---------------- Version chip + changelog ----------------- */
 const PN=(typeof window!=="undefined"&&window.PATCHNOTES)||{version:"dev",patches:[]};
 function clEsc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+const CL_CATS={balance:"#ffd24a",buff:"#7fd06a",nerf:"#ff8a6a",combat:"#ff8a6a",world:"#7fd06a",ui:"#7fbfff",
+  vendors:"#c9a6ff",prayer:"#c9a6ff",mobile:"#7fbfff",bugfix:"#ff7a6a",feature:"#9fe0a0",skills:"#caa66a"};
+// render a patch-note line: highlight "before → after" values + a leading "Category:" tag
+function clNote(n){ n=clEsc(n); let cat="",rest=n;
+  const mm=n.match(/^([A-Za-z][A-Za-z ]{1,11}):\s+(.*)$/);   // leading "Category:" tag first
+  if(mm){ const col=CL_CATS[mm[1].toLowerCase().trim()]||"#8a8270";
+    cat=`<span class="cl-cat" style="background:${col}">${mm[1].toUpperCase()}</span> `; rest=mm[2]; }
+  rest=rest.replace(/([^\s][^→]*?)\s*(?:→|-&gt;)\s*([^,.;]+)/g,(m,a,b)=>`<span class="cl-was">${a.trim()}</span> → <span class="cl-now">${b.trim()}</span>`);
+  return cat+rest;
+}
 function openChangelog(){
   document.getElementById("cl-list").innerHTML=PN.patches.map(p=>
     `<div class="cl-p"><div class="cl-h">v${clEsc(p.version)}<span>${clEsc(p.date||"")}</span></div>
      <div class="cl-t">${clEsc(p.title)}</div>${p.notes&&p.notes.length?
-     "<ul>"+p.notes.map(n=>`<li>${clEsc(n)}</li>`).join("")+"</ul>":""}</div>`).join("")||"<p>No notes yet.</p>";
+     "<ul>"+p.notes.map(n=>`<li>${clNote(n)}</li>`).join("")+"</ul>":""}</div>`).join("")||"<p>No notes yet.</p>";
   document.getElementById("changelog").classList.add("show"); if(typeof sfxClick==="function")sfxClick();
 }
 (function initVersion(){
