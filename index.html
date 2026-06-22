@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-<title>Gunscape Classic 3D</title>
+<title>Gunscape!</title>
 <style>
   :root{
     --bg:#1c1712; --panel:#2b2419; --panel2:#3a311f; --gold:#d9b65a;
@@ -149,8 +149,11 @@
     body.mobile #multicombat{top:122px;} body.mobile #questtracker{top:150px;}
     body.mobile #chat{height:62px;}
   }
-  #craftwin,#shopwin{position:fixed;inset:0;z-index:120;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.55);}
-  #craftwin.show,#shopwin.show{display:flex;}
+  #craftwin,#shopwin,#escmenu{position:fixed;inset:0;z-index:120;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.55);}
+  #craftwin.show,#shopwin.show,#escmenu.show{display:flex;}
+  #escmenu .esc-row{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;color:var(--txt);margin:8px 0;}
+  #escmenu .esc-row input[type=range]{flex:1;max-width:150px;}
+  #esc-close{cursor:pointer;color:var(--dim);} #esc-close:hover{color:var(--gold);}
   #sw-greet{font-size:12px;color:var(--dim);font-style:italic;margin-bottom:8px;}
   #sw-cats{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;}
   #sw-coins{font-size:12px;color:#ffd24a;margin-top:8px;text-align:right;}
@@ -315,6 +318,15 @@
 <div id="changelog"><div class="cl-box"><div class="cl-head">Patch Notes <span id="cl-close">✕</span></div><div id="cl-list"></div></div></div>
 <div id="craftwin"><div class="cw-box"><div class="cw-head"><span id="cw-title">Forge</span> <span id="cw-close">✕</span></div><div id="cw-list"></div></div></div>
 <div id="shopwin"><div class="cw-box"><div class="cw-head"><span id="sw-title">Shop</span> <span id="sw-close">✕</span></div><div id="sw-greet"></div><div id="sw-cats"></div><div id="sw-list"></div><div id="sw-coins"></div></div></div>
+<div id="escmenu"><div class="cw-box">
+  <div class="cw-head">Menu <span id="esc-close">✕</span></div>
+  <h2 style="margin-top:6px">Settings</h2>
+  <div class="esc-row"><span>Sound FX</span><input id="set-sfx" type="range" min="0" max="100"></div>
+  <div class="esc-row"><span>Music</span><input id="set-music" type="range" min="0" max="100"></div>
+  <div class="esc-row"><label><input id="set-grass" type="checkbox"> Grass detail</label></div>
+  <button class="btn" id="esc-resume" style="width:100%;margin-top:12px;padding:9px">Resume</button>
+  <button class="btn" id="esc-logout" style="width:100%;margin-top:8px;padding:9px;background:#5a5142;color:#f0e0b0">Logout</button>
+</div></div>
 <div id="p2pdlg"><div class="p2p-box"><div id="p2p-text"></div><div class="p2p-acts"><button id="p2p-yes">Accept</button><button id="p2p-no" class="p2p-decline">Decline</button></div></div></div>
 <div id="tradewin"><div class="tw-box">
   <div class="tw-head">Trade with <span id="tw-name"></span> <span id="tw-close">✕</span></div>
@@ -332,7 +344,7 @@
 <div id="chatinput"><span id="chat-prefix">You:</span><input id="chatbox" maxlength="120" placeholder="press Enter…" /></div>
 <div id="login">
   <div class="loginbox">
-    <div class="lg-logo">GUNSCAPE<span>CLASSIC</span></div>
+    <div class="lg-logo">GUNSCAPE!</div>
     <input id="lg-user" placeholder="Username" autocomplete="username" />
     <input id="lg-pass" type="password" placeholder="Password" autocomplete="current-password" />
     <input id="lg-server" list="lg-servers" placeholder="Server (host:port)" autocomplete="off" />
@@ -717,6 +729,7 @@ function makeGunModel(type,col){
     g.add(B(0.18,0.2,1.0,dark));
     const bar=B(0.1,0.1,0.6,steel);bar.position.z=0.7;g.add(bar);
   }
+  const tip=new THREE.Object3D(); tip.position.set(0,0,1.45); g.add(tip); g.userData.tip=tip;   // muzzle = barrel end
   return g;
 }
 // Humanoid (faces +Z). opts: {height, shirt, skin, pants, gun, gunType, gunColor}
@@ -742,8 +755,8 @@ function makeHumanoid(o){
   g.add(legL,legR,hips,torso,chest,neck,head,armL,armR);
   if(o.gun!==false){
     const gun=makeGunModel(o.gunType||"rifle",o.gunColor);
-    gun.position.set(0.05,-1.0,0.35); gun.rotation.x=0.12;   // parented to the right hand (swings with the arm)
-    armR.add(gun);
+    gun.position.set(-0.05,-1.0,0.35); gun.rotation.x=0.12;   // held in the left hand (swings with the arm)
+    armL.add(gun); g.userData.gunTip=gun.userData.tip;        // remember the barrel end for muzzle/tracers
   }
   g.add(blobShadow(0.85));
   const s=(o.height??3.6)/3.6; g.scale.setScalar(s);
@@ -1772,9 +1785,32 @@ function dist2(a,b){const dx=a.x-b.x,dz=a.z-b.z;return Math.hypot(dx,dz);}
 let actx=null, masterGain=null;
 function initAudio(){ if(actx)return;
   try{ actx=new (window.AudioContext||window.webkitAudioContext)();
-    masterGain=actx.createGain(); masterGain.gain.value=0.32; masterGain.connect(actx.destination);
+    masterGain=actx.createGain(); masterGain.gain.value=0.32; masterGain.connect(actx.destination); applySfxVol();
   }catch(e){ actx=null; } }
-addEventListener("pointerdown",()=>{initAudio(); if(actx&&actx.state==="suspended")actx.resume();});
+addEventListener("pointerdown",()=>{initAudio(); if(actx&&actx.state==="suspended")actx.resume(); startMusic();});
+// ---- settings (persisted) ----
+const settings={sfx:65, music:45, grass:true};
+try{const s=JSON.parse(localStorage.getItem("gs_settings")||"{}");Object.assign(settings,s);}catch(e){}
+function saveSettings(){try{localStorage.setItem("gs_settings",JSON.stringify(settings));}catch(e){}}
+function applySfxVol(){ if(masterGain)masterGain.gain.value=settings.sfx/100*0.5; }
+function applyMusicVol(){ if(musicGain)musicGain.gain.value=settings.music/100*0.25; }
+function applyGrass(){ for(const g of grassTufts)g.visible=settings.grass; }
+applyGrass();   // honour saved grass setting (grass tufts already built)
+// ---- 12-bit upbeat chiptune loop ----
+let musicGain=null, musicTimer=null, musicStep=0;
+const MEL=[659,784,880,784, 659,0,587,659, 784,880,1047,880, 784,659,587,0];   // E5 G5 A5… cheerful riff
+const BASS=[131,131,110,110, 87,87,98,98];                                       // C3 C3 A2 A2 F2 F2 G2 G2
+function mnote(freq,dur,type,vol){ if(!actx||!freq||!musicGain)return; const t=actx.currentTime,o=actx.createOscillator(),g=actx.createGain();
+  o.type=type; o.frequency.value=freq; g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol,t+0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+dur); o.connect(g); g.connect(musicGain); o.start(t); o.stop(t+dur+0.05); }
+function startMusic(){ if(!actx||musicTimer)return;
+  if(!musicGain){musicGain=actx.createGain();musicGain.connect(actx.destination);} applyMusicVol();
+  const eighth=(60/138)/2;   // 138 BPM, eighth notes
+  musicTimer=setInterval(()=>{ const s=musicStep++;
+    const mf=MEL[s%MEL.length]; if(mf)mnote(mf,eighth*0.92,"square",0.5);
+    if(s%2===0){const bf=BASS[Math.floor(s/2)%BASS.length]; if(bf)mnote(bf,eighth*1.8,"triangle",0.6);}
+    if(s%8===4)mnote(MEL[s%MEL.length]*2||880,eighth*0.5,"square",0.18);   // light arp sparkle
+  }, eighth*1000); }
 function tone(freq,dur,type,vol,slideTo){ if(!actx)return;
   const t=actx.currentTime, o=actx.createOscillator(), g=actx.createGain();
   o.type=type||"square"; o.frequency.setValueAtTime(freq,t);
@@ -1798,7 +1834,7 @@ function sfxPunch(){tone(95,0.05,"sine",0.22,55);noise(0.05,0.16,300);}
 // player attack visual: a bullet tracer for guns, a fist thrust for bare hands
 function playerAttackFx(tx,tz){
   if(player.equip.weapon==="fists"){ player.punchT=performance.now(); sfxPunch(); }
-  else { sfxShoot(player.equip.weapon); tracer(muzzle(player.mesh,3.7),new THREE.Vector3(tx,2.2,tz),0xffe070); }
+  else { sfxShoot(player.equip.weapon); tracer(gunMuzzlePos(player.mesh,3.7),new THREE.Vector3(tx,2.2,tz),0xffe070); }
 }
 function sfxKill(){tone(300,0.28,"sawtooth",0.26,80); noise(0.2,0.22,900);}
 function sfxHurt(){tone(130,0.2,"sawtooth",0.3,65);}
@@ -1981,6 +2017,10 @@ function forwardOf(mesh){return new THREE.Vector3(0,0,1).applyQuaternion(mesh.qu
 function faceTowards(mesh,tx,tz,px,pz){mesh.rotation.y=Math.atan2(tx-px,tz-pz);}
 function muzzle(mesh,h){const f=forwardOf(mesh);return new THREE.Vector3(
   mesh.position.x+f.x*1.2, (h||3.6)*0.55, mesh.position.z+f.z*1.2);}
+// tracer origin = the actual gun barrel tip when available, else a rough body muzzle
+function gunMuzzlePos(mesh,h){const tip=mesh&&mesh.userData&&mesh.userData.gunTip;
+  if(tip&&tip.getWorldPosition){const v=new THREE.Vector3();tip.getWorldPosition(v);return v;}
+  return muzzle(mesh,h);}
 
 /* ---- attack styles (hold Tab to switch) ---- */
 const COMBAT_RANGE=4.0; // front-to-front engagement distance
@@ -2074,7 +2114,7 @@ function enemyShoot(e,now){
   if(now-e.lastShot<e.fireRate)return; e.lastShot=now; player.combatUntil=now+6000;
   // auto-retaliate: start fighting back if idle
   if(player.autoRetaliate&&(!player.target||player.target.dead)){player.target=e;player.dest=null;}
-  tracer(muzzle(e.mesh,e.mesh.userData.baseHeight),new THREE.Vector3(player.pos.x,2.2,player.pos.z),0xff5040);
+  tracer(gunMuzzlePos(e.mesh,e.mesh.userData.baseHeight),new THREE.Vector3(player.pos.x,2.2,player.pos.z),0xff5040);
   // faint report if nearby
   if(dist2(e.pos,player.pos)<60) noise(0.04,0.08,1800);
   const acc=e.aim+8, hit=acc/(acc+totalArmour());
@@ -2200,6 +2240,8 @@ function findPath(sx,sz,gx,gz){
 /* ---------------- Input ------------------------------------- */
 const keys={};
 addEventListener("keydown",e=>{keys[e.key.toLowerCase()]=true;
+  if(e.key==="Escape"&&gameStarted){ const m=document.getElementById("escmenu");
+    if(m.classList.contains("show"))closeEsc(); else openEsc(); return; }
   if(e.key==="Tab"){ const ae=document.activeElement;
     if(ae&&(ae.tagName==="INPUT"||ae.tagName==="TEXTAREA"))return;   // let Tab move between text fields
     if(!gameStarted)return;
@@ -2860,16 +2902,19 @@ function removeRemote(id){const r=remotes.get(id);if(r){scene.remove(r.mesh);rem
   if(trade.open&&trade.withId===id)closeTrade("Trade partner left.",true);}
 function updateRemotes(dt){
   for(const r of remotes.values()){
+    const px=r.mesh.position.x, pz=r.mesh.position.z;
     r.mesh.position.x+=(r.tx-r.mesh.position.x)*Math.min(1,dt*8);
     r.mesh.position.z+=(r.tz-r.mesh.position.z)*Math.min(1,dt*8);
     r.mesh.position.y=terrainHeight(r.mesh.position.x,r.mesh.position.z);
     r.mesh.rotation.y=r.ry;
+    const moved=Math.hypot(r.mesh.position.x-px,r.mesh.position.z-pz)>0.02;   // walk legs when moving
+    r.walk=(r.walk||0)+(moved?dt*12:0); if(!moved)r.walk*=0.8; animateLegs(r.mesh,r.walk,moved?0.6:0.05);
     const f=r.maxhp?r.hp/r.maxhp:1; if(Math.abs(f-r.plate.userData.hp)>0.01){r.plate.userData.hp=f;drawNameBar(r.plate);}
   }
 }
 function netSend(o){if(NET.ws&&NET.ws.readyState===1)NET.ws.send(JSON.stringify(o));}
 function serializeProfile(){return {x:player.pos.x,z:player.pos.z,hp:player.hp,maxhp:maxHp(),
-  skills:player.skills,inv:player.inv,equip:player.equip,prayer:player.prayer,quests:player.quests};}
+  skills:player._realSkills||player.skills,inv:player.inv,equip:player.equip,prayer:player.prayer,quests:player.quests};}
 function applyProfile(p){if(!p)return;
   if(p.skills)player.skills=Object.assign(player.skills,p.skills);
   if(p.inv&&p.inv.length)player.inv=p.inv;
@@ -2932,12 +2977,15 @@ function clearServerWorld(){
 }
 function updateServerWorld(dt,now){
   for(const se of serverEnemies.values()){
+    const px=se.mesh.position.x, pz=se.mesh.position.z;
     se.mesh.position.x+=(se.tx-se.mesh.position.x)*Math.min(1,dt*8);
     se.mesh.position.z+=(se.tz-se.mesh.position.z)*Math.min(1,dt*8);
     se.mesh.position.y=terrainHeight(se.mesh.position.x,se.mesh.position.z);
     se.mesh.rotation.y=se.ry;
+    const moved=Math.hypot(se.mesh.position.x-px,se.mesh.position.z-pz)>0.02;   // walk legs when moving
+    se.walk=(se.walk||0)+(moved?dt*13:0); if(!moved)se.walk*=0.8; animateLegs(se.mesh,se.walk,moved?0.7:0.04);
   }
-  for(const sl of serverLoot.values())if(sl.mesh.visible)sl.mesh.position.y=terrainHeight(sl.x,sl.z)+1+Math.sin(now/350+sl.x)*0.15;
+  // server loot lies flat on the ground (no bob)
 }
 const netBanner=document.getElementById("netbanner");
 const announceEl=document.getElementById("announce"); let announceTimer=null;
@@ -2989,6 +3037,7 @@ function netConnect(url,mode,user,pass){
     else if(m.t==="chat"){log(`${m.from}: ${m.msg}`, m.from==="SERVER"?"xp":(m.from===NET.user?"loot":"sys"));}
     else if(m.t==="announce"){ showAnnounce(m.msg, m.ms||180000); }
     else if(m.t==="give"){ giveItem(m.k, m.n); }
+    else if(m.t==="simulate"){ if(m.v==="off")unsimulate(); else simulateStats(parseInt(m.v)||99); }
     else if(m.t==="kicked"){ NET.kicked=true; log(m.why||"You were disconnected.","bad");
       try{NET.ws.close();}catch(e){} document.getElementById("login").style.display="flex";
       document.getElementById("lg-msg").textContent=m.why||"Disconnected."; }
@@ -3120,7 +3169,7 @@ function pvpShoot(now){
   player.lastPvp=now; player.combatUntil=now+6000;
   netSend({t:"duelattack",target:r.id});            // server resolves the hit/damage
   sfxShoot(player.equip.weapon);                     // local immediate feedback (server skips our own fx)
-  tracer(muzzle(player.mesh,3.7),new THREE.Vector3(r.tx,2.2,r.tz),0xffe070);
+  tracer(gunMuzzlePos(player.mesh,3.7),new THREE.Vector3(r.tx,2.2,r.tz),0xffe070);
   return false;
 }
 /* ---- trading ---- */
@@ -3174,10 +3223,20 @@ function listItemIds(){
   log("Guns: "+fmt(WEAPONS),"sys");
   log("Armour: "+fmt(ARMOUR),"sys");
 }
-// client-handled chat commands (/itemids any time; /give offline). returns true if handled.
+// temporarily inflate stats for testing high-level gear (not saved while active)
+function simulateStats(lvl){ lvl=Math.max(1,Math.min(99,lvl||99));
+  if(!player._realSkills) player._realSkills=JSON.parse(JSON.stringify(player.skills));
+  for(const k in player.skills) player.skills[k]={xp:xpForLevel(lvl),lv:lvl};
+  player.hp=maxHp(); buildPlayerMesh(); refreshUI();
+  log(`Simulating all stats at level ${lvl} (temporary — '/simulate off' to revert).`,"xp"); }
+function unsimulate(){ if(!player._realSkills){log("Not simulating.","sys");return;}
+  player.skills=player._realSkills; player._realSkills=null; player.hp=Math.min(player.hp,maxHp());
+  buildPlayerMesh(); refreshUI(); log("Reverted to your real stats.","sys"); }
+// client-handled chat commands (/itemids any time; /give & /simulate offline). returns true if handled.
 function handleLocalCmd(v){ const sp=v.indexOf(" "), cmd=(sp<0?v:v.slice(0,sp)).toLowerCase(), rest=sp<0?"":v.slice(sp+1).trim();
   if(cmd==="/itemids"){ listItemIds(); return true; }
   if(cmd==="/give" && !NET.online){ const p=rest.split(/\s+/); giveItem(p[0], parseInt(p[1])||1); return true; }
+  if(cmd==="/simulate" && !NET.online){ if(rest.toLowerCase()==="off")unsimulate(); else simulateStats(parseInt(rest)||99); return true; }
   return false;
 }
 const PN=(typeof window!=="undefined"&&window.PATCHNOTES)||{version:"dev",patches:[]};
@@ -3212,7 +3271,19 @@ function openChangelog(){
   const sw=document.getElementById("shopwin");
   document.getElementById("sw-close").onclick=closeShop;
   sw.onclick=(e)=>{ if(e.target===sw)closeShop(); };
+  const esc=document.getElementById("escmenu");
+  document.getElementById("esc-close").onclick=closeEsc;
+  document.getElementById("esc-resume").onclick=closeEsc;
+  document.getElementById("esc-logout").onclick=()=>{closeEsc();doLogout();};
+  document.getElementById("set-sfx").oninput=e=>{settings.sfx=+e.target.value;applySfxVol();saveSettings();};
+  document.getElementById("set-music").oninput=e=>{settings.music=+e.target.value;applyMusicVol();saveSettings();};
+  document.getElementById("set-grass").onchange=e=>{settings.grass=e.target.checked;applyGrass();saveSettings();};
+  esc.onclick=(e)=>{ if(e.target===esc)closeEsc(); };
 })();
+function openEsc(){ document.getElementById("set-sfx").value=settings.sfx;
+  document.getElementById("set-music").value=settings.music; document.getElementById("set-grass").checked=settings.grass;
+  document.getElementById("escmenu").classList.add("show"); }
+function closeEsc(){ document.getElementById("escmenu").classList.remove("show"); }
 
 /* ============================================================ *
  *  BOOT
@@ -3220,11 +3291,7 @@ function openChangelog(){
 resize();
 document.getElementById("loading").remove();
 updateMarkers();
-log("Welcome to Gunscape Classic 3D!","sys");
-log("Explore: Greenfields (N), Mistwood (E), Dust Reach (S), Scarlands (W).","sys");
-log("Talk to townsfolk with a ! above their head for quests. Click a signed vendor to trade.","sys");
-log("Chop trees, cook on campfires, bury bones for Prayer, recharge at altars.","sys");
-log("Hold Tab for attack style & prayers. Toggle run by the minimap.","sys");
+log("Welcome to Gunscape!","sys");   // tips live in the ? tab now — keep the chat clean on login
 // game loop is started by the login screen (Login / Register / Play Offline)
 </script>
 </body>

@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.35",
+ "version": "1.0.36",
  "generated": "2026-06-22",
  "patches": [
+  {
+   "version": "1.0.36",
+   "date": "2026-06-22",
+   "title": "Gunscape rebrand, escape menu+settings+music, /simulate, gun-in-hand fixes",
+   "notes": []
+  },
   {
    "version": "1.0.35",
    "date": "2026-06-22",

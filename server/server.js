@@ -93,7 +93,8 @@ function adminCommand(ws, session, line) {
     case 'give': { const [id, amtStr] = target(); const n = Math.max(1, Math.min(1000, parseInt(amtStr) || 1));
       if (!id) { sysTo(ws, 'Usage: /give <itemid> <amount> — see /itemids'); break; }
       send(ws, { t: 'give', k: id, n }); sysTo(ws, `Gave you ${n}× ${id}.`); break; }
-    default: sysTo(ws, 'Admin cmds: /broadcast · /announce · /dm <user> <m> · /kick · /ban · /unban · /who · /give <itemid> <n> · /itemids');
+    case 'simulate': { send(ws, { t: 'simulate', v: rest.trim().toLowerCase() }); sysTo(ws, `Simulating stats: ${rest || '99'}`); break; }
+    default: sysTo(ws, 'Admin cmds: /broadcast · /announce · /dm <user> <m> · /kick · /ban · /unban · /who · /give <itemid> <n> · /itemids · /simulate <lvl|off>');
   }
 }
 
