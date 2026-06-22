@@ -14,11 +14,13 @@
   html,body{margin:0;height:100%;background:var(--frame);
     font-family:"Trebuchet MS","Segoe UI",sans-serif;color:var(--txt);
     overflow:hidden;user-select:none;-webkit-user-select:none;}
-  #wrap{display:flex;height:100vh;height:calc(var(--vh,1vh)*100);height:100dvh;}
+  #wrap{position:relative;display:flex;height:100vh;height:calc(var(--vh,1vh)*100);height:100dvh;}
   #stage{position:relative;flex:1;min-width:0;background:#0a0a12;overflow:hidden;}
   #stage canvas{display:block;}
-  #side{width:212px;background:var(--panel);border-left:3px solid var(--frame);
-    display:flex;flex-direction:column;min-width:212px;}
+  /* RS-style: a compact panel anchored to the bottom-right, not full height */
+  #side{position:absolute;right:10px;bottom:10px;width:258px;height:60vh;max-height:480px;min-height:320px;
+    background:var(--panel);border:3px solid var(--frame);border-radius:10px;z-index:30;
+    display:flex;flex-direction:column;overflow:hidden;box-shadow:0 6px 22px rgba(0,0,0,.55);}
   #tabs{display:flex;flex-wrap:wrap;background:var(--frame);}
   .tab{flex:1 1 0;text-align:center;padding:8px 2px;font-size:12px;cursor:pointer;
     background:var(--panel2);border:1px solid var(--frame);color:var(--dim);font-weight:bold;}
@@ -147,8 +149,13 @@
     body.mobile #multicombat{top:122px;} body.mobile #questtracker{top:150px;}
     body.mobile #chat{height:62px;}
   }
-  #craftwin{position:fixed;inset:0;z-index:120;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.55);}
-  #craftwin.show{display:flex;}
+  #craftwin,#shopwin{position:fixed;inset:0;z-index:120;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.55);}
+  #craftwin.show,#shopwin.show{display:flex;}
+  #sw-greet{font-size:12px;color:var(--dim);font-style:italic;margin-bottom:8px;}
+  #sw-cats{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;}
+  #sw-coins{font-size:12px;color:#ffd24a;margin-top:8px;text-align:right;}
+  #sw-list{max-height:46vh;overflow-y:auto;}
+  #sw-close{cursor:pointer;color:var(--dim);} #sw-close:hover{color:var(--gold);}
   .cw-box{width:420px;max-width:92vw;max-height:80vh;overflow-y:auto;background:var(--panel);
     border:2px solid var(--gold);border-radius:10px;padding:14px 16px;}
   .cw-head{display:flex;justify-content:space-between;font-size:17px;color:var(--gold);font-weight:bold;
@@ -294,7 +301,6 @@
       <div class="tab active" data-tab="skills">Skills</div>
       <div class="tab" data-tab="inv">Inv</div>
       <div class="tab" data-tab="equip">Worn</div>
-      <div class="tab" data-tab="shop">Shop</div>
       <div class="tab" data-tab="help">?</div>
     </div>
     <div id="panelbody"></div>
@@ -304,6 +310,7 @@
 <div id="rotate"><div>⟳<br>Rotate your device<br><small>Gunscape plays in landscape</small></div></div>
 <div id="changelog"><div class="cl-box"><div class="cl-head">Patch Notes <span id="cl-close">✕</span></div><div id="cl-list"></div></div></div>
 <div id="craftwin"><div class="cw-box"><div class="cw-head"><span id="cw-title">Forge</span> <span id="cw-close">✕</span></div><div id="cw-list"></div></div></div>
+<div id="shopwin"><div class="cw-box"><div class="cw-head"><span id="sw-title">Shop</span> <span id="sw-close">✕</span></div><div id="sw-greet"></div><div id="sw-cats"></div><div id="sw-list"></div><div id="sw-coins"></div></div></div>
 <div id="p2pdlg"><div class="p2p-box"><div id="p2p-text"></div><div class="p2p-acts"><button id="p2p-yes">Accept</button><button id="p2p-no" class="p2p-decline">Decline</button></div></div></div>
 <div id="tradewin"><div class="tw-box">
   <div class="tw-head">Trade with <span id="tw-name"></span> <span id="tw-close">✕</span></div>
@@ -1066,11 +1073,39 @@ buildTown(OUTPOST,5,"Forest Outpost");
 buildTown(TOWN2,6,"Tinhollow");        // new quest-giver village (Hunter Bex & Joss live here now)
 for(let i=3;i<MAP.TOWNS.length;i++){const t=MAP.TOWNS[i]; buildTown(new THREE.Vector3(t.x,0,t.z),6,t.name);}  // 5 more villages
 
-// shopkeeper lives inside a shop building in the main town
-makeHouse(6,11,10,9,0xb98a5a);
-const shopkeeper=makeHumanoid({height:3.6,shirt:0x9c5a2a,skin:0xd0a878,gun:false});
-addOutline(shopkeeper); shopkeeper.position.set(6,terrainHeight(6,11),11); scene.add(shopkeeper);
-const shopSign=box(2.4,1,0.2,0xffd24a); shopSign.position.set(6,6.4,15.6); scene.add(shopSign);
+// specialized vendors across the towns (each opens its own shop window)
+const VENDORS={
+  guns:    {name:"Gun Runner",    greet:"Best firearms in the wastes — point and click.", mult:1.0, cats:["weapon"]},
+  armor:   {name:"Armourer",      greet:"Cloth, cardboard, plate, kevlar. Stay alive out there.", mult:1.0, cats:["armour"]},
+  general: {name:"General Store", greet:"Tools, bandages, potions — everything else you need.", mult:1.0, cats:["general"]},
+  market:  {name:"Black Market",  greet:"Guns AND armour, friend... but it'll cost you.", mult:1.9, cats:["weapon","armour"]},
+};
+const vendors=[];
+const VENDOR_LOOK={guns:{shirt:0x7a5a2a,sign:0xc0392b},armor:{shirt:0x4a5a6a,sign:0x4a78c0},general:{shirt:0x4a7a3a,sign:0x6aa84a},market:{shirt:0x5a2a5a,sign:0xc0a020}};
+function makeVendor(type,x,z){
+  const look=VENDOR_LOOK[type]||VENDOR_LOOK.general;
+  const m=makeHumanoid({height:3.6,shirt:look.shirt,skin:0xd0a878,gun:false});
+  addOutline(m); m.position.set(x,terrainHeight(x,z),z); scene.add(m);
+  // labelled stall sign above the vendor
+  const post=box(0.18,3,0.18,0x6b4a2a,TEX.wood); post.position.set(x,terrainHeight(x,z)+1.5,z-1.2); scene.add(post);
+  const cv=document.createElement("canvas"); cv.width=256; cv.height=64; const cc=cv.getContext("2d");
+  cc.fillStyle="#"+look.sign.toString(16).padStart(6,"0"); cc.fillRect(0,0,256,64);
+  cc.fillStyle="#fff"; cc.font="bold 26px Trebuchet MS"; cc.textAlign="center"; cc.fillText(VENDORS[type].name,128,42);
+  const tex=new THREE.CanvasTexture(cv);
+  const board=new THREE.Mesh(new THREE.PlaneGeometry(3,0.8),new THREE.MeshBasicMaterial({map:tex}));
+  board.position.set(x,terrainHeight(x,z)+3.0,z-1.1); board.userData.noOutline=true; scene.add(board);
+  const v={type,mesh:m,pos:new THREE.Vector3(x,0,z)}; m.userData.vendor=v; vendors.push(v); return v;
+}
+makeHouse(6,11,10,9,0xb98a5a);                          // the old gun-shop building stays
+makeVendor("guns",   6, 11);                            // Riverside: guns (in the shop) + general
+makeVendor("general",-12, 10);
+makeVendor("armor",  TOWN2.x+2, TOWN2.z+12);            // Tinhollow: armour (near the workshops)
+makeVendor("general",OUTPOST.x-6, OUTPOST.z+6);         // Forest Outpost
+makeVendor("guns",   MAP.TOWNS[3].x+6, MAP.TOWNS[3].z+6);   // Greenreach
+makeVendor("market", MAP.TOWNS[4].x-6, MAP.TOWNS[4].z+8);   // Dustfall: black market
+makeVendor("armor",  MAP.TOWNS[5].x+6, MAP.TOWNS[5].z+6);   // Ironcross
+makeVendor("general",MAP.TOWNS[6].x-6, MAP.TOWNS[6].z+6);   // Mistvale
+makeVendor("market", MAP.TOWNS[7].x+6, MAP.TOWNS[7].z-6);   // Saltmarsh
 
 // scatter biome flora
 function scatterFlora(){
@@ -2164,7 +2199,7 @@ function castAt(clientX,clientY){
   const r=renderer.domElement.getBoundingClientRect();
   mouse.x=((clientX-r.left)/r.width)*2-1; mouse.y=-((clientY-r.top)/r.height)*2+1;
   raycaster.setFromCamera(mouse,camera);
-  const res={enemy:null,npc:null,shop:false,drop:null,tree:null,door:null,altar:null,player:null,stairs:null,workshop:null,ore:null,boss:null,point:null};
+  const res={enemy:null,npc:null,vendor:null,drop:null,tree:null,door:null,altar:null,player:null,stairs:null,workshop:null,ore:null,boss:null,point:null};
   if(NET.online){ // server-driven enemies + loot
     const eh=raycaster.intersectObjects([...serverEnemies.values()].map(s=>s.mesh),true);
     if(eh.length){let o=eh[0].object;while(o&&o.userData.serverEnemy==null)o=o.parent;if(o)res.enemy=serverEnemies.get(o.userData.serverEnemy);}
@@ -2180,7 +2215,8 @@ function castAt(clientX,clientY){
   if(ph.length){let o=ph[0].object;while(o&&o.userData.remoteId==null)o=o.parent;if(o)res.player=remotes.get(o.userData.remoteId);}
   const nh=raycaster.intersectObjects(npcs.map(n=>n.mesh),true);
   if(nh.length){let o=nh[0].object;while(o&&!o.userData.npc)o=o.parent;if(o)res.npc=o.userData.npc;}
-  if(raycaster.intersectObject(shopkeeper,true).length) res.shop=true;
+  const vh=raycaster.intersectObjects(vendors.map(v=>v.mesh),true);
+  if(vh.length){let o=vh[0].object;while(o&&!o.userData.vendor)o=o.parent;if(o)res.vendor=o.userData.vendor;}
   const dr=raycaster.intersectObjects(buildings.map(b=>b.door.mesh),false);
   if(dr.length)res.door=dr[0].object.userData.door;
   const th=raycaster.intersectObjects(trees.filter(t=>!t.depleted).map(t=>t.group),true);
@@ -2201,7 +2237,7 @@ function castAt(clientX,clientY){
 function toggleDoor(ds){ds.open=!ds.open;sfxClick();log(ds.open?"You open the door.":"You close the door.");}
 function clearActions(){player.target=null;player.dest=null;player.pickupTarget=null;
   player.talkTarget=null;player.chopTarget=null;player.doorTarget=null;player.altarTarget=null;
-  player.clickMark=null;player.pvpTarget=null;player.path=null;player.stairTarget=null;player.workshopTarget=null;player.mineTarget=null;player.bossTarget=null;
+  player.clickMark=null;player.pvpTarget=null;player.path=null;player.stairTarget=null;player.workshopTarget=null;player.mineTarget=null;player.bossTarget=null;player.shopTarget=null;
   if(dialogOpen)closeDialog();}
 function useStairs(s){ if(player.floor===0){player.floor=1;player.yOffset=FLOOR_H;player.pos.set(s.topX,0,s.topZ);log("You climb the stairs.");}
   else{player.floor=0;player.yOffset=0;player.pos.set(s.x,0,s.z);log("You go downstairs.");} sfxClick(); }
@@ -2213,7 +2249,7 @@ function worldPrimary(cx,cy){            // left-click / tap on the 3D world
   const h=castAt(cx,cy);
   if(h.boss){clearActions();player.bossTarget=h.boss;log("You attack Darude!","cmb");return;}
   if(h.enemy){attack(h.enemy);return;}
-  if(h.shop){openShop();return;}
+  if(h.vendor){clearActions();player.shopTarget=h.vendor;return;}
   if(h.npc){clearActions();player.talkTarget=h.npc;return;}
   if(h.door){clearActions();player.doorTarget=h.door;return;}
   if(h.altar){clearActions();player.altarTarget=h.altar;return;}
@@ -2311,7 +2347,7 @@ function openWorldMenu(cx,cy){
     opts.push(["Follow "+rp.user,()=>{clearActions();player.dest=new THREE.Vector3(rp.tx,0,rp.tz);}]);
   }
   if(h.npc) opts.push(["Talk to "+h.npc.name,()=>{clearActions();player.talkTarget=h.npc;}]);
-  if(h.shop) opts.push(["Trade with Shopkeeper",()=>openShop()]);
+  if(h.vendor) opts.push(["Trade with "+VENDORS[h.vendor.type].name,()=>{clearActions();player.shopTarget=h.vendor;}]);
   if(h.door) opts.push([h.door.open?"Close door":"Open door",()=>{clearActions();player.doorTarget=h.door;}]);
   if(h.altar) opts.push(["Pray at altar",()=>{clearActions();player.altarTarget=h.altar;}]);
   if(h.stairs) opts.push([player.floor===0?"Climb stairs":"Go downstairs",()=>{clearActions();player.stairTarget=h.stairs;}]);
@@ -2394,6 +2430,10 @@ function loop(now){
     else if(player.workshopTarget){ const ws=player.workshopTarget;
       if(dist2(player.pos,ws.pos)>3.5){ if(moveToward(ws.pos.x,ws.pos.z,step))moving=true; }
       else { faceTowards(player.mesh,ws.pos.x,ws.pos.z,player.pos.x,player.pos.z); openCraft(ws.kind); player.workshopTarget=null; }
+    }
+    else if(player.shopTarget){ const v=player.shopTarget;
+      if(dist2(player.pos,v.pos)>3.5){ if(moveToward(v.pos.x,v.pos.z,step))moving=true; }
+      else { faceTowards(player.mesh,v.pos.x,v.pos.z,player.pos.x,player.pos.z); openShop(v.type); player.shopTarget=null; }
     }
     else if(player.altarTarget){ const al=player.altarTarget;
       if(dist2(player.pos,al.pos)>3.5){ if(moveToward(al.pos.x,al.pos.z,step))moving=true; }
@@ -2584,12 +2624,9 @@ let activeTab="skills";
 document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>{
   document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
   t.classList.add("active");activeTab=t.dataset.tab;refreshUI();}));
-function openShop(){document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
-  document.querySelector('[data-tab="shop"]').classList.add("active");activeTab="shop";refreshUI();
-  log("Shopkeeper: Welcome to my gun shop!","sys");}
 function refreshUI(){
   if(activeTab==="skills")renderSkills();else if(activeTab==="inv")renderInv();
-  else if(activeTab==="equip")renderEquip();else if(activeTab==="shop")renderShop();
+  else if(activeTab==="equip")renderEquip();
   else if(activeTab==="help")renderHelp();
   updateTopBar();}
 function renderHelp(){panel.innerHTML=`<h2>How to play</h2>
@@ -2670,28 +2707,38 @@ function renderEquip(){const w=curWeapon();
     <div class="statline"><b>Total armour</b><span>${totalArmour()}</span></div>`;
   panel.querySelectorAll(".pdoll.full").forEach(el=>el.addEventListener("click",()=>unequip(el.dataset.slot)));
   bindTips();}
-let shopFilter="weapon";
-function renderShop(){const cats=[["weapon","Guns"],["armour","Armour"],["food","Supplies"],["tool","Tools"]];
-  let tabs=`<div style="display:flex;gap:4px;margin-bottom:8px;flex-wrap:wrap">`;
-  for(const[c,l]of cats)tabs+=`<button class="btn" data-cat="${c}" style="${shopFilter===c?"":"background:#5a5142;color:#cdbf9a"}">${l}</button>`;
-  tabs+=`</div>`;
-  const pool=shopFilter==="weapon"?WEAPONS:shopFilter==="armour"?ARMOUR:
-    shopFilter==="food"?{bandage:CONSUMABLES.bandage,medkit:CONSUMABLES.medkit,
-      health_potion:POTIONS.health_potion,stamina_potion:POTIONS.stamina_potion,prayer_potion:POTIONS.prayer_potion}:
-    {hatchet:TOOLS.hatchet,logs:MISC.logs,raw_meat:RAWFOOD.raw_meat,raw_steak:RAWFOOD.raw_steak};
-  let list="";
-  for(const k in pool){const it=pool[k];if(!it.price)continue;
-    const reqTxt=reqHtml(k);
+/* ---------------- Vendors / shops (modal window) ------------ */
+const SHOP_POOLS={
+  weapon:()=>WEAPONS,
+  armour:()=>ARMOUR,
+  general:()=>({hatchet:TOOLS.hatchet,pickaxe:TOOLS.pickaxe,bandage:CONSUMABLES.bandage,medkit:CONSUMABLES.medkit,
+    health_potion:POTIONS.health_potion,stamina_potion:POTIONS.stamina_potion,prayer_potion:POTIONS.prayer_potion,logs:MISC.logs}),
+};
+let curVendor=null, shopCat=null;
+function openShop(type){ const v=VENDORS[type]||VENDORS.general; curVendor=v; shopCat=v.cats[0];
+  document.getElementById("sw-title").textContent=v.name;
+  document.getElementById("sw-greet").textContent='"'+v.greet+'"';
+  document.getElementById("shopwin").classList.add("show"); sfxClick(); renderShopWin(); }
+function closeShop(){curVendor=null;document.getElementById("shopwin").classList.remove("show");}
+function shopPrice(it){return Math.max(1,Math.round(it.price*(curVendor?curVendor.mult:1)));}
+function renderShopWin(){ if(!curVendor)return;
+  const catsEl=document.getElementById("sw-cats"), labels={weapon:"Guns",armour:"Armour",general:"Goods"};
+  catsEl.innerHTML=curVendor.cats.map(c=>`<button class="btn" data-cat="${c}" style="${shopCat===c?'':'background:#5a5142;color:#cdbf9a'}">${labels[c]||c}</button>`).join("");
+  catsEl.style.display=curVendor.cats.length>1?"flex":"none";
+  const pool=SHOP_POOLS[shopCat](); let list="";
+  for(const k in pool){const it=pool[k]; if(!it.price)continue; const price=shopPrice(it), reqTxt=reqHtml(k);
     const sub=it.cat==="weapon"?`${it.dmgMin}–${it.dmgMax} dmg${reqTxt?" · "+reqTxt:""}`:
-      it.cat==="armour"?`${it.mat} · +${it.armour} armour${reqTxt?" · "+reqTxt:""}`:
-      it.cat==="food"?`Heals ${it.heal}`:(it.desc||"");
+      it.cat==="armour"?`${it.mat} · +${it.armour} armour${reqTxt?" · "+reqTxt:""}`:(it.desc||"");
     list+=`<div class="shopitem" data-tip="item:${k}"><div>${icHTML(k,28)}</div>
       <div class="info"><div class="nm">${it.name}</div><div class="sub">${sub}</div></div>
-      <button class="btn buy" data-k="${k}" ${coins()<it.price?"disabled":""}>⛁${it.price}</button></div>`;}
-  panel.innerHTML=`<h2>Gun Shop</h2>${tabs}<div>${list}</div>
-    <p style="font-size:11px;color:var(--dim);margin-top:8px">You have ⛁ ${coins()} coins. Sell loot via right-click in inventory.</p>`;
-  panel.querySelectorAll("[data-cat]").forEach(b=>b.addEventListener("click",()=>{shopFilter=b.dataset.cat;renderShop();}));
-  panel.querySelectorAll(".buy").forEach(b=>b.addEventListener("click",()=>buy(b.dataset.k)));bindTips();}
+      <button class="btn buy" data-k="${k}" ${coins()<price?"disabled":""}>⛁${price}</button></div>`;}
+  document.getElementById("sw-list").innerHTML=list;
+  document.getElementById("sw-coins").textContent="You have ⛁ "+coins()+" · sell loot via right-click in your inventory.";
+  catsEl.querySelectorAll("[data-cat]").forEach(b=>b.onclick=()=>{shopCat=b.dataset.cat;renderShopWin();});
+  const sw=document.getElementById("shopwin");
+  sw.querySelectorAll(".buy").forEach(b=>b.onclick=()=>buy(b.dataset.k));
+  sw.querySelectorAll("[data-tip]").forEach(el=>{el.addEventListener("mousemove",ev=>showTip(ev,el.dataset.tip));el.addEventListener("mouseleave",()=>tip.style.display="none");});
+}
 // coloured requirement string for an item (green = met, red = not yet)
 function reqHtml(k){const it=ITEMS[k];if(!it)return "";const parts=[];
   const add=(lab,need,have)=>{if(need)parts.push(`<span style="color:${have>=need?'#7fd06a':'#ff7a6a'}">${lab} ${need}</span>`);};
@@ -2700,9 +2747,11 @@ function reqHtml(k){const it=ITEMS[k];if(!it)return "";const parts=[];
   add("Comp",it.reqComp,player.skills.composure.lv);
   add("Arm",it.reqArm,player.skills.armour.lv);
   return parts.join(" ");}
-function buy(k){const it=ITEMS[k];if(coins()<it.price){log("You can't afford that.","bad");return;}
+function buy(k){const it=ITEMS[k]; const price=shopPrice(it);
+  if(coins()<price){log("You can't afford that.","bad");return;}
   if(player.inv.length>=INV_MAX&&it.cat!=="food"){log("Not enough inventory space.","bad");return;}
-  removeItem("coins",it.price);addItem(k,1);sfxCoin();log(`You buy the ${it.name}.`,"loot");refreshUI();}
+  removeItem("coins",price);addItem(k,1);sfxCoin();log(`You buy the ${it.name}.`,"loot");refreshUI();
+  if(curVendor)renderShopWin();}
 
 /* ---------------- Tooltip & context menu -------------------- */
 const tip=document.getElementById("tip");
@@ -3090,6 +3139,9 @@ function openChangelog(){
   const cw=document.getElementById("craftwin");
   document.getElementById("cw-close").onclick=closeCraft;
   cw.onclick=(e)=>{ if(e.target===cw)closeCraft(); };
+  const sw=document.getElementById("shopwin");
+  document.getElementById("sw-close").onclick=closeShop;
+  sw.onclick=(e)=>{ if(e.target===sw)closeShop(); };
 })();
 
 /* ============================================================ *
@@ -3100,7 +3152,7 @@ document.getElementById("loading").remove();
 updateMarkers();
 log("Welcome to Gunscape Classic 3D!","sys");
 log("Explore: Greenfields (N), Mistwood (E), Dust Reach (S), Scarlands (W).","sys");
-log("Talk to townsfolk with a ! above their head for quests. Click the shopkeeper to trade.","sys");
+log("Talk to townsfolk with a ! above their head for quests. Click a signed vendor to trade.","sys");
 log("Chop trees, cook on campfires, bury bones for Prayer, recharge at altars.","sys");
 log("Hold Tab for attack style & prayers. Toggle run by the minimap.","sys");
 // game loop is started by the login screen (Login / Register / Play Offline)

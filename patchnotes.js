@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.28",
+ "version": "1.0.29",
  "generated": "2026-06-22",
  "patches": [
+  {
+   "version": "1.0.29",
+   "date": "2026-06-22",
+   "title": "RS-style bottom-right panel + specialized vendors with their own shop window",
+   "notes": []
+  },
   {
    "version": "1.0.28",
    "date": "2026-06-22",
