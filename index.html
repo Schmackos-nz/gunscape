@@ -764,6 +764,7 @@ function makeHumanoid(o){
     // arm down → points down, arm raised (aim) → points outward
     gun.position.set(-0.05,-1.05,0.0); gun.rotation.x=Math.PI/2;
     armL.add(gun); g.userData.gunTip=gun.userData.tip;        // barrel end → muzzle/tracers
+    g.userData.twoHand=/rifle|shotgun|smg|ak/.test(o.gunType||"rifle");   // long guns are two-handed
   }
   g.add(blobShadow(0.85));
   const s=(o.height??3.6)/3.6; g.scale.setScalar(s);
@@ -2476,10 +2477,13 @@ function openWorldMenu(cx,cy){
 /* ============================================================ *
  *  GAME LOOP
  * ============================================================ */
-// aiming pose: both arms raised forward to point the gun (call after animateLegs)
+// aiming pose: gun arm raised; for two-handed (rifles) the support arm comes across to grip
 function applyAim(mesh){const p=mesh&&mesh.userData&&mesh.userData.parts; if(!p)return;
-  if(p.armL)p.armL.rotation.x=-1.4; if(p.armR)p.armR.rotation.x=-1.05;}
+  if(p.armL)p.armL.rotation.x=-1.4;
+  if(p.armR){ if(mesh.userData.twoHand){ p.armR.rotation.x=-1.25; p.armR.rotation.z=-0.8; }   // reach over to the foregrip
+    else { p.armR.rotation.x=-0.7; } }}
 function animateLegs(mesh,phase,amp){const p=mesh.userData.parts;if(!p)return;
+  if(p.armR)p.armR.rotation.z=0;   // reset cross-grip roll (re-applied by applyAim while aiming)
   if(p.legL)p.legL.rotation.x=Math.sin(phase)*amp;
   if(p.legR)p.legR.rotation.x=-Math.sin(phase)*amp;
   if(p.armL)p.armL.rotation.x=-Math.sin(phase)*amp*0.7;

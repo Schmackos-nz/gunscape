@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.38",
+ "version": "1.0.39",
  "generated": "2026-06-22",
  "patches": [
+  {
+   "version": "1.0.39",
+   "date": "2026-06-22",
+   "title": "World: two-handed aim for rifles — support arm grips the gun while firing",
+   "notes": []
+  },
   {
    "version": "1.0.38",
    "date": "2026-06-22",
