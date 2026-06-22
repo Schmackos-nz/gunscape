@@ -43,6 +43,7 @@
     position:relative;line-height:1.1;overflow:hidden;}
   .slot.full:hover{outline:2px solid var(--gold);}
   .slot .ic{font-size:20px;line-height:1;}
+  .icimg{display:inline-block;vertical-align:middle;}
   .slot .qty{position:absolute;top:1px;right:3px;color:#ffd24a;font-size:9px;
     text-shadow:1px 1px 0 #000;font-weight:bold;}
   .eqrow{display:flex;justify-content:space-between;align-items:center;
@@ -628,6 +629,7 @@ addLake(-70,70,18); addLake(80,90,15); addLake(-110,-90,22);
  * ============================================================ */
 function box(w,h,d,color,tex){return new THREE.Mesh(new THREE.BoxGeometry(w,h,d),toonMat({color,map:tex||null}));}
 function cyl(rt,rb,h,color,seg=8,tex){return new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,seg),toonMat({color,map:tex||null}));}
+function ball(r,color,tex){return new THREE.Mesh(new THREE.SphereGeometry(r,12,10),toonMat({color,map:tex||null}));}
 function blobShadow(r){const m=new THREE.Mesh(new THREE.CircleGeometry(r,16),
   new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:0.28}));
   m.rotation.x=-Math.PI/2;m.position.y=0.08;m.userData.noOutline=true;return m;}
@@ -677,17 +679,27 @@ function makeGunModel(type,col){
 // Humanoid (faces +Z). opts: {height, shirt, skin, pants, gun, gunType, gunColor}
 function makeHumanoid(o){
   o=o||{}; const g=new THREE.Group();
-  const skin=o.skin??0xc8a07a, shirt=o.shirt??0x4a90d9, pants=o.pants??0x33384a;
-  const legL=box(0.34,1.4,0.34,pants,TEX.fabric); legL.position.set(-0.3,0.7,0);
-  const legR=box(0.34,1.4,0.34,pants,TEX.fabric); legR.position.set(0.3,0.7,0);
-  const torso=box(1.0,1.3,0.6,shirt,TEX.fabric); torso.position.y=2.05;
-  const head=box(0.66,0.66,0.66,skin); head.position.y=3.05;
-  const armL=box(0.3,1.15,0.3,shirt,TEX.fabric); armL.position.set(-0.66,2.1,0);
-  const armR=box(0.3,1.15,0.3,shirt,TEX.fabric); armR.position.set(0.66,2.05,0.15);
-  g.add(legL,legR,torso,head,armL,armR);
+  const skin=o.skin??0xc8a07a, shirt=o.shirt??0x4a90d9, pants=o.pants??0x33384a, shoe=0x2a2018;
+  // rounded limbs: a tapered cylinder pivoting at the top, with a sphere joint + hand/foot
+  function limb(rt,rb,len,col,jr,endCol,endR){
+    const m=cyl(rt,rb,len,col,10,TEX.fabric); m.position.y=-len/2;          // hangs from the pivot (group origin)
+    const j=ball(jr,col,TEX.fabric); j.userData.noOutline=true;             // shoulder/hip joint at pivot
+    const end=ball(endR,endCol); end.position.y=-len; end.userData.noOutline=true;  // hand/foot
+    const grp=new THREE.Group(); grp.add(j,m,end); return grp;
+  }
+  const legL=limb(0.18,0.15,1.4,pants,0.2,shoe,0.22); legL.position.set(-0.26,1.4,0);
+  const legR=limb(0.18,0.15,1.4,pants,0.2,shoe,0.22); legR.position.set(0.26,1.4,0);
+  const torso=cyl(0.46,0.56,1.3,shirt,14,TEX.fabric); torso.position.y=2.05;
+  const chest=ball(0.5,shirt,TEX.fabric); chest.position.y=2.55; chest.scale.set(1,0.7,0.8); chest.userData.noOutline=true;
+  const hips=ball(0.5,pants,TEX.fabric); hips.position.y=1.45; hips.scale.set(1,0.6,0.85); hips.userData.noOutline=true;
+  const neck=cyl(0.16,0.18,0.25,skin,8); neck.position.y=2.85;
+  const head=ball(0.4,skin); head.position.y=3.18;
+  const armL=limb(0.15,0.12,1.1,shirt,0.18,skin,0.16); armL.position.set(-0.6,2.6,0);
+  const armR=limb(0.15,0.12,1.1,shirt,0.18,skin,0.16); armR.position.set(0.6,2.55,0.15);
+  g.add(legL,legR,hips,torso,chest,neck,head,armL,armR);
   if(o.gun!==false){
     const gun=makeGunModel(o.gunType||"rifle",o.gunColor);
-    gun.position.set(0.55,2.0,0.55); g.add(gun);
+    gun.position.set(0.55,1.7,0.55); g.add(gun);   // held at the right hand
   }
   g.add(blobShadow(0.85));
   const s=(o.height??3.6)/3.6; g.scale.setScalar(s);
@@ -699,14 +711,13 @@ function makeHumanoid(o){
 function makeBeast(o){
   o=o||{}; const g=new THREE.Group();
   const col=o.color??0x7a6a55, size=o.size??1;
-  const body=box(1.0*size,0.7*size,1.8*size,col); body.position.y=0.7*size;
-  const head=box(0.7*size,0.6*size,0.7*size,col); head.position.set(0,0.85*size,1.1*size);
-  const snout=box(0.35*size,0.3*size,0.4*size,col); snout.position.set(0,0.72*size,1.5*size);
-  const earL=box(0.2*size,0.3*size,0.1*size,col); earL.position.set(-0.22*size,1.2*size,1.0*size);
-  const earR=box(0.2*size,0.3*size,0.1*size,col); earR.position.set(0.22*size,1.2*size,1.0*size);
-  const tail=box(0.16*size,0.16*size,0.9*size,col); tail.position.set(0,0.8*size,-1.1*size);
-  tail.rotation.x=0.5;
-  const mk=(x,z)=>{const l=box(0.22*size,0.7*size,0.22*size,col);l.position.set(x,0.35*size,z);return l;};
+  const body=ball(0.55*size,col,TEX.fabric); body.position.y=0.72*size; body.scale.set(0.95,0.85,1.7);
+  const head=ball(0.4*size,col,TEX.fabric); head.position.set(0,0.9*size,1.1*size);
+  const snout=cyl(0.12*size,0.22*size,0.5*size,col,8); snout.rotation.x=Math.PI/2; snout.position.set(0,0.78*size,1.5*size);
+  const earL=box(0.2*size,0.3*size,0.1*size,col); earL.position.set(-0.22*size,1.25*size,1.0*size);
+  const earR=box(0.2*size,0.3*size,0.1*size,col); earR.position.set(0.22*size,1.25*size,1.0*size);
+  const tail=cyl(0.14*size,0.04*size,0.9*size,col,6); tail.position.set(0,0.85*size,-1.15*size); tail.rotation.x=1.1;
+  const mk=(x,z)=>{const l=cyl(0.16*size,0.12*size,0.7*size,col,8);l.position.set(x,0.35*size,z);return l;};
   const l1=mk(-0.35*size,0.7*size),l2=mk(0.35*size,0.7*size),l3=mk(-0.35*size,-0.7*size),l4=mk(0.35*size,-0.7*size);
   g.add(body,head,snout,earL,earR,tail,l1,l2,l3,l4,blobShadow(1.0*size));
   g.userData.parts={legL:l1,legR:l4,armL:l2,armR:l3};
@@ -948,10 +959,10 @@ function canCraft(r){return player.skills[craftStation.skill].lv>=r.lvl && r.in.
 function renderCraft(){const el=document.getElementById("cw-list"); const sk=craftStation.skill;
   el.innerHTML=craftStation.recipes.map((r,i)=>{const it=ITEMS[r.out];
     const lvlOk=player.skills[sk].lv>=r.lvl;
-    const reqs=r.in.map(([k,n])=>`<span class="${invCount(k)>=n?'ok':'no'}">${ITEMS[k].ic}${ITEMS[k].name} ${invCount(k)}/${n}</span>`).join(" · ");
+    const reqs=r.in.map(([k,n])=>`<span class="${invCount(k)>=n?'ok':'no'}">${icHTML(k,16)} ${ITEMS[k].name} ${invCount(k)}/${n}</span>`).join(" · ");
     const ok=canCraft(r);
     return `<div class="cw-r ${ok?'':'locked'}">
-      <div><div class="nm">${it.ic} ${it.name}</div>
+      <div><div class="nm">${icHTML(r.out,18)} ${it.name}</div>
         <div class="req">${craftStation.skillName} ${r.lvl}${lvlOk?'':' ✗'} · ${reqs} · +${r.xp} xp</div></div>
       <button class="btn" data-ri="${i}" ${ok?'':'disabled'}>Make</button></div>`;}).join("");
   el.querySelectorAll("button[data-ri]").forEach(b=>b.onclick=()=>doCraft(craftStation.recipes[+b.dataset.ri]));
@@ -1115,6 +1126,26 @@ makeFurnace(MAP.TOWNS[3].x+13, MAP.TOWNS[3].z);   // Greenreach
 makeFurnace(MAP.TOWNS[5].x-13, MAP.TOWNS[5].z);   // Ironcross
 makeFurnace(MAP.TOWNS[6].x+13, MAP.TOWNS[6].z);   // Mistvale
 populateOres();                         // scatter mineable ore rocks across the wild
+
+/* ---------------- Wind-swayed grass tufts ------------------- */
+const grassTufts=[];
+function makeGrass(){
+  let n=0,guard=0;
+  while(n<300 && guard<7000){ guard++;
+    const x=(Math.random()*2-1)*(HALF-10), z=(Math.random()*2-1)*(HALF-10);
+    const b=biomeAt(x,z); if(b!==BIOMES.grass && b!==BIOMES.forest) continue;
+    if(townAtClient(x,z)) continue;
+    let blocked=false; for(const bl of blockers){ if(Math.hypot(x-bl.x,z-bl.z)<bl.r+1){blocked=true;break;} } if(blocked) continue;
+    const g=new THREE.Group(); g.position.set(x,terrainHeight(x,z),z);
+    const col=(b===BIOMES.forest)?0x3f7f3a:0x66a043;
+    for(let i=0;i<3;i++){const m=new THREE.Mesh(new THREE.ConeGeometry(0.06,1.0,4),new THREE.MeshToonMaterial({color:col,gradientMap:gradMap}));
+      const a=Math.random()*6.283, r=0.12+Math.random()*0.22, sc=0.7+Math.random()*0.7;
+      m.position.set(Math.cos(a)*r,0.5*sc,Math.sin(a)*r); m.scale.set(1,sc,1); m.userData.noOutline=true; g.add(m);}
+    g.userData.phase=Math.random()*6.283; g.userData.lean=(Math.random()-0.5)*0.08;
+    scene.add(g); grassTufts.push(g); n++;
+  }
+}
+makeGrass();
 
 /* ============================================================ *
  *  DARUDE — telegraphed desert boss (client-side, solo)
@@ -1286,7 +1317,7 @@ function updateQuestTracker(){
     if(q.boss){const done=!!player.killedDarude;
       return `<div class="qt-q ${done?'done':''}">${q.title}<br><small>☠️ Slay Darude: ${done?'1/1 ✓ — hand in!':'0/1'}</small></div>`;}
     const have=Math.min(invCount(q.need),q.count);
-    return `<div class="qt-q ${have>=q.count?'done':''}">${q.title}<br><small>${ITEMS[q.need].ic} ${ITEMS[q.need].name}: ${have}/${q.count}${have>=q.count?' ✓ — hand in!':''}</small></div>`;}).join("");
+    return `<div class="qt-q ${have>=q.count?'done':''}">${q.title}<br><small>${icHTML(q.need,14)} ${ITEMS[q.need].name}: ${have}/${q.count}${have>=q.count?' ✓ — hand in!':''}</small></div>`;}).join("");
 }
 
 /* ---------------- Quest dialog ------------------------------ */
@@ -1314,7 +1345,7 @@ function renderDialog(npc){
     else { say=`Have you got my ${q.count} ${ITEMS[q.need].name}s yet? Keep at it!`;
       acts=btn("OK",()=>closeDialog()); }
   }
-  const prog=(st==="active"&&!q.boss)?`<div class="prog">${ITEMS[q.need].ic} ${ITEMS[q.need].name}: ${Math.min(questItemCount(npc.questId),q.count)} / ${q.count}</div>`:
+  const prog=(st==="active"&&!q.boss)?`<div class="prog">${icHTML(q.need,16)} ${ITEMS[q.need].name}: ${Math.min(questItemCount(npc.questId),q.count)} / ${q.count}</div>`:
     (st==="active"&&q.boss?`<div class="prog">Slay Darude: ${player.killedDarude?"1/1 ✓":"0/1"}</div>`:"");
   dialogEl.innerHTML=`<div class="who">${q.giver} — ${q.title}</div><div class="say">${say}</div>${prog}<div class="acts" id="dlgacts"></div>`;
   const wrap=dialogEl.querySelector("#dlgacts"); wrap.innerHTML="";
@@ -1440,13 +1471,89 @@ function tracer(from,to,color){
   const l=new THREE.Line(g,new THREE.LineBasicMaterial({color,transparent:true,opacity:0.9}));
   scene.add(l); tracers.push({l,t:0});
 }
+/* ---------------- Procedural item icons --------------------- */
+// distinct drawn sprite per item (no placeholder emojis). Cached as data-URLs.
+const ORE_ICON_COL={stone:["#9a948a","#b4aea4"],iron_ore:["#8a8378","#b5773a"],steel_ore:["#8a8d92","#d0d4db"],titanium_ore:["#6f7478","#7ad0d0"]};
+function drawItemIcon(g,S,k){
+  const it=ITEMS[k]||{}; g.clearRect(0,0,S,S); const c=S/2;
+  const rr=(x,y,w,h,r)=>{g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath();};
+  const stroke=(w)=>{g.lineWidth=w||2.5;g.strokeStyle="rgba(0,0,0,.55)";g.stroke();};
+  const fillS=(col,lw)=>{g.fillStyle=col;g.fill();stroke(lw);};
+  g.lineJoin="round";
+  // ---- guns ----
+  const GUN={zip:{bl:18,bw:7,body:14,stock:0,wood:0},revolver:{bl:20,bw:6,body:13,cyl:1},
+    smg:{bl:16,bw:6,body:20,mag:1,stock:1},shotgun:{bl:30,bw:8,body:14,wood:1,stock:1},
+    rifle:{bl:34,bw:5,body:12,scope:1,stock:1},ak:{bl:26,bw:6,body:18,mag:1,wood:1,stock:1}};
+  if(it.cat==="weapon"&&GUN[k]){const d=GUN[k]; const y=c;
+    g.save(); g.translate(8,c+2);
+    if(d.stock){rr(-2,-5,12,12,3);fillS("#5a3c1e");}
+    rr(6,-d.body/2,22,d.body,3); fillS("#33363c");                         // body
+    rr(26,-d.bw/2,d.bl,d.bw,2); fillS("#6a6e75");                          // barrel
+    rr(12,d.body/2-1,7,12,2); fillS(d.wood?"#6b4a2a":"#2a2a30");           // grip
+    if(d.mag){rr(20,d.body/2-1,7,16,2); fillS("#4a4e55");}
+    if(d.cyl){g.beginPath();g.arc(20,0,7,0,7);fillS("#555");}
+    if(d.scope){rr(22,-d.body/2-7,12,5,2);fillS("#111");}
+    g.restore(); return;
+  }
+  if(k==="fists"){ g.beginPath();g.arc(c,c,13,0,7);fillS("#c8a07a");
+    for(let i=-1;i<2;i++){rr(c-9+i*7,c-12,5,8,2);fillS("#c8a07a");} return; }
+  // ---- armour (by slot, tinted by material) ----
+  if(it.cat==="armour"){ const col=(typeof ARMOUR_TINT!=="undefined"&&ARMOUR_TINT[it.mat])?("#"+ARMOUR_TINT[it.mat].toString(16).padStart(6,"0")):"#9a8f78";
+    if(it.slot==="head"){ g.beginPath();g.arc(c,c+2,15,Math.PI,0);g.lineTo(c+15,c+10);g.lineTo(c-15,c+10);g.closePath();fillS(col); rr(c-16,c+8,32,5,2);fillS(col); }
+    else if(it.slot==="legs"){ rr(c-13,c-14,26,12,3);fillS(col); rr(c-13,c-2,10,18,3);fillS(col); rr(c+3,c-2,10,18,3);fillS(col); }
+    else { rr(c-13,c-15,26,28,5);fillS(col); rr(c-4,c-15,8,16,2);g.fillStyle="rgba(0,0,0,.18)";g.fill(); }
+    return; }
+  // ---- potions ----
+  if(it.cat==="potion"){ const liq=k.indexOf("health")>=0?"#e2402f":k.indexOf("stamina")>=0?"#3fae5a":"#9a5ad6";
+    rr(c-5,c-18,10,6,2);fillS("#cdbf9a"); rr(c-8,c-12,16,26,6);fillS("rgba(220,230,240,.35)");
+    rr(c-6,c-2,12,14,4);fillS(liq); return; }
+  // ---- ores / metal bits / parts ----
+  if(ORE_ICON_COL[k]){const[base,vein]=ORE_ICON_COL[k];
+    g.beginPath();g.moveTo(c-14,c+10);g.lineTo(c-10,c-10);g.lineTo(c+8,c-13);g.lineTo(c+15,c+4);g.lineTo(c+6,c+13);g.closePath();fillS(base);
+    g.fillStyle=vein; for(let i=0;i<5;i++){g.beginPath();g.arc(c-8+Math.random()*16,c-8+Math.random()*18,1.8,0,7);g.fill();} return; }
+  if(k==="iron_bits"||k==="steel_bits"||k==="titanium_bits"){const col=k[0]==="i"?"#b07a4a":k[0]==="s"?"#cfd3da":"#8fd6d6";
+    for(const[dx,dy]of[[-6,2],[6,0],[0,-7],[2,9]]){rr(c+dx-5,c+dy-4,10,8,2);fillS(col);} return; }
+  if(k==="part_crude"||k==="part_std"||k==="part_fine"){const col=k.endsWith("crude")?"#8a8378":k.endsWith("std")?"#9aa0a8":"#cfe0e6";
+    g.beginPath();g.arc(c,c,11,0,7); for(let i=0;i<8;i++){const a=i/8*7;g.lineTo(c+Math.cos(a)*15,c+Math.sin(a)*15);g.lineTo(c+Math.cos(a+0.3)*11,c+Math.sin(a+0.3)*11);} g.closePath();fillS(col);
+    g.beginPath();g.arc(c,c,4,0,7);g.fillStyle="#2a2a30";g.fill(); return; }
+  if(k==="scrap"){ g.fillStyle="#8a8378"; for(const[dx,dy,w,h]of[[-10,-2,12,7],[2,-8,9,9],[-2,6,14,6]]){rr(c+dx,c+dy,w,h,2);fillS("#8a8378");} return; }
+  // ---- tools ----
+  if(k==="hatchet"){ rr(c-2,c-12,4,26,2);fillS("#6b4a2a"); g.beginPath();g.moveTo(c+2,c-12);g.lineTo(c+15,c-8);g.lineTo(c+15,c-1);g.lineTo(c+2,c-3);g.closePath();fillS("#b9bcc2"); return; }
+  if(k==="pickaxe"){ rr(c-2,c-10,4,24,2);fillS("#6b4a2a"); g.beginPath();g.moveTo(c-16,c-9);g.quadraticCurveTo(c,c-16,c+16,c-9);g.lineTo(c+14,c-6);g.quadraticCurveTo(c,c-12,c-14,c-6);g.closePath();fillS("#b9bcc2"); return; }
+  // ---- food / supplies ----
+  if(k==="bandage"){ rr(c-13,c-13,26,26,5);fillS("#e8e2d2"); g.save();g.translate(c,c);g.rotate(0.78);rr(-16,-4,32,8,3);fillS("#d24a4a");g.restore(); return; }
+  if(k==="medkit"){ rr(c-13,c-11,26,22,4);fillS("#e8e2d2"); rr(c-3,c-7,6,14,1);fillS("#d24a4a"); rr(c-7,c-3,14,6,1);fillS("#d24a4a"); return; }
+  if(it.cat==="food"||(typeof RAWFOOD!=="undefined"&&RAWFOOD[k])||k==="burnt_meat"){
+    const raw=(typeof RAWFOOD!=="undefined"&&RAWFOOD[k]); const meat=k.indexOf("fish")<0;
+    if(meat){ g.beginPath();g.ellipse(c,c+1,14,11,0,0,7);fillS(k==="burnt_meat"?"#3a2a22":(raw?"#d98a8a":"#b5663a")); rr(c+9,c-3,8,4,2);fillS("#efe7d0"); }
+    else { g.beginPath();g.ellipse(c-2,c,14,9,0,0,7);fillS(raw?"#8fb0c8":"#c9a86a"); g.beginPath();g.moveTo(c+11,c);g.lineTo(c+18,c-7);g.lineTo(c+18,c+7);g.closePath();fillS(raw?"#8fb0c8":"#c9a86a"); }
+    return; }
+  // ---- misc ----
+  if(k==="bones"){ g.strokeStyle="#efe9d6";g.lineWidth=6;g.lineCap="round";g.beginPath();g.moveTo(c-10,c-10);g.lineTo(c+10,c+10);g.stroke();
+    g.fillStyle="#efe9d6";for(const[x,y]of[[-12,-12],[-8,-8],[12,12],[8,8]]){g.beginPath();g.arc(c+x,c+y,4,0,7);g.fill();} return; }
+  if(k==="logs"){ for(const dx of[-7,0,7]){g.beginPath();g.arc(c+dx,c,5,0,7);fillS("#8a5a2e");g.beginPath();g.arc(c+dx,c,2,0,7);g.fillStyle="#c79a5a";g.fill();} return; }
+  if(k==="coins"){ for(const[dx,dy]of[[-5,4],[5,4],[0,-4]]){g.beginPath();g.arc(c+dx,c+dy,8,0,7);fillS("#ffd24a");} return; }
+  if(k==="rat_tail"){ g.strokeStyle="#c98a8a";g.lineWidth=4;g.lineCap="round";g.beginPath();g.moveTo(c-12,c+10);g.quadraticCurveTo(c+12,c+6,c+8,c-12);g.stroke(); return; }
+  if(k==="hound_fang"){ g.beginPath();g.moveTo(c-6,c-12);g.lineTo(c+6,c-12);g.lineTo(c,c+13);g.closePath();fillS("#efe9d6"); return; }
+  if(k==="scorpion_tail"){ g.strokeStyle="#7a8a3a";g.lineWidth=5;g.lineCap="round";g.beginPath();g.moveTo(c-10,c+12);g.quadraticCurveTo(c+14,c+8,c+8,c-10);g.stroke(); g.beginPath();g.arc(c+8,c-12,4,0,7);fillS("#c0392b"); return; }
+  if(k==="dog_tags"){ g.strokeStyle="#9aa0a8";g.lineWidth=2.5;g.beginPath();g.arc(c,c-12,8,0.2,Math.PI-0.2);g.stroke();
+    rr(c-7,c-4,9,16,2);fillS("#c0c4cc"); rr(c+1,c+2,9,16,2);fillS("#a9adb5"); return; }
+  // fallback: lozenge with first letter
+  rr(c-13,c-13,26,26,6); fillS(it.cat==="armour"?"#9a8f78":"#7a7468");
+  g.fillStyle="#1c1712";g.font="bold 22px Trebuchet MS";g.textAlign="center";g.textBaseline="middle";g.fillText((it.name||k||"?")[0].toUpperCase(),c,c+1);
+}
+const _iconURL={};
+function iconURL(k){ if(_iconURL[k])return _iconURL[k];
+  const c=document.createElement("canvas");c.width=c.height=64;try{drawItemIcon(c.getContext("2d"),64,k);}catch(e){}
+  const u=c.toDataURL?c.toDataURL():""; _iconURL[k]=u; return u; }
+function icHTML(k,size){return `<img class="icimg" src="${iconURL(k)}" alt="" style="width:${size||24}px;height:${size||24}px">`;}
+
 /* ---------------- Ground loot ------------------------------- */
 const drops=[];
 // ground items are flat icon sprites that look like the item itself
 const _iconCache={};
 function iconTexture(k){ if(_iconCache[k])return _iconCache[k];
-  const c=document.createElement("canvas");c.width=c.height=64;const g=c.getContext("2d");
-  g.font="48px serif";g.textAlign="center";g.textBaseline="middle";g.fillText(ITEMS[k].ic||"?",32,36);
+  const c=document.createElement("canvas");c.width=c.height=64;try{drawItemIcon(c.getContext("2d"),64,k);}catch(e){}
   const t=new THREE.CanvasTexture(c);t.encoding=THREE.sRGBEncoding;_iconCache[k]=t;return t;}
 function makeDrop(k,n,x,z,owner){
   const spr=new THREE.Sprite(new THREE.SpriteMaterial({map:iconTexture(k),transparent:true}));
@@ -2351,6 +2458,10 @@ function loop(now){
     f.flame.scale.y=1+Math.sin(now/80+i)*0.18; f.flame.rotation.y+=dt*4;
     if(now>=f.expireAt){scene.remove(f.mesh);fires.splice(i,1);}}
 
+  // wind-swayed grass
+  const gust=Math.sin(now*0.0006)*0.06;
+  for(const g of grassTufts){ g.rotation.z=Math.sin(now*0.002+g.userData.phase)*0.13+g.userData.lean+gust; }
+
   updateDarude(dt,now);   // boss telegraphs/AI (both online & offline)
 
   /* --- doors: swing on their hinge (pivot group rotates) --- */
@@ -2490,7 +2601,7 @@ function renderSkills(){panel.innerHTML=`<h2>Combat Skills</h2><div class="skill
 function renderInv(){let cells="";
   for(let i=0;i<INV_MAX;i++){const it=player.inv[i];
     if(it){cells+=`<div class="slot full" data-idx="${i}" data-tip="item:${it.k}">
-      <div class="ic">${ITEMS[it.k].ic}</div>${it.n>1?`<div class="qty">${it.n}</div>`:""}</div>`;}
+      <div class="ic">${icHTML(it.k,30)}</div>${it.n>1?`<div class="qty">${it.n}</div>`:""}</div>`;}
     else cells+=`<div class="slot"></div>`;}
   panel.innerHTML=`<h2>Inventory (${player.inv.length}/${INV_MAX})</h2><div id="invgrid">${cells}</div>
     <p style="font-size:11px;color:var(--dim);margin-top:10px">Left-click to use/equip · Right-click for options</p>`;
@@ -2503,7 +2614,7 @@ function renderEquip(){const w=curWeapon();
     head:player.equip.head,body:player.equip.body,legs:player.equip.legs};
   const cell=(slot,label)=>{const k=slotKey[slot];
     return `<div class="pdoll ${k?'full':''}" data-slot="${slot}" ${k?`data-tip="item:${k}"`:""}>
-      <div class="pl">${label}</div><div class="pic">${k?ITEMS[k].ic:"·"}</div></div>`;};
+      <div class="pl">${label}</div><div class="pic">${k?icHTML(k,32):"·"}</div></div>`;};
   panel.innerHTML=`<h2>Worn Equipment</h2>
     <div id="paperdoll">
       <div class="pdrow">${cell("head","Head")}</div>
@@ -2512,7 +2623,7 @@ function renderEquip(){const w=curWeapon();
     </div>
     <p style="font-size:11px;color:var(--dim);text-align:center;margin:4px 0 10px">Click a worn item to take it off.</p>
     <h2>Weapon Stats</h2>
-    <div class="statline"><b>Weapon</b><span>${w.ic} ${w.name}</span></div>
+    <div class="statline"><b>Weapon</b><span>${icHTML(player.equip.weapon,18)} ${w.name}</span></div>
     <div class="statline"><b>Grade</b><span>${w.grade}</span></div>
     <div class="statline"><b>Damage</b><span>${w.dmgMin}–${w.dmgMax}</span></div>
     <div class="statline"><b>Fire rate</b><span>${(1000/w.fireRate).toFixed(1)}/s</span></div>
@@ -2536,7 +2647,7 @@ function renderShop(){const cats=[["weapon","Guns"],["armour","Armour"],["food",
     const sub=it.cat==="weapon"?`${it.dmgMin}–${it.dmgMax} dmg${reqTxt?" · "+reqTxt:""}`:
       it.cat==="armour"?`${it.mat} · +${it.armour} armour${reqTxt?" · "+reqTxt:""}`:
       it.cat==="food"?`Heals ${it.heal}`:(it.desc||"");
-    list+=`<div class="shopitem" data-tip="item:${k}"><div style="font-size:20px">${it.ic}</div>
+    list+=`<div class="shopitem" data-tip="item:${k}"><div>${icHTML(k,28)}</div>
       <div class="info"><div class="nm">${it.name}</div><div class="sub">${sub}</div></div>
       <button class="btn buy" data-k="${k}" ${coins()<it.price?"disabled":""}>⛁${it.price}</button></div>`;}
   panel.innerHTML=`<h2>Gun Shop</h2>${tabs}<div>${list}</div>
@@ -2566,7 +2677,7 @@ function showTip(ev,spec){const[type,key]=spec.split(":");let html="";
     else if(d.cat==="armour")lines=`<div class="tline">${d.mat} · ${d.slot} · +${d.armour} armour</div>`;
     else if(d.cat==="food")lines=`<div class="tline">Heals ${d.heal} vitality</div>`;
     const rq=reqHtml(key); if(rq)lines+=`<div class="tline">Requires: ${rq}</div>`;
-    html=`<div class="tnm">${d.ic} ${d.name}</div>${lines}<div class="tdesc">${d.desc||""}</div>`;}
+    html=`<div class="tnm">${icHTML(key,20)} ${d.name}</div>${lines}<div class="tdesc">${d.desc||""}</div>`;}
   else if(type==="skill"){const s=player.skills[key];
     html=`<div class="tnm">${key[0].toUpperCase()+key.slice(1)}</div>
       <div class="tline">Level ${s.lv} · ${Math.floor(s.xp)} xp</div>
@@ -2900,7 +3011,7 @@ function tradeAdd(k){ const inv=player.inv.find(i=>i.k===k); if(!inv)return;
   removeItem(k,1); const m=trade.mine.find(i=>i.k===k); if(m)m.n++; else trade.mine.push({k,n:1}); offerChanged();}
 function tradeRemove(k){ const m=trade.mine.find(i=>i.k===k); if(!m)return;
   m.n--; if(m.n<=0)trade.mine.splice(trade.mine.indexOf(m),1); addItem(k,1); offerChanged();}
-function cell(k,n,onClick){return `<div class="tw-cell" data-k="${k}" title="${clEsc(ITEMS[k]?ITEMS[k].name:k)}">${ITEMS[k]?ITEMS[k].ic:"?"}${n>1?`<span class="q">${n}</span>`:""}</div>`;}
+function cell(k,n,onClick){return `<div class="tw-cell" data-k="${k}" title="${clEsc(ITEMS[k]?ITEMS[k].name:k)}">${ITEMS[k]?icHTML(k,24):"?"}${n>1?`<span class="q">${n}</span>`:""}</div>`;}
 function renderTrade(){
   document.getElementById("tw-mc").textContent=trade.iConfirm?"✓":"";
   document.getElementById("tw-tc").textContent=trade.theyConfirm?"✓":"";

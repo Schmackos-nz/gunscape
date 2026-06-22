@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.24",
+ "version": "1.0.25",
  "generated": "2026-06-22",
  "patches": [
+  {
+   "version": "1.0.25",
+   "date": "2026-06-22",
+   "title": "Visual polish: wind grass, rounder characters, custom item icons",
+   "notes": []
+  },
   {
    "version": "1.0.24",
    "date": "2026-06-22",
