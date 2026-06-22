@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.41",
+ "version": "1.0.42",
  "generated": "2026-06-22",
  "patches": [
+  {
+   "version": "1.0.42",
+   "date": "2026-06-22",
+   "title": "Audio: meatier gunshots, audible from much further",
+   "notes": []
+  },
   {
    "version": "1.0.41",
    "date": "2026-06-22",
@@ -204,12 +210,6 @@ window.PATCHNOTES={
    "version": "1.0.3",
    "date": "2026-06-21",
    "title": "Server-authoritative PvP duels with networked gunfire",
-   "notes": []
-  },
-  {
-   "version": "1.0.2",
-   "date": "2026-06-21",
-   "title": "Networked combat audio + tracers for other players and enemies",
    "notes": []
   }
  ]
