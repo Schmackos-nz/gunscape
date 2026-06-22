@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.23",
- "generated": "2026-06-21",
+ "version": "1.0.24",
+ "generated": "2026-06-22",
  "patches": [
+  {
+   "version": "1.0.24",
+   "date": "2026-06-22",
+   "title": "Mobile fixes: real viewport height, fullscreen on play, always-on HUD shrink",
+   "notes": []
+  },
   {
    "version": "1.0.23",
    "date": "2026-06-22",
