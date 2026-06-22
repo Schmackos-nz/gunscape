@@ -750,6 +750,11 @@ function makeHumanoid(o){
   const hips=ball(0.5,pants,TEX.fabric); hips.position.y=1.45; hips.scale.set(1,0.6,0.85); hips.userData.noOutline=true;
   const neck=cyl(0.16,0.18,0.25,skin,8); neck.position.y=2.85;
   const head=ball(0.4,skin); head.position.y=3.18;
+  // face on the front (+z) so facing direction is obvious
+  const eyeL=ball(0.075,0x16110d); eyeL.position.set(-0.14,0.06,0.33); eyeL.userData.noOutline=true;
+  const eyeR=ball(0.075,0x16110d); eyeR.position.set(0.14,0.06,0.33); eyeR.userData.noOutline=true;
+  const brow=box(0.42,0.06,0.05,0x16110d); brow.position.set(0,0.2,0.34); brow.userData.noOutline=true;
+  head.add(eyeL,eyeR,brow);
   const armL=limb(0.15,0.12,1.1,shirt,0.18,skin,0.16); armL.position.set(-0.6,2.6,0);
   const armR=limb(0.15,0.12,1.1,shirt,0.18,skin,0.16); armR.position.set(0.6,2.55,0.15);
   g.add(legL,legR,hips,torso,chest,neck,head,armL,armR);
@@ -1796,20 +1801,36 @@ function applySfxVol(){ if(masterGain)masterGain.gain.value=settings.sfx/100*0.5
 function applyMusicVol(){ if(musicGain)musicGain.gain.value=settings.music/100*0.25; }
 function applyGrass(){ for(const g of grassTufts)g.visible=settings.grass; }
 applyGrass();   // honour saved grass setting (grass tufts already built)
-// ---- 12-bit upbeat chiptune loop ----
+// ---- 12-bit upbeat chiptune loop (multi-section, ~28s) ----
 let musicGain=null, musicTimer=null, musicStep=0;
-const MEL=[659,784,880,784, 659,0,587,659, 784,880,1047,880, 784,659,587,0];   // E5 G5 A5… cheerful riff
-const BASS=[131,131,110,110, 87,87,98,98];                                       // C3 C3 A2 A2 F2 F2 G2 G2
+const _N={ _:0, A2:110,C3:131,E3:165,F3:175,G3:196,A3:220,
+  C5:523,D5:587,E5:659,F5:698,G5:784,A5:880,B5:988,C6:1047,D6:1175,E6:1319 };
+// four 16-step melodic phrases (A B A C) over an Am–F–C–G feel — varied so it doesn't loop tightly
+const MEL=[].concat(
+  [_N.E5,_N.A5,_N.C6,_N.A5, _N.E5,_N._,_N.D5,_N.E5, _N.F5,_N.A5,_N.C6,_N.A5, _N.G5,_N.E5,_N.D5,_N._],   // A
+  [_N.A5,_N.C6,_N.E6,_N.C6, _N.B5,_N._,_N.G5,_N.B5, _N.C6,_N.B5,_N.A5,_N.G5, _N.E5,_N.G5,_N.A5,_N._],   // B
+  [_N.E5,_N.A5,_N.C6,_N.A5, _N.E5,_N._,_N.D5,_N.E5, _N.F5,_N.A5,_N.C6,_N.D6, _N.C6,_N.A5,_N.G5,_N._],   // A'
+  [_N.D6,_N.C6,_N.A5,_N.G5, _N.A5,_N.C6,_N.D6,_N._, _N.E6,_N.D6,_N.C6,_N.A5, _N.G5,_N.E5,_N.D5,_N._]);  // C
+// bass root per bar (Am F C G), looped to match the 4 phrases
+const BARROOT=[_N.A2,_N.F3,_N.C3,_N.G3];
 function mnote(freq,dur,type,vol){ if(!actx||!freq||!musicGain)return; const t=actx.currentTime,o=actx.createOscillator(),g=actx.createGain();
   o.type=type; o.frequency.value=freq; g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol,t+0.02);
   g.gain.exponentialRampToValueAtTime(0.0001,t+dur); o.connect(g); g.connect(musicGain); o.start(t); o.stop(t+dur+0.05); }
+function mdrum(kick){ if(!actx||!musicGain)return; const t=actx.currentTime;
+  const o=actx.createOscillator(),g=actx.createGain(); o.type="square";
+  o.frequency.setValueAtTime(kick?150:1200,t); if(kick)o.frequency.exponentialRampToValueAtTime(50,t+0.12);
+  g.gain.setValueAtTime(kick?0.5:0.12,t); g.gain.exponentialRampToValueAtTime(0.0001,t+(kick?0.13:0.04));
+  o.connect(g); g.connect(musicGain); o.start(t); o.stop(t+0.16); }
 function startMusic(){ if(!actx||musicTimer)return;
   if(!musicGain){musicGain=actx.createGain();musicGain.connect(actx.destination);} applyMusicVol();
-  const eighth=(60/138)/2;   // 138 BPM, eighth notes
-  musicTimer=setInterval(()=>{ const s=musicStep++;
+  const eighth=(60/140)/2;   // 140 BPM
+  musicTimer=setInterval(()=>{ const s=musicStep++; const bar=Math.floor(s/8);
     const mf=MEL[s%MEL.length]; if(mf)mnote(mf,eighth*0.92,"square",0.5);
-    if(s%2===0){const bf=BASS[Math.floor(s/2)%BASS.length]; if(bf)mnote(bf,eighth*1.8,"triangle",0.6);}
-    if(s%8===4)mnote(MEL[s%MEL.length]*2||880,eighth*0.5,"square",0.18);   // light arp sparkle
+    const root=BARROOT[bar%4];
+    if(s%2===0)mnote(root,eighth*1.7,"triangle",0.6);                     // bass on the beat
+    if(s%8===4)mnote(root*1.5,eighth*1.5,"triangle",0.35);                // bass fifth mid-bar
+    if(s%4===2)mnote((MEL[s%MEL.length]||root*4)/1,eighth*0.4,"square",0.12); // arp sparkle
+    mdrum(s%4===0);                                                       // kick on down-beats, hat between
   }, eighth*1000); }
 function tone(freq,dur,type,vol,slideTo){ if(!actx)return;
   const t=actx.currentTime, o=actx.createOscillator(), g=actx.createGain();
@@ -1834,7 +1855,7 @@ function sfxPunch(){tone(95,0.05,"sine",0.22,55);noise(0.05,0.16,300);}
 // player attack visual: a bullet tracer for guns, a fist thrust for bare hands
 function playerAttackFx(tx,tz){
   if(player.equip.weapon==="fists"){ player.punchT=performance.now(); sfxPunch(); }
-  else { sfxShoot(player.equip.weapon); tracer(gunMuzzlePos(player.mesh,3.7),new THREE.Vector3(tx,2.2,tz),0xffe070); }
+  else { sfxShoot(player.equip.weapon); player.aimUntil=performance.now()+450; tracer(gunMuzzlePos(player.mesh,3.7),new THREE.Vector3(tx,2.2,tz),0xffe070); }
 }
 function sfxKill(){tone(300,0.28,"sawtooth",0.26,80); noise(0.2,0.22,900);}
 function sfxHurt(){tone(130,0.2,"sawtooth",0.3,65);}
@@ -2111,7 +2132,7 @@ function rollDrops(e){
   if(Math.random()<0.04+e.tier*0.012) makeDrop(pick(["health_potion","stamina_potion","prayer_potion"]),1,sx(),sz());
 }
 function enemyShoot(e,now){
-  if(now-e.lastShot<e.fireRate)return; e.lastShot=now; player.combatUntil=now+6000;
+  if(now-e.lastShot<e.fireRate)return; e.lastShot=now; e.aimUntil=now+500; player.combatUntil=now+6000;
   // auto-retaliate: start fighting back if idle
   if(player.autoRetaliate&&(!player.target||player.target.dead)){player.target=e;player.dest=null;}
   tracer(gunMuzzlePos(e.mesh,e.mesh.userData.baseHeight),new THREE.Vector3(player.pos.x,2.2,player.pos.z),0xff5040);
@@ -2453,6 +2474,9 @@ function openWorldMenu(cx,cy){
 /* ============================================================ *
  *  GAME LOOP
  * ============================================================ */
+// aiming pose: both arms raised forward to point the gun (call after animateLegs)
+function applyAim(mesh){const p=mesh&&mesh.userData&&mesh.userData.parts; if(!p)return;
+  if(p.armL)p.armL.rotation.x=-1.4; if(p.armR)p.armR.rotation.x=-1.05;}
 function animateLegs(mesh,phase,amp){const p=mesh.userData.parts;if(!p)return;
   if(p.legL)p.legL.rotation.x=Math.sin(phase)*amp;
   if(p.legR)p.legR.rotation.x=-Math.sin(phase)*amp;
@@ -2541,6 +2565,7 @@ function loop(now){
   else moveMarker.visible=false;
   player.walk+=moving?dt*(isRunning?15:10):0; if(!moving)player.walk*=0.8;
   animateLegs(player.mesh,player.walk,moving?0.6:0.05);
+  if(now<(player.aimUntil||0)) applyAim(player.mesh);                              // extend arms to aim while shooting
   if(player.punchT&&now-player.punchT<220){const pp=player.mesh.userData.parts;   // bare-hand punch thrust
     if(pp&&pp.armR)pp.armR.rotation.x=-1.5*Math.sin((1-(now-player.punchT)/220)*Math.PI);}
   player.mesh.position.set(player.pos.x,terrainHeight(player.pos.x,player.pos.z)+(player.yOffset||0),player.pos.z);
@@ -2603,6 +2628,7 @@ function loop(now){
     e.mesh.position.set(e.pos.x,terrainHeight(e.pos.x,e.pos.z),e.pos.z);
     e.walk+=emoving?dt*12:0; if(!emoving)e.walk*=0.8;
     animateLegs(e.mesh,e.walk,emoving?0.7:0.04);
+    if(now<(e.aimUntil||0)) applyAim(e.mesh);
     if(e.hpDirty) drawPlate(e);
   }
 
@@ -2891,11 +2917,17 @@ function drawNameBar(spr){const{cvs,tex,name,hp}=spr.userData;const c=cvs.getCon
   c.fillStyle="#000";c.fillRect(38,34,180,10);c.fillStyle="#5fd04a";c.fillRect(38,34,180*Math.max(0,hp),10);
   tex.needsUpdate=true;}
 function upsertRemote(p){
-  let r=remotes.get(p.id);
-  if(!r){const mesh=makeRemoteMesh(p.appearance);const plate=makeNameBar(p.user);mesh.add(plate);
+  let r=remotes.get(p.id); const ap=p.appearance||{};
+  if(!r){const mesh=makeRemoteMesh(ap);const plate=makeNameBar(p.user);mesh.add(plate);
     mesh.userData.remoteId=p.id;
-    r={id:p.id,user:p.user,mesh,plate,tx:p.x,tz:p.z,ry:p.ry,hp:p.hp,maxhp:p.maxhp};remotes.set(p.id,r);
+    r={id:p.id,user:p.user,mesh,plate,tx:p.x,tz:p.z,ry:p.ry,hp:p.hp,maxhp:p.maxhp,weapon:ap.weapon,body:ap.body};remotes.set(p.id,r);
     log(`${p.user} is here.`,"sys");}
+  else if(ap.weapon!==r.weapon || ap.body!==r.body){            // gear changed → rebuild so the held gun matches
+    const pos=r.mesh.position, hp=r.plate.userData.hp; scene.remove(r.mesh);
+    const mesh=makeRemoteMesh(ap); mesh.position.copy(pos); mesh.rotation.y=r.ry; mesh.userData.remoteId=p.id;
+    const plate=makeNameBar(p.user); plate.userData.hp=hp; mesh.add(plate);
+    r.mesh=mesh; r.plate=plate; r.weapon=ap.weapon; r.body=ap.body;
+  }
   r.tx=p.x;r.tz=p.z;r.ry=p.ry;r.hp=p.hp;r.maxhp=p.maxhp||100;}
 function removeRemote(id){const r=remotes.get(id);if(r){scene.remove(r.mesh);remotes.delete(id);}
   if(player.duel===id){endDuel();log("Your duel opponent left.","sys");}
@@ -2909,6 +2941,7 @@ function updateRemotes(dt){
     r.mesh.rotation.y=r.ry;
     const moved=Math.hypot(r.mesh.position.x-px,r.mesh.position.z-pz)>0.02;   // walk legs when moving
     r.walk=(r.walk||0)+(moved?dt*12:0); if(!moved)r.walk*=0.8; animateLegs(r.mesh,r.walk,moved?0.6:0.05);
+    if(performance.now()<(r.aimUntil||0)) applyAim(r.mesh);
     const f=r.maxhp?r.hp/r.maxhp:1; if(Math.abs(f-r.plate.userData.hp)>0.01){r.plate.userData.hp=f;drawNameBar(r.plate);}
   }
 }
@@ -2984,6 +3017,7 @@ function updateServerWorld(dt,now){
     se.mesh.rotation.y=se.ry;
     const moved=Math.hypot(se.mesh.position.x-px,se.mesh.position.z-pz)>0.02;   // walk legs when moving
     se.walk=(se.walk||0)+(moved?dt*13:0); if(!moved)se.walk*=0.8; animateLegs(se.mesh,se.walk,moved?0.7:0.04);
+    if(performance.now()<(se.aimUntil||0)) applyAim(se.mesh);
   }
   // server loot lies flat on the ground (no bob)
 }
@@ -3049,8 +3083,10 @@ function netConnect(url,mode,user,pass){
     else if(m.t==="fx"){ for(const f of m.list){
       if(f.k==="ehit"||f.k==="phit") worldFloater(f.x,f.z,String(f.dmg),f.k==="phit"?"#ff6a5a":"#ffd24a");
       else if(f.k==="shot"){ if(f.pid!==NET.id){ const v=audVol(f.sx,f.sz); shotSoundAt(f.w,v);
+        const rr=remotes.get(f.pid); if(rr)rr.aimUntil=performance.now()+450;          // aim pose for the shooter
         if(v>0)tracer(new THREE.Vector3(f.sx,terrainHeight(f.sx,f.sz)+2,f.sz),new THREE.Vector3(f.tx,terrainHeight(f.tx,f.tz)+2,f.tz),0xffe070);} }
       else if(f.k==="eshot"){ const v=audVol(f.sx,f.sz); enemyShotAt(v);
+        let nse=null,nd=9; for(const se of serverEnemies.values()){const d=Math.hypot(se.tx-f.sx,se.tz-f.sz);if(d<nd){nd=d;nse=se;}} if(nse)nse.aimUntil=performance.now()+500;
         if(v>0)tracer(new THREE.Vector3(f.sx,terrainHeight(f.sx,f.sz)+2,f.sz),new THREE.Vector3(f.tx,terrainHeight(f.tx,f.tz)+2,f.tz),0xff5040); }
       else if(f.k==="kill"){ if(f.pid!==NET.id) killSoundAt(audVol(f.x,f.z)); }
     } }

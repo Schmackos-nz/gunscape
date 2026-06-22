@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.36",
+ "version": "1.0.37",
  "generated": "2026-06-22",
  "patches": [
+  {
+   "version": "1.0.37",
+   "date": "2026-06-22",
+   "title": "Aim pose when shooting, faces, fix remote weapons, richer music",
+   "notes": []
+  },
   {
    "version": "1.0.36",
    "date": "2026-06-22",
