@@ -730,7 +730,8 @@ function makeHumanoid(o){
   g.add(legL,legR,hips,torso,chest,neck,head,armL,armR);
   if(o.gun!==false){
     const gun=makeGunModel(o.gunType||"rifle",o.gunColor);
-    gun.position.set(0.55,1.7,0.55); g.add(gun);   // held at the right hand
+    gun.position.set(0.05,-1.0,0.35); gun.rotation.x=0.12;   // parented to the right hand (swings with the arm)
+    armR.add(gun);
   }
   g.add(blobShadow(0.85));
   const s=(o.height??3.6)/3.6; g.scale.setScalar(s);
@@ -1054,11 +1055,11 @@ function buildTown(center,houses,name){
   }
   const well=cyl(2,2.4,1.2,0x7a7066,8,TEX.plaster); well.position.set(center.x,terrainHeight(center.x,center.z)+0.6,center.z); scene.add(well);
   addBlocker(center.x,center.z,2.4);
-  // homely touches: a name signpost at the south entrance + scattered flowers
+  // homely touches: a name signpost at the south entrance + flowers on the grassy fringe (off the plaza)
   makeSignpost(center.x, center.z+38, name);
-  for(let i=0;i<16;i++){const a=Math.random()*6.283, r=14+Math.random()*22;
-    const fx=center.x+Math.cos(a)*r, fz=center.z+Math.sin(a)*r;
-    if(!nearBlocker(fx,fz,1.5)&&!overlapsBuilding(fx,fz,0.5,0.5)) makeFlower(fx,fz);}
+  for(let i=0;i<20;i++){const a=Math.random()*6.283, r=44+Math.random()*18;   // outside the cobble plaza (r=40)
+    const fx=center.x+Math.cos(a)*r, fz=center.z+Math.sin(a)*r; const b=biomeAt(fx,fz);
+    if((b===BIOMES.grass||b===BIOMES.forest)&&!nearBlocker(fx,fz,1.5)&&!overlapsBuilding(fx,fz,0.5,0.5)) makeFlower(fx,fz);}
 }
 buildTown(TOWN,8,"Riverside");
 buildTown(OUTPOST,5,"Forest Outpost");
@@ -1161,19 +1162,25 @@ populateOres();                         // scatter mineable ore rocks across the
 /* ---------------- Wind-swayed grass tufts ------------------- */
 const grassTufts=[];
 function makeGrass(){
-  let n=0,guard=0;
-  while(n<300 && guard<7000){ guard++;
-    const x=(Math.random()*2-1)*(HALF-10), z=(Math.random()*2-1)*(HALF-10);
-    const b=biomeAt(x,z); if(b!==BIOMES.grass && b!==BIOMES.forest) continue;
-    if(townAtClient(x,z)) continue;
-    let blocked=false; for(const bl of blockers){ if(Math.hypot(x-bl.x,z-bl.z)<bl.r+1){blocked=true;break;} } if(blocked) continue;
-    const g=new THREE.Group(); g.position.set(x,terrainHeight(x,z),z);
-    const col=(b===BIOMES.forest)?0x3f7f3a:0x66a043;
-    for(let i=0;i<3;i++){const m=new THREE.Mesh(new THREE.ConeGeometry(0.06,1.0,4),new THREE.MeshToonMaterial({color:col,gradientMap:gradMap}));
-      const a=Math.random()*6.283, r=0.12+Math.random()*0.22, sc=0.7+Math.random()*0.7;
-      m.position.set(Math.cos(a)*r,0.5*sc,Math.sin(a)*r); m.scale.set(1,sc,1); m.userData.noOutline=true; g.add(m);}
-    g.userData.phase=Math.random()*6.283; g.userData.lean=(Math.random()-0.5)*0.08;
-    scene.add(g); grassTufts.push(g); n++;
+  const lowEnd=(typeof matchMedia!=="undefined"&&matchMedia("(pointer:coarse)").matches);
+  const PATCHES=lowEnd?70:150, PER=lowEnd?4:7;        // clustered into lush patches (lighter on mobile)
+  let patches=0,guard=0;
+  while(patches<PATCHES && guard<9000){ guard++;
+    const px=(Math.random()*2-1)*(HALF-12), pz=(Math.random()*2-1)*(HALF-12);
+    const b=biomeAt(px,pz); if(b!==BIOMES.grass && b!==BIOMES.forest) continue;
+    if(townAtClient(px,pz)) continue;
+    let blocked=false; for(const bl of blockers){ if(Math.hypot(px-bl.x,pz-bl.z)<bl.r+2){blocked=true;break;} } if(blocked) continue;
+    const col=(b===BIOMES.forest)?0x3f7f3a:0x6fae46;
+    for(let t=0;t<PER;t++){
+      const x=px+(Math.random()-0.5)*6, z=pz+(Math.random()-0.5)*6;
+      const g=new THREE.Group(); g.position.set(x,terrainHeight(x,z),z);
+      for(let i=0;i<3;i++){const m=new THREE.Mesh(new THREE.ConeGeometry(0.08,1.25,4),new THREE.MeshToonMaterial({color:col,gradientMap:gradMap}));
+        const a=Math.random()*6.283, r=0.1+Math.random()*0.22, sc=0.8+Math.random()*0.8;
+        m.position.set(Math.cos(a)*r,0.62*sc,Math.sin(a)*r); m.scale.set(1,sc,1); m.userData.noOutline=true; g.add(m);}
+      g.userData.phase=Math.random()*6.283; g.userData.lean=(Math.random()-0.5)*0.08;
+      scene.add(g); grassTufts.push(g);
+    }
+    patches++;
   }
 }
 makeGrass();

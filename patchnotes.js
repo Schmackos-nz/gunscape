@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.27",
+ "version": "1.0.28",
  "generated": "2026-06-22",
  "patches": [
+  {
+   "version": "1.0.28",
+   "date": "2026-06-22",
+   "title": "Flowers off the pavement, lush clustered grass, guns held in-hand",
+   "notes": []
+  },
   {
    "version": "1.0.27",
    "date": "2026-06-22",
