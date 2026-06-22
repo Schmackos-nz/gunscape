@@ -85,7 +85,7 @@ export class World {
   dropLoot(pid, items, x, z, publicNow) {            // spawn a dead player's gear as ground loot
     const now = Date.now();
     const publicAt = publicNow ? now : now + 60000;
-    const add = (k, n) => this.loot.push({ id: this.nid++, k, n, x: x + rnd(-2, 2), z: z + rnd(-2, 2), owner: pid, publicAt, despawnAt: now + 120000 });
+    const add = (k, n) => this.loot.push({ id: this.nid++, k, n, x: x + rnd(-0.3, 0.3), z: z + rnd(-0.3, 0.3), owner: pid, publicAt, despawnAt: now + 120000 });
     add('bones', 1);
     for (const it of (items || [])) if (it && it.k) add(it.k, it.n || 1);
   }
@@ -204,7 +204,7 @@ export class World {
     const s = ENEMY_STATS[e.type];
     const multi = !!inMulti(e.x, e.z);                 // multi-combat loot is shared immediately
     const publicAt = multi ? now : now + 60000;        // single-combat: killer's for 60s
-    const at = () => ({ x: e.x + rnd(-1.5, 1.5), z: e.z + rnd(-1.5, 1.5) });
+    const at = () => ({ x: e.x + rnd(-0.3, 0.3), z: e.z + rnd(-0.3, 0.3) });   // tight so loot stacks neatly
     const drop = (k, n) => { const a = at(); this.loot.push({ id: this.nid++, k, n, x: a.x, z: a.z, owner: killerPid, publicAt, despawnAt: now + 120000 }); };
     drop('bones', 1);
     drop('coins', randint(s.coins[0], s.coins[1]));

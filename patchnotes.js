@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.31",
+ "version": "1.0.32",
  "generated": "2026-06-22",
  "patches": [
+  {
+   "version": "1.0.32",
+   "date": "2026-06-22",
+   "title": "Flat stacked ground loot + chat input under the chat frame",
+   "notes": []
+  },
   {
    "version": "1.0.31",
    "date": "2026-06-22",
