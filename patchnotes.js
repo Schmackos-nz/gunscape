@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.45",
+ "version": "1.0.46",
  "generated": "2026-06-23",
  "patches": [
+  {
+   "version": "1.0.46",
+   "date": "2026-06-23",
+   "title": "Tooling: add server/run-server.bat to launch the dedicated server locally",
+   "notes": []
+  },
   {
    "version": "1.0.45",
    "date": "2026-06-23",
