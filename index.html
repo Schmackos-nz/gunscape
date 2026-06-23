@@ -671,12 +671,23 @@ const BIOMES={
 };
 
 /* ---------------- Terrain height (single source) ------------ */
-// 0 inside towns (flat for paths/floors), gentle rolling hills in the wild.
+// 0 inside towns + along roads (flat for paths/floors), gentle rolling hills elsewhere.
 function _flatFactor(d,r){return d<r?0:Math.min(1,(d-r)/22);}
+// road network as line segments so the inter-village paths sit on graded ground
+// instead of flat quads poking through hills.
+const ROAD_PAIRS=[[0,2],[2,1],[2,6],[0,3],[0,4],[4,7],[3,5],[0,5]];
+const ROAD_SEGS=ROAD_PAIRS.map(([i,j])=>({ax:MAP.TOWNS[i].x,az:MAP.TOWNS[i].z,bx:MAP.TOWNS[j].x,bz:MAP.TOWNS[j].z}));
+function _segDist(px,pz,ax,az,bx,bz){
+  const vx=bx-ax,vz=bz-az,wx=px-ax,wz=pz-az, c1=vx*wx+vz*wz;
+  if(c1<=0)return Math.hypot(wx,wz);
+  const c2=vx*vx+vz*vz; if(c2<=c1)return Math.hypot(px-bx,pz-bz);
+  const t=c1/c2; return Math.hypot(px-(ax+vx*t),pz-(az+vz*t));
+}
 function terrainHeight(x,z){
   const h=Math.sin(x*0.05)*Math.cos(z*0.05)*1.2+Math.sin(x*0.13+z*0.07)*0.5;
   let f=1;                                   // flatten the ground inside every town (covers the cobble plaza)
-  for(const t of MAP.TOWNS) f=Math.min(f,_flatFactor(Math.hypot(x-t.x,z-t.z),t.r));
+  for(const t of MAP.TOWNS){ f=Math.min(f,_flatFactor(Math.hypot(x-t.x,z-t.z),t.r)); if(f===0)return 0; }
+  for(const s of ROAD_SEGS){ f=Math.min(f,_flatFactor(_segDist(x,z,s.ax,s.az,s.bx,s.bz),3.5)); if(f===0)return 0; }   // graded road corridors
   return h*f;
 }
 /* ---------------- Terrain ----------------------------------- */
@@ -1068,7 +1079,7 @@ function doCraft(r){ if(!canCraft(r)){log("You can't make that yet.","bad");retu
 
 // flat cobblestone path quad laid just above the (flattened) town ground
 // shared path material with polygon-offset so paths blend onto the terrain (no z-fight / clip flicker)
-const pathMat=toonMat({color:0xbfb091,map:TEX.path,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});
+const pathMat=toonMat({color:0xbfb091,map:TEX.path,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4});
 function makePath(cx,cz,w,d,rot){
   const m=new THREE.Mesh(new THREE.PlaneGeometry(w,d),pathMat);
   m.rotation.x=-Math.PI/2; if(rot)m.rotation.z=rot;
@@ -1130,7 +1141,7 @@ function drawRoad(a,b){const dx=b.x-a.x,dz=b.z-a.z,len=Math.hypot(dx,dz),th=Math
   const n=Math.max(1,Math.ceil(len/3));                         // dense segments hug the terrain over hills
   for(let i=0;i<=n;i++){const t=i/n; makePath(a.x+dx*t,a.z+dz*t,5,4.5,-th);}}
 const T=MAP.TOWNS;
-for(const[i,j]of [[0,2],[2,1],[2,6],[0,3],[0,4],[4,7],[3,5],[0,5]]) drawRoad(T[i],T[j]);  // village network
+for(const[i,j]of ROAD_PAIRS) drawRoad(T[i],T[j]);  // village network (corridors are graded flat in terrainHeight)
 
 // specialized vendors across the towns (each opens its own shop window)
 const VENDORS={
@@ -1871,37 +1882,90 @@ function applySfxVol(){ if(masterGain)masterGain.gain.value=settings.sfx/100*0.5
 function applyMusicVol(){ if(musicGain)musicGain.gain.value=settings.music/100*0.25; }
 function applyGrass(){ for(const g of grassTufts)g.visible=settings.grass; }
 applyGrass();   // honour saved grass setting (grass tufts already built)
-// ---- 12-bit upbeat chiptune loop (multi-section, ~28s) ----
-let musicGain=null, musicTimer=null, musicStep=0;
-const _N={ _:0, A2:110,C3:131,E3:165,F3:175,G3:196,A3:220,
-  C5:523,D5:587,E5:659,F5:698,G5:784,A5:880,B5:988,C6:1047,D6:1175,E6:1319 };
-// four 16-step melodic phrases (A B A C) over an Am–F–C–G feel — varied so it doesn't loop tightly
-const MEL=[].concat(
-  [_N.E5,_N.A5,_N.C6,_N.A5, _N.E5,_N._,_N.D5,_N.E5, _N.F5,_N.A5,_N.C6,_N.A5, _N.G5,_N.E5,_N.D5,_N._],   // A
-  [_N.A5,_N.C6,_N.E6,_N.C6, _N.B5,_N._,_N.G5,_N.B5, _N.C6,_N.B5,_N.A5,_N.G5, _N.E5,_N.G5,_N.A5,_N._],   // B
-  [_N.E5,_N.A5,_N.C6,_N.A5, _N.E5,_N._,_N.D5,_N.E5, _N.F5,_N.A5,_N.C6,_N.D6, _N.C6,_N.A5,_N.G5,_N._],   // A'
-  [_N.D6,_N.C6,_N.A5,_N.G5, _N.A5,_N.C6,_N.D6,_N._, _N.E6,_N.D6,_N.C6,_N.A5, _N.G5,_N.E5,_N.D5,_N._]);  // C
-// bass root per bar (Am F C G), looped to match the 4 phrases
-const BARROOT=[_N.A2,_N.F3,_N.C3,_N.G3];
+/* ============================================================ *
+ *  GENERATIVE CHIPTUNE — a rotating set of distinct songs, each
+ *  in its own key/scale/tempo/drum-feel with a procedurally
+ *  re-improvised melody, so the soundtrack stays varied and long.
+ * ============================================================ */
+let musicGain=null, musicTimer=null, musicRunning=false;
+const MSCALES={
+  minor:[0,2,3,5,7,8,10], dorian:[0,2,3,5,7,9,10], major:[0,2,4,5,7,9,11],
+  mixo:[0,2,4,5,7,9,10], pentMin:[0,3,5,7,10], pentMaj:[0,2,4,7,9], harmMin:[0,2,3,5,7,8,11],
+};
+// each song: distinct key (rootMidi), scale, tempo, chord progression (scale degrees),
+// lead/bass timbres, drum feel and length — for maximum variety between sections.
+const SONGS=[
+  {name:"Frontier March", scale:"dorian",  rootMidi:74, bpm:128, prog:[0,6,5,6], lead:"square",   bass:"triangle", drum:"march", arp:false, bars:16},
+  {name:"Open Road",      scale:"major",   rootMidi:72, bpm:116, prog:[0,4,5,3], lead:"triangle", bass:"triangle", drum:"soft",  arp:true,  bars:16},
+  {name:"Dust & Iron",    scale:"minor",   rootMidi:69, bpm:144, prog:[0,5,2,6], lead:"sawtooth", bass:"square",   drum:"rock",  arp:true,  bars:16},
+  {name:"Riverside Stroll",scale:"pentMaj",rootMidi:74, bpm:108, prog:[0,3,4,0], lead:"triangle", bass:"sine",     drum:"soft",  arp:true,  bars:12},
+  {name:"Badlands Pulse", scale:"harmMin", rootMidi:76, bpm:150, prog:[0,3,4,0], lead:"square",   bass:"square",   drum:"drive", arp:false, bars:16},
+  {name:"Mistwood Wander",scale:"mixo",    rootMidi:67, bpm:124, prog:[0,6,3,4], lead:"triangle", bass:"triangle", drum:"rock",  arp:true,  bars:16},
+  {name:"Last Light",     scale:"minor",   rootMidi:71, bpm:96,  prog:[0,5,3,4], lead:"sine",     bass:"triangle", drum:"soft",  arp:true,  bars:14},
+];
+let msIdx=0, msStep=0, msOrder=[], msBar=null, msState={lastDeg:0}, msRng=Math.random, msPlays=0;
+function mseed(n){ let a=(n>>>0)||1; return ()=>{a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}; }
+function mShuffle(arr){ for(let i=arr.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];} return arr; }
+function midiF(m){ return 440*Math.pow(2,(m-69)/12); }
+function scaleNote(song,degree,octShift){ const sc=MSCALES[song.scale],len=sc.length; let d=degree,oct=octShift||0;
+  while(d<0){d+=len;oct--;} while(d>=len){d-=len;oct++;} return song.rootMidi+sc[d]+12*oct; }
+// build one bar (16 sixteenths) of improvised melody: chord tones on strong beats, stepwise elsewhere
+function mGenBar(song,bar,rng,st){
+  const len=MSCALES[song.scale].length, chordDeg=song.prog[bar%song.prog.length];
+  const tones=[chordDeg,chordDeg+2,chordDeg+4];
+  const out=new Array(16).fill(null); let i=0, last=(st.lastDeg!=null?st.lastDeg:chordDeg);
+  while(i<16){ const strong=(i%4===0);
+    if(rng()<(strong?0.04:0.28)){ i+=(rng()<0.5?2:1); continue; }   // rest
+    let deg;
+    if(strong||rng()<0.45) deg=tones[Math.floor(rng()*3)];
+    else deg=last+[-2,-1,1,2][Math.floor(rng()*4)];
+    const dur=(!strong&&rng()<0.18)?1:2;                            // occasional 16th run
+    out[i]={deg, oct:(rng()<0.12?1:0), dur}; last=deg; i+=dur;
+  }
+  st.lastDeg=last; return out;
+}
 function mnote(freq,dur,type,vol){ if(!actx||!freq||!musicGain)return; const t=actx.currentTime,o=actx.createOscillator(),g=actx.createGain();
   o.type=type; o.frequency.value=freq; g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol,t+0.02);
   g.gain.exponentialRampToValueAtTime(0.0001,t+dur); o.connect(g); g.connect(musicGain); o.start(t); o.stop(t+dur+0.05); }
-function mdrum(kick){ if(!actx||!musicGain)return; const t=actx.currentTime;
-  const o=actx.createOscillator(),g=actx.createGain(); o.type="square";
-  o.frequency.setValueAtTime(kick?150:1200,t); if(kick)o.frequency.exponentialRampToValueAtTime(50,t+0.12);
-  g.gain.setValueAtTime(kick?0.5:0.12,t); g.gain.exponentialRampToValueAtTime(0.0001,t+(kick?0.13:0.04));
-  o.connect(g); g.connect(musicGain); o.start(t); o.stop(t+0.16); }
-function startMusic(){ if(!actx||musicTimer)return;
+let _mNoise=null;
+function mNoiseBuf(){ if(_mNoise)return _mNoise; const sr=actx.sampleRate,b=actx.createBuffer(1,(sr*0.3)|0,sr),d=b.getChannelData(0);
+  for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1; _mNoise=b; return b; }
+function mdrum(kind){ if(!actx||!musicGain)return; const t=actx.currentTime;
+  if(kind==="kick"){ const o=actx.createOscillator(),g=actx.createGain(); o.type="sine";
+    o.frequency.setValueAtTime(155,t); o.frequency.exponentialRampToValueAtTime(46,t+0.12);
+    g.gain.setValueAtTime(0.6,t); g.gain.exponentialRampToValueAtTime(0.0001,t+0.16);
+    o.connect(g); g.connect(musicGain); o.start(t); o.stop(t+0.2); return; }
+  const src=actx.createBufferSource(); src.buffer=mNoiseBuf(); const f=actx.createBiquadFilter(),g=actx.createGain();
+  if(kind==="snare"){ f.type="bandpass"; f.frequency.value=1900; f.Q.value=0.8; g.gain.setValueAtTime(0.28,t); g.gain.exponentialRampToValueAtTime(0.0001,t+0.16); }
+  else { f.type="highpass"; f.frequency.value=7200; g.gain.setValueAtTime(0.11,t); g.gain.exponentialRampToValueAtTime(0.0001,t+0.045); }   // hat
+  src.connect(f); f.connect(g); g.connect(musicGain); src.start(t); src.stop(t+0.25); }
+function mDrumStep(song,i){
+  const p=song.drum;
+  if(p==="march"){ if(i===0||i===8)mdrum("kick"); if(i===4||i===12)mdrum("snare"); if(i%4===2)mdrum("hat"); }
+  else if(p==="rock"){ if(i===0||i===10)mdrum("kick"); if(i===4||i===12)mdrum("snare"); if(i%2===0)mdrum("hat"); }
+  else if(p==="drive"){ if(i%4===0)mdrum("kick"); if(i===4||i===12)mdrum("snare"); if(i%2===1)mdrum("hat"); }
+  else { if(i===0)mdrum("kick"); if(i===8)mdrum("hat"); if(i===4||i===12)mdrum("hat"); }   // soft
+}
+function mStartSong(){ msStep=0; msState={lastDeg:null}; msRng=mseed(msOrder[msIdx]*9301 + (msPlays++)*49297 + 12345); }
+function mTick(){
+  if(!musicRunning)return;
+  const song=SONGS[msOrder[msIdx]], stepDur=(60/song.bpm)/4, total=16*song.bars;
+  const i=msStep%16, bar=Math.floor(msStep/16);
+  if(i===0) msBar=mGenBar(song,bar,msRng,msState);
+  const nv=msBar&&msBar[i];
+  if(nv) mnote(midiF(scaleNote(song,nv.deg,nv.oct)), stepDur*nv.dur*0.92, song.lead, 0.4);
+  const chordDeg=song.prog[bar%song.prog.length];
+  if(i===0||i===8||(song.drum==="drive"&&(i===4||i===12))) mnote(midiF(scaleNote(song,chordDeg,-2)), stepDur*3, song.bass, 0.5);  // bass
+  if(i===0){ for(const ct of [0,2,4]) mnote(midiF(scaleNote(song,chordDeg+ct,-1)), stepDur*15, "triangle", 0.05); }              // soft pad chord
+  if(song.arp && i%2===1 && msRng()<0.5) mnote(midiF(scaleNote(song,chordDeg+(i%3?2:4),1)), stepDur*1.2, "square", 0.07);        // sparkle
+  mDrumStep(song,i);
+  msStep++;
+  if(msStep>=total){ msIdx=(msIdx+1)%msOrder.length; if(msIdx===0)mShuffle(msOrder); mStartSong(); }
+  musicTimer=setTimeout(mTick, stepDur*1000);
+}
+function startMusic(){ if(!actx||musicRunning)return;
   if(!musicGain){musicGain=actx.createGain();musicGain.connect(actx.destination);} applyMusicVol();
-  const eighth=(60/140)/2;   // 140 BPM
-  musicTimer=setInterval(()=>{ const s=musicStep++; const bar=Math.floor(s/8);
-    const mf=MEL[s%MEL.length]; if(mf)mnote(mf,eighth*0.92,"square",0.5);
-    const root=BARROOT[bar%4];
-    if(s%2===0)mnote(root,eighth*1.7,"triangle",0.6);                     // bass on the beat
-    if(s%8===4)mnote(root*1.5,eighth*1.5,"triangle",0.35);                // bass fifth mid-bar
-    if(s%4===2)mnote((MEL[s%MEL.length]||root*4)/1,eighth*0.4,"square",0.12); // arp sparkle
-    mdrum(s%4===0);                                                       // kick on down-beats, hat between
-  }, eighth*1000); }
+  msOrder=mShuffle(SONGS.map((_,k)=>k)); msIdx=0; musicRunning=true; mStartSong(); mTick(); }
 function tone(freq,dur,type,vol,slideTo){ if(!actx)return;
   const t=actx.currentTime, o=actx.createOscillator(), g=actx.createGain();
   o.type=type||"square"; o.frequency.setValueAtTime(freq,t);
@@ -2722,7 +2786,7 @@ function loop(now){
     if(!e.mesh.visible)e.mesh.visible=true;
     const wasAggro=e.aggro;
     // low-level mobs near the starting town are passive (only retaliate)
-    const peaceful=e.tier<=1 && Math.hypot(e.pos.x-TOWN.x,e.pos.z-TOWN.z)<MAP.STARTER_R;
+    const peaceful=!e.aggro && e.tier<=1 && Math.hypot(e.pos.x-TOWN.x,e.pos.z-TOWN.z)<MAP.PEACE_R;
     if(player.target===e) e.aggro=true;
     if(e.aggro&&d>e.aggroR+10&&player.target!==e) e.aggro=false;
     else if(!e.aggro&&!peaceful&&d<e.aggroR) e.aggro=true;
@@ -3274,6 +3338,9 @@ function populateServers(){document.getElementById("lg-servers").innerHTML=
   const srv=document.getElementById("lg-server");
   populateServers();
   srv.value = stripScheme(lsGet("gs_lastServer","")) || defaultSrv();   // never shows ws://
+  // ?host=<ip>&port=<port> in the URL pre-fills (and prioritises) the server box
+  try{ const q=new URLSearchParams(location.search), h=q.get("host");
+    if(h){ const port=q.get("port"); srv.value=stripScheme(h)+(port?":"+port:""); } }catch(e){}
   const u=()=>document.getElementById("lg-user").value, p=()=>document.getElementById("lg-pass").value;
   const needCreds=()=>{const ok=u().trim()&&p();if(!ok)document.getElementById("lg-msg").textContent="Enter a username and password.";return ok;};
   const go=(mode)=>{ if(!needCreds())return; const disp=stripScheme(srv.value)||defaultSrv();

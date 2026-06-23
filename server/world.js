@@ -114,6 +114,7 @@ export class World {
       if (!p.attacking) continue;
       const e = this.enemies.find(e => e.id === p.attacking && !e.dead);
       if (!e) { p.attacking = null; continue; }
+      e.aggro = true;   // attacking an enemy always provokes it (overrides 'peaceful') so it retaliates + closes in
       const wc = WEAPON_COMBAT[p.weapon] || WEAPON_COMBAT.zip;
       if (dist(p, e) > COMBAT_RANGE + 0.5) continue;          // client walks into range
       // single-combat: outside multi-combat zones only one player may fight an enemy
@@ -171,7 +172,7 @@ export class World {
       if (!multi && e.engagedBy != null) { near = e.engagedBy; nd = dist(e, this.players.get(near)); }
       else { for (const [pid, p] of alive) { const d = dist(e, p); if (d < nd) { nd = d; near = pid; } } }
       const tgt = near != null ? this.players.get(near) : null;
-      const peaceful = stats.tier <= 1 && Math.hypot(e.x - MAP.TOWN.x, e.z - MAP.TOWN.z) < MAP.STARTER_R;
+      const peaceful = !e.aggro && stats.tier <= 1 && Math.hypot(e.x - MAP.TOWN.x, e.z - MAP.TOWN.z) < MAP.PEACE_R;
       if (tgt && !peaceful && nd < stats.aggro) e.aggro = true;
       if (e.aggro && (!tgt || nd > stats.aggro + 12)) e.aggro = false;
       // single-combat: claim the player it aggros onto

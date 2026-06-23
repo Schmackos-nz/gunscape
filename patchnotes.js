@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.46",
+ "version": "1.0.47",
  "generated": "2026-06-23",
  "patches": [
+  {
+   "version": "1.0.47",
+   "date": "2026-06-23",
+   "title": "Audio: varied multi-song soundtrack; fix enemy combat; grade roads; URL host param",
+   "notes": []
+  },
   {
    "version": "1.0.46",
    "date": "2026-06-23",
@@ -216,12 +222,6 @@ window.PATCHNOTES={
    "version": "1.0.8",
    "date": "2026-06-21",
    "title": "Hinged doors, building variety, upstairs floors, and a quest tracker",
-   "notes": []
-  },
-  {
-   "version": "1.0.7",
-   "date": "2026-06-21",
-   "title": "Loot single-combat, smart pathfinding, and 10s logout-linger",
    "notes": []
   }
  ]

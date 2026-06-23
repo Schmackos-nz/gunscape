@@ -13,7 +13,16 @@ class V3 {
   normalize(){return this;} multiplyScalar(){return this;}
   setScalar(s){this.x=this.y=this.z=s;return this;}
   distanceTo(v){return Math.hypot(this.x-v.x,this.y-v.y,this.z-v.z);}
+  distanceToSquared(v){const dx=this.x-v.x,dy=this.y-v.y,dz=this.z-v.z;return dx*dx+dy*dy+dz*dz;}
   length(){return Math.hypot(this.x,this.y,this.z);}
+  setY(y){this.y=y;return this;} setX(x){this.x=x;return this;} setZ(z){this.z=z;return this;}
+  applyQuaternion(){return this;} applyMatrix4(){return this;} applyAxisAngle(){return this;}
+  project(){return this;} unproject(){return this;} lerp(){return this;} lerpVectors(){return this;}
+  cross(){return this;} crossVectors(){return this;} dot(){return 0;} addScaledVector(){return this;}
+  subVectors(a,b){this.x=a.x-b.x;this.y=a.y-b.y;this.z=a.z-b.z;return this;} addVectors(a,b){this.x=a.x+b.x;this.y=a.y+b.y;this.z=a.z+b.z;return this;}
+  setFromMatrixPosition(){return this;} angleTo(){return 0;} negate(){return this;} divideScalar(){return this;}
+  multiply(){return this;} round(){return this;} floor(){return this;} ceil(){return this;} equals(){return false;}
+  fromArray(){return this;} toArray(){return [this.x,this.y,this.z];} min(){return this;} max(){return this;} clamp(){return this;}
 }
 class V2{constructor(x=0,y=0){this.x=x;this.y=y;}set(x,y){this.x=x;this.y=y;return this;}}
 
@@ -30,6 +39,7 @@ class Geometry{
   constructor(){this.attributes={position:{count:9,getX:()=>0,getY:()=>0,getZ:()=>0,setY(){},setX(){},setZ(){}}};}
   rotateX(){return this;} rotateY(){return this;} translate(){return this;}
   computeVertexNormals(){} setAttribute(){} dispose(){} center(){return this;}
+  setFromPoints(){return this;} setIndex(){} addGroup(){} clone(){return this;} copy(){return this;}
 }
 class Material{constructor(o){Object.assign(this,o||{});} dispose(){}}
 
@@ -198,3 +208,15 @@ for(const [x,z] of stops){ sandbox.__tp(x,z); for(let i=0;i<6;i++) frame(t+=160)
 // report
 const R=sandbox.__report?sandbox.__report():{};
 console.log('SMOKE OK', JSON.stringify(R));
+
+// ---- combat probe (offline) ----
+run('globalThis.__setupCombat=function(){'
+  +' let best=null,bd=1e9; for(const e of enemies){const d=Math.hypot(e.pos.x,e.pos.z-40);if(d<bd){bd=d;best=e;}}'
+  +' if(!best)return {err:"no enemy"}; globalThis.__ce=best;'
+  +' player.pos.set(best.pos.x+2.2,0,best.pos.z); player.hp=100; attack(best);'
+  +' return {type:best.type,ehp0:best.hp,emax:best.maxhp,dist:dist2(player.pos,best.pos),engage:COMBAT_RANGE,aggro:best.aggro,simdist:SIM_DIST,peacefulR:MAP.STARTER_R};};'
+  +'globalThis.__combatRead=function(){return {ehp:__ce.hp,edead:__ce.dead,eaggro:__ce.aggro,php:player.hp,target:player.target===__ce,pdest:!!player.dest};};','combat-hooks');
+const setup=sandbox.__setupCombat();
+console.log('COMBAT setup', JSON.stringify(setup));
+for(let i=0;i<160;i++){ frame(t+=70); }     // ~11s of frames
+console.log('COMBAT after', JSON.stringify(sandbox.__combatRead()));

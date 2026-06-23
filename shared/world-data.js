@@ -31,6 +31,7 @@
     TOWN2: { x: 120 * SCALE, z: -90 * SCALE },   // Tinhollow — quest-giver village
     TOWN_SAFE: 42, OUTPOST_SAFE: 26, TOWN2_SAFE: 40,
     STARTER_R: 95 * SCALE,         // within this radius of TOWN only low-level (cmb<=8) enemies spawn
+    PEACE_R: 130,                  // small ring around the start town where low-tier mobs won't attack UNPROVOKED
     BIOME_EDGE: 55 * SCALE,        // |coord| beyond which quadrant biomes begin
     ENEMY_COUNT: 320,              // bumped to keep the much larger wilds from feeling empty
     // all settlements (safe zones + town biome). r = safe radius (unscaled — towns stay small).
