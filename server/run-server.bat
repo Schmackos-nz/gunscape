@@ -29,11 +29,15 @@ if not exist "node_modules" (
   )
 )
 
-REM --- work out the port + this machine's LAN IP for the share links ---
+REM --- work out the port + this host's IP addresses for the share links ---
 if "%PORT%"=="" set PORT=8787
 set LANIP=
+set PUBIP=
+echo Detecting your IP addresses...
 for /f "delims=" %%i in ('powershell -NoProfile -Command "(Get-NetIPAddress -AddressFamily IPv4 ^| Where-Object { $_.IPAddress -notlike '169.*' -and $_.IPAddress -ne '127.0.0.1' -and $_.PrefixOrigin -ne 'WellKnown' } ^| Select-Object -First 1 -ExpandProperty IPAddress)" 2^>nul') do set LANIP=%%i
+for /f "delims=" %%i in ('powershell -NoProfile -Command "try { (Invoke-RestMethod -Uri 'https://api.ipify.org' -TimeoutSec 5).Trim() } catch { '' }" 2^>nul') do set PUBIP=%%i
 if "%LANIP%"=="" set LANIP=localhost
+if "%PUBIP%"=="" set PUBIP=%LANIP%
 
 echo.
 echo   ============================================================
@@ -42,17 +46,17 @@ echo   ============================================================
 echo.
 echo    Share these links so friends connect straight to YOU:
 echo.
-echo    Web (Cloudflare):
-echo      https://gunscape.salostuce.workers.dev/?host=%LANIP%^&port=%PORT%
+echo    Web (Cloudflare) - for friends over the internet:
+echo      https://gunscape.salostuce.workers.dev/?host=%PUBIP%^&port=%PORT%
 echo.
-echo    Direct (served by this server, best for LAN):
+echo    Direct (served by this server, best for same network):
 echo      http://%LANIP%:%PORT%/?host=%LANIP%^&port=%PORT%
 echo.
 echo    On this PC:  http://localhost:%PORT%/
 echo.
 echo    Note: the web link needs this server reachable from the
-echo    internet (port-forward %PORT% or use a tunnel). On the same
-echo    network, use the Direct link.
+echo    internet - port-forward TCP %PORT% on your router (or use a
+echo    tunnel). On the same network, use the Direct link.
 echo.
 echo    Press Ctrl+C to stop.
 echo   ============================================================

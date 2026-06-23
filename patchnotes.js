@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.47",
+ "version": "1.0.48",
  "generated": "2026-06-23",
  "patches": [
+  {
+   "version": "1.0.48",
+   "date": "2026-06-23",
+   "title": "Tooling: run-server.bat fetches the host's public IP for the share link",
+   "notes": []
+  },
   {
    "version": "1.0.47",
    "date": "2026-06-23",
@@ -216,12 +222,6 @@ window.PATCHNOTES={
    "version": "1.0.9",
    "date": "2026-06-21",
    "title": "Server admin commands: broadcast, announce, DM, kick, ban",
-   "notes": []
-  },
-  {
-   "version": "1.0.8",
-   "date": "2026-06-21",
-   "title": "Hinged doors, building variety, upstairs floors, and a quest tracker",
    "notes": []
   }
  ]
