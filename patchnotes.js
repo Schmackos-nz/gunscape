@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.44",
- "generated": "2026-06-22",
+ "version": "1.0.45",
+ "generated": "2026-06-23",
  "patches": [
+  {
+   "version": "1.0.45",
+   "date": "2026-06-23",
+   "title": "World: 50x-larger map with streaming chunks, shared spawn, mobile menu buttons",
+   "notes": []
+  },
   {
    "version": "1.0.44",
    "date": "2026-06-22",
@@ -210,12 +216,6 @@ window.PATCHNOTES={
    "version": "1.0.7",
    "date": "2026-06-21",
    "title": "Loot single-combat, smart pathfinding, and 10s logout-linger",
-   "notes": []
-  },
-  {
-   "version": "1.0.5",
-   "date": "2026-06-21",
-   "title": "Enemies obey multi-combat rules (single-combat lock outside zones)",
    "notes": []
   }
  ]

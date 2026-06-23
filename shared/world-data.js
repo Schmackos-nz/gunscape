@@ -17,25 +17,32 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
 
   // ---- map / world layout ----
+  // World is ~50x larger than the original 600x600 arena (≈7x on each axis).
+  // Towns keep their physical size (r) but sit drastically further apart so the
+  // wilds between them are long, lonely treks. Spatial constants scale together
+  // off SCALE so the client + server stay in sync. Aggressive client-side
+  // occlusion (cull cells + short view distance) keeps the asset count sane.
+  const SCALE = 7;                 // linear scale vs. the original map (area ≈ 49x)
   const MAP = {
-    HALF: 300,                     // world spans -HALF..HALF
-    TOWN: { x: 0, z: 0 },
-    OUTPOST: { x: 150, z: -150 },
-    TOWN2: { x: 120, z: -90 },     // Tinhollow — quest-giver village
+    SCALE,
+    HALF: 300 * SCALE,             // world spans -HALF..HALF  (±2100)
+    TOWN: { x: 0, z: 0 },          // shared starting village (Riverside) — everyone spawns + respawns here
+    OUTPOST: { x: 150 * SCALE, z: -150 * SCALE },
+    TOWN2: { x: 120 * SCALE, z: -90 * SCALE },   // Tinhollow — quest-giver village
     TOWN_SAFE: 42, OUTPOST_SAFE: 26, TOWN2_SAFE: 40,
-    STARTER_R: 95,                 // within this radius of TOWN only low-level (cmb<=8) enemies spawn
-    BIOME_EDGE: 55,                // |coord| beyond which quadrant biomes begin
-    ENEMY_COUNT: 150,
-    // all settlements (safe zones + town biome). r = safe radius.
+    STARTER_R: 95 * SCALE,         // within this radius of TOWN only low-level (cmb<=8) enemies spawn
+    BIOME_EDGE: 55 * SCALE,        // |coord| beyond which quadrant biomes begin
+    ENEMY_COUNT: 320,              // bumped to keep the much larger wilds from feeling empty
+    // all settlements (safe zones + town biome). r = safe radius (unscaled — towns stay small).
     TOWNS: [
       { x: 0, z: 0, r: 42, name: 'Riverside' },
-      { x: 150, z: -150, r: 30, name: 'Forest Outpost' },
-      { x: 120, z: -90, r: 40, name: 'Tinhollow' },
-      { x: -125, z: 55, r: 36, name: 'Greenreach' },
-      { x: 60, z: 165, r: 36, name: 'Dustfall' },
-      { x: -165, z: -120, r: 36, name: 'Ironcross' },
-      { x: 195, z: 65, r: 36, name: 'Mistvale' },
-      { x: -95, z: 210, r: 36, name: 'Saltmarsh' },
+      { x: 150 * SCALE, z: -150 * SCALE, r: 30, name: 'Forest Outpost' },
+      { x: 120 * SCALE, z: -90 * SCALE, r: 40, name: 'Tinhollow' },
+      { x: -125 * SCALE, z: 55 * SCALE, r: 36, name: 'Greenreach' },
+      { x: 60 * SCALE, z: 165 * SCALE, r: 36, name: 'Dustfall' },
+      { x: -165 * SCALE, z: -120 * SCALE, r: 36, name: 'Ironcross' },
+      { x: 195 * SCALE, z: 65 * SCALE, r: 36, name: 'Mistvale' },
+      { x: -95 * SCALE, z: 210 * SCALE, r: 36, name: 'Saltmarsh' },
     ],
   };
 
@@ -107,9 +114,9 @@
   // multi-combat zones: inside these, many attackers can pile on one target;
   // everywhere else is single-combat (one attacker per enemy at a time).
   const MULTI_ZONES = [
-    { x: 180, z: 80, r: 60, name: 'Bandit Camp' },
-    { x: -180, z: -150, r: 90, name: 'The Scarlands' },
-    { x: 120, z: 150, r: 55, name: 'Crash Site' },
+    { x: 180 * SCALE, z: 80 * SCALE, r: 60 * 1.6, name: 'Bandit Camp' },
+    { x: -180 * SCALE, z: -150 * SCALE, r: 90 * 1.6, name: 'The Scarlands' },
+    { x: 120 * SCALE, z: 150 * SCALE, r: 55 * 1.6, name: 'Crash Site' },
   ];
   function inMulti(x, z) { for (const m of MULTI_ZONES) if (Math.hypot(x - m.x, z - m.z) < m.r) return m; return null; }
 

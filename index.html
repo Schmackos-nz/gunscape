@@ -119,15 +119,19 @@
   #questtracker .qt-q small{color:var(--dim);}
   #questtracker .qt-q.done{color:#7fd06a;} #questtracker .qt-q.done small{color:#7fd06a;}
   /* ---- mobile ---- */
-  #mobtoggle{position:absolute;top:8px;right:166px;z-index:60;display:none;width:42px;height:42px;
-    background:rgba(0,0,0,.6);border:2px solid var(--gold);border-radius:8px;color:var(--gold);
-    font-size:22px;line-height:38px;text-align:center;cursor:pointer;}
+  /* mobile action buttons: bag (toggle panel) · burger (menu) · world map */
+  #mobbtns{position:absolute;right:8px;top:50%;transform:translateY(-50%);z-index:60;display:none;
+    flex-direction:column;gap:10px;transition:transform .2s ease;}
+  #mobbtns>div{width:44px;height:44px;line-height:40px;text-align:center;font-size:21px;cursor:pointer;
+    background:rgba(0,0,0,.6);border:2px solid var(--gold);border-radius:9px;color:var(--gold);}
   #rotate{position:fixed;inset:0;z-index:300;display:none;background:#0d0a07;color:var(--gold);
     align-items:center;justify-content:center;text-align:center;font-size:26px;font-weight:bold;line-height:1.6;}
   #rotate.show{display:flex;} #rotate small{color:var(--dim);font-size:14px;font-weight:normal;}
   #game{touch-action:none;}
   /* ---- always shrink the HUD on touch devices (phones/tablets) ---- */
-  body.mobile #mobtoggle{display:block;}
+  body.mobile #mobbtns{display:flex;}
+  /* slide the buttons left so the open side panel doesn't cover them */
+  body.mobile.sideopen #mobbtns{transform:translate(calc(-1 * min(62vw, 300px) - 6px), -50%);}
   body.mobile #side{position:absolute;top:0;right:0;height:100%;z-index:55;width:62vw;max-width:300px;min-width:0;
     transform:translateX(100%);transition:transform .2s ease;box-shadow:-6px 0 18px rgba(0,0,0,.5);}
   body.mobile #side.open{transform:translateX(0);}
@@ -139,7 +143,6 @@
   body.mobile #runtoggle{top:108px;right:6px;width:96px;font-size:11px;}
   body.mobile #multicombat{top:138px;right:6px;width:96px;font-size:10px;}
   body.mobile #questtracker{top:168px;right:6px;width:120px;font-size:10px;}
-  body.mobile #mobtoggle{top:6px;right:108px;width:38px;height:38px;line-height:34px;font-size:20px;}
   body.mobile #bossbar{top:70px;width:60%;}
   body.mobile #chat{height:74px;font-size:11px;width:56%;bottom:40px;}
   body.mobile #chatinput{bottom:6px;width:56%;}
@@ -301,7 +304,11 @@
     <div id="questtracker"></div>
     <div id="announce"></div>
     <div id="bossbar"><div class="bb-name">Darude — Sand Tyrant</div><div class="bb-track"><i class="bb-fill"></i></div></div>
-    <div id="mobtoggle">☰</div>
+    <div id="mobbtns">
+      <div id="mobtoggle" title="Bag / panel">🎒</div>
+      <div id="mob-menu" title="Menu">☰</div>
+      <div id="mob-map" title="World map">🗺️</div>
+    </div>
     <div id="chat"></div>
   </div>
   <div id="side">
@@ -505,7 +512,8 @@ const player={
  * ============================================================ */
 const stage=document.getElementById("stage");
 const scene=new THREE.Scene();
-const camera=new THREE.PerspectiveCamera(55,1,0.1,900);
+const VIEW_DIST=300;                                    // aggressive view distance for the big map
+const camera=new THREE.PerspectiveCamera(55,1,0.1,VIEW_DIST+90);
 // robust renderer creation: try several configs (incl. WebGL1), and never let a
 // WebGL failure abort the whole script (which would kill menu/patch-notes/buttons)
 let renderer=null, glOK=true, glErr="";
@@ -597,7 +605,7 @@ const sky=(()=>{const c=document.createElement("canvas");c.width=4;c.height=256;
   g.fillStyle=grd; g.fillRect(0,0,4,256);
   const t=new THREE.CanvasTexture(c); t.encoding=THREE.sRGBEncoding; return t;})();
 scene.background=sky;
-scene.fog=new THREE.Fog(0xcfe2ee,120,330);
+scene.fog=new THREE.Fog(0xcfe2ee,VIEW_DIST*0.34,VIEW_DIST);   // pull the haze in to hide culled-asset pop-in
 
 scene.add(new THREE.HemisphereLight(0xdbeeff,0x556043,0.78));
 const sun=new THREE.DirectionalLight(0xfff1cf,1.05);
@@ -622,22 +630,36 @@ const TOWN=new THREE.Vector3(MAP.TOWN.x,0,MAP.TOWN.z);
 const OUTPOST=new THREE.Vector3(MAP.OUTPOST.x,0,MAP.OUTPOST.z);
 const TOWN2=new THREE.Vector3(MAP.TOWN2.x,0,MAP.TOWN2.z);
 const blockers=[];                    // {x,z,r} solid round obstacles
-function addBlocker(x,z,r){blockers.push({x,z,r});}
 const wallBoxes=[];                   // {x,z,hw,hd,door} axis-aligned wall segments
 function addWall(x,z,hw,hd,door){const w={x,z,hw,hd,door:door||null};wallBoxes.push(w);return w;}
 const buildings=[];                   // {fx,fz,hw,hd,roof} for roof hiding
-const trees=[];                       // choppable trees
+const trees=[];                       // choppable trees (only the loaded chunks' trees)
 const fires=[];                       // active campfires
 const altars=[];                      // prayer-recharge altars
 
+/* ---------------- Streaming world chunks -------------------- */
+// The 50x-larger map can't hold every tree/rock/grass tuft at once. Instead the
+// wild decor is generated lazily, chunk by chunk, only around the player and
+// disposed once you walk away — so we never "load a million assets" up front.
+// Generation is deterministic (seeded per chunk) so a chunk looks identical
+// every time you return to it.
+const CHUNK=150, CHUNK_R=2;           // chunk size (units) · load this many chunks around you (5x5)
+const SIM_DIST=340;                   // beyond this, enemies stop simulating + rendering (re-wake on approach)
+const chunks=new Map();               // "cx,cz" -> {cx,cz,group,trees[],ores[],grass[],blockers[]}
+let curChunk=null;                    // decor builders attach to this while a chunk is generating
+function addBlocker(x,z,r){const b={x,z,r};blockers.push(b);if(curChunk)curChunk.blockers.push(b);return b;}
+function chunkAdd(obj){ (curChunk?curChunk.group:scene).add(obj); }
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+
 /* ---------------- Biomes ------------------------------------ */
 // Region by position. Returns {name, ground(hex), spawns[], aggro}
+const BE=MAP.BIOME_EDGE;
 function biomeAt(x,z){
   for(const t of MAP.TOWNS){ if(Math.hypot(x-t.x,z-t.z)<t.r) return BIOMES.town; }
-  if(z<-55) return BIOMES.grass;
-  if(x>55)  return BIOMES.forest;
-  if(z>55)  return BIOMES.desert;
-  if(x<-55) return BIOMES.badlands;
+  if(z<-BE) return BIOMES.grass;
+  if(x>BE)  return BIOMES.forest;
+  if(z>BE)  return BIOMES.desert;
+  if(x<-BE) return BIOMES.badlands;
   return BIOMES.grass;
 }
 const BIOMES={
@@ -659,7 +681,7 @@ function terrainHeight(x,z){
 }
 /* ---------------- Terrain ----------------------------------- */
 function buildTerrain(){
-  const SEG=120, geo=new THREE.PlaneGeometry(HALF*2,HALF*2,SEG,SEG);
+  const SEG=200, geo=new THREE.PlaneGeometry(HALF*2,HALF*2,SEG,SEG);
   geo.rotateX(-Math.PI/2);
   const pos=geo.attributes.position, colors=[];
   const c=new THREE.Color();
@@ -687,7 +709,8 @@ function addLake(x,z,r){
   m.rotation.x=-Math.PI/2; m.position.set(x,terrainHeight(x,z)+0.5,z); m.userData.noOutline=true; scene.add(m);
   addBlocker(x,z,r*0.85);
 }
-addLake(-70,70,18); addLake(80,90,15); addLake(-110,-90,22);
+{const S=MAP.SCALE; addLake(-70*S,70*S,18*2.4); addLake(80*S,90*S,15*2.4); addLake(-110*S,-90*S,22*2.4);
+ addLake(20*S,-40*S,16*2.4); addLake(-50*S,-160*S,20*2.4); addLake(160*S,-30*S,18*2.4);}   // extra lakes for the bigger wilds
 
 /* ============================================================ *
  *  PROCEDURAL MODELS
@@ -924,13 +947,13 @@ function makeTree(x,z,kind){
     for(let i=0;i<3;i++){const c=new THREE.Mesh(new THREE.ConeGeometry(2-i*0.45,2,7),
       toonMat({color:fc}));c.position.y=3.4+i*1.2;foliage.add(c);}
   }
-  g.add(foliage); scene.add(g);
+  g.add(foliage); chunkAdd(g);
   const tree={group:g,foliage,pos:new THREE.Vector3(x,0,z),depleted:false,respawnAt:0};
-  g.userData.tree=tree; trees.push(tree);
+  g.userData.tree=tree; trees.push(tree); if(curChunk)curChunk.trees.push(tree);
 }
 function makeRock(x,z,s){
   const r=new THREE.Mesh(new THREE.DodecahedronGeometry(s),toonMat({color:0x8a8378,map:TEX.plaster}));
-  r.position.set(x,terrainHeight(x,z)+s*0.5,z); scene.add(r); addBlocker(x,z,s*0.8);
+  r.position.set(x,terrainHeight(x,z)+s*0.5,z); chunkAdd(r); addBlocker(x,z,s*0.8);
 }
 /* ---------------- Mining: ore rocks --------------------------- */
 const oreNodes=[];
@@ -946,23 +969,9 @@ function makeOreRock(x,z,ore){
   const rock=new THREE.Mesh(new THREE.DodecahedronGeometry(s),toonMat({color:d.col,map:TEX.plaster})); rock.position.y=s*0.5; g.add(rock);
   for(let i=0;i<5;i++){const v=box(0.3,0.3,0.3,d.vein,TEX.metal);
     v.position.set((Math.random()-0.5)*s*1.2,s*0.4+Math.random()*s*0.6,(Math.random()-0.5)*s*1.2); g.add(v);}
-  scene.add(g); addBlocker(x,z,s*0.8);
+  chunkAdd(g); addBlocker(x,z,s*0.8);
   const node={group:g,rock,pos:new THREE.Vector3(x,0,z),ore,lvl:d.lvl,depleted:false,respawnAt:0};
-  g.userData.ore=node; oreNodes.push(node); return node;
-}
-function populateOres(){
-  let n=0,guard=0;
-  while(n<46 && guard<5000){ guard++;
-    const x=(Math.random()*2-1)*(HALF-14), z=(Math.random()*2-1)*(HALF-14);
-    if(townAtClient(x,z)) continue;
-    let blocked=false; for(const bl of blockers){ if(Math.hypot(x-bl.x,z-bl.z)<bl.r+2){blocked=true;break;} } if(blocked) continue;
-    const dT=Math.hypot(x-TOWN.x,z-TOWN.z), r=Math.random();
-    let ore;
-    if(dT<MAP.STARTER_R) ore=r<0.5?"stone":"iron_ore";
-    else if(dT<175) ore=r<0.3?"stone":(r<0.78?"iron_ore":"steel_ore");
-    else ore=r<0.25?"iron_ore":(r<0.65?"steel_ore":"titanium_ore");
-    makeOreRock(x,z,ore); n++;
-  }
+  g.userData.ore=node; oreNodes.push(node); if(curChunk)curChunk.ores.push(node); return node;
 }
 function makeAltar(x,z){
   const g=new THREE.Group(); g.position.set(x,terrainHeight(x,z),z);
@@ -1157,22 +1166,7 @@ makeVendor("armor",  MAP.TOWNS[5].x+6, MAP.TOWNS[5].z+6);   // Ironcross
 makeVendor("general",MAP.TOWNS[6].x-6, MAP.TOWNS[6].z+6);   // Mistvale
 makeVendor("market", MAP.TOWNS[7].x+6, MAP.TOWNS[7].z-6);   // Saltmarsh
 
-// scatter biome flora
-function scatterFlora(){
-  for(let i=0;i<620;i++){
-    const x=(Math.random()*2-1)*(HALF-8), z=(Math.random()*2-1)*(HALF-8);
-    const b=biomeAt(x,z);
-    if(b===BIOMES.town) continue;
-    if(Math.hypot(x-TOWN.x,z-TOWN.z)<40) continue;
-    if(Math.hypot(x-OUTPOST.x,z-OUTPOST.z)<22) continue;
-    const r=Math.random();
-    if(b===BIOMES.desert){ if(r<0.5)makeTree(x,z,"cactus"); else if(r<0.62)makeRock(x,z,1+Math.random()*1.5); }
-    else if(b===BIOMES.badlands){ if(r<0.45)makeRock(x,z,1.2+Math.random()*2); }
-    else if(b===BIOMES.forest){ if(r<0.8)makeTree(x,z,"pine"); }
-    else { if(r<0.55)makeTree(x,z,"oak"); else if(r<0.6)makeRock(x,z,1); }
-  }
-}
-scatterFlora();
+// (biome flora is now generated lazily per chunk — see genChunk / updateChunks)
 
 /* ============================================================ *
  *  POINTS OF INTEREST (landmarks shown on the minimap)
@@ -1225,12 +1219,13 @@ function buildBanditCamp(x,z){
   flame.position.y=1; g.add(flame);
   g.position.set(x,terrainHeight(x,z),z); scene.add(g); addBlocker(x,z,2); addPOI("Bandit Camp",x,z);
 }
-buildGasStation(70,30);
-buildCrashedPlane(120,150);
-buildRadioTower(-160,-150);
-buildBunker(-120,120);
-buildGraveyard(-40,-120);
-buildBanditCamp(180,80);
+{const S=MAP.SCALE;
+buildGasStation(70*S,30*S);
+buildCrashedPlane(120*S,150*S);
+buildRadioTower(-160*S,-150*S);
+buildBunker(-120*S,120*S);
+buildGraveyard(-40*S,-120*S);
+buildBanditCamp(180*S,80*S);}
 addPOI("Riverside",TOWN.x,TOWN.z);
 addPOI("Forest Outpost",OUTPOST.x,OUTPOST.z);
 // prayer altars in both towns
@@ -1242,33 +1237,81 @@ makeFurnace(TOWN2.x-13, TOWN2.z+4);
 makeFurnace(MAP.TOWNS[3].x+13, MAP.TOWNS[3].z);   // Greenreach
 makeFurnace(MAP.TOWNS[5].x-13, MAP.TOWNS[5].z);   // Ironcross
 makeFurnace(MAP.TOWNS[6].x+13, MAP.TOWNS[6].z);   // Mistvale
-populateOres();                         // scatter mineable ore rocks across the wild
 
 /* ---------------- Wind-swayed grass tufts ------------------- */
 const grassTufts=[];
-function makeGrass(){
-  const lowEnd=(typeof matchMedia!=="undefined"&&matchMedia("(pointer:coarse)").matches);
-  const PATCHES=lowEnd?70:150, PER=lowEnd?4:7;        // clustered into lush patches (lighter on mobile)
-  let patches=0,guard=0;
-  while(patches<PATCHES && guard<9000){ guard++;
-    const px=(Math.random()*2-1)*(HALF-12), pz=(Math.random()*2-1)*(HALF-12);
-    const b=biomeAt(px,pz); if(b!==BIOMES.grass && b!==BIOMES.forest) continue;
-    if(townAtClient(px,pz)) continue;
-    let blocked=false; for(const bl of blockers){ if(Math.hypot(px-bl.x,pz-bl.z)<bl.r+2){blocked=true;break;} } if(blocked) continue;
-    const col=(b===BIOMES.forest)?0x3f7f3a:0x6fae46;
-    for(let t=0;t<PER;t++){
-      const x=px+(Math.random()-0.5)*6, z=pz+(Math.random()-0.5)*6;
-      const g=new THREE.Group(); g.position.set(x,terrainHeight(x,z),z);
-      for(let i=0;i<3;i++){const m=new THREE.Mesh(new THREE.ConeGeometry(0.08,1.25,4),new THREE.MeshToonMaterial({color:col,gradientMap:gradMap}));
-        const a=Math.random()*6.283, r=0.1+Math.random()*0.22, sc=0.8+Math.random()*0.8;
-        m.position.set(Math.cos(a)*r,0.62*sc,Math.sin(a)*r); m.scale.set(1,sc,1); m.userData.noOutline=true; g.add(m);}
-      g.userData.phase=Math.random()*6.283; g.userData.lean=(Math.random()-0.5)*0.08;
-      scene.add(g); grassTufts.push(g);
-    }
-    patches++;
+const LOW_END=(typeof matchMedia!=="undefined"&&matchMedia("(pointer:coarse)").matches);
+function makeGrassPatch(px,pz,b,rnd){
+  const PER=LOW_END?4:7;
+  const col=(b===BIOMES.forest)?0x3f7f3a:0x6fae46;
+  for(let t=0;t<PER;t++){
+    const x=px+(rnd()-0.5)*6, z=pz+(rnd()-0.5)*6;
+    const g=new THREE.Group(); g.position.set(x,terrainHeight(x,z),z);
+    for(let i=0;i<3;i++){const m=new THREE.Mesh(new THREE.ConeGeometry(0.08,1.25,4),new THREE.MeshToonMaterial({color:col,gradientMap:gradMap}));
+      const a=rnd()*6.283, r=0.1+rnd()*0.22, sc=0.8+rnd()*0.8;
+      m.position.set(Math.cos(a)*r,0.62*sc,Math.sin(a)*r); m.scale.set(1,sc,1); m.userData.noOutline=true; g.add(m);}
+    g.userData.phase=rnd()*6.283; g.userData.lean=(rnd()-0.5)*0.08;
+    chunkAdd(g); grassTufts.push(g); if(curChunk)curChunk.grass.push(g);
   }
 }
-makeGrass();
+
+/* ---------------- Chunk generation / streaming -------------- */
+// Deterministically fill one CHUNKxCHUNK tile of wilderness with flora, rocks,
+// grass and the odd ore vein. Only chunks near the player are ever built.
+function pickOre(dT,r){
+  if(dT<MAP.STARTER_R) return r<0.5?"stone":"iron_ore";
+  if(dT<175*MAP.SCALE)  return r<0.3?"stone":(r<0.78?"iron_ore":"steel_ore");
+  return r<0.25?"iron_ore":(r<0.65?"steel_ore":"titanium_ore");
+}
+function genChunk(cx,cz){
+  const rnd=mulberry32(((cx*73856093)^(cz*19349663))>>>0);
+  const x0=cx*CHUNK, z0=cz*CHUNK;
+  const ATT=LOW_END?16:26;                              // placement attempts per chunk
+  for(let i=0;i<ATT;i++){
+    const x=x0+rnd()*CHUNK, z=z0+rnd()*CHUNK;
+    if(Math.abs(x)>HALF-8||Math.abs(z)>HALF-8) continue;
+    const b=biomeAt(x,z);
+    if(b===BIOMES.town) continue;
+    if(Math.hypot(x-TOWN.x,z-TOWN.z)<40) continue;
+    let blocked=false; for(const bl of blockers){ if(Math.hypot(x-bl.x,z-bl.z)<bl.r+2){blocked=true;break;} } if(blocked) continue;
+    const r=rnd();
+    if(b===BIOMES.desert){ if(r<0.5)makeTree(x,z,"cactus"); else if(r<0.62)makeRock(x,z,1+rnd()*1.5); }
+    else if(b===BIOMES.badlands){ if(r<0.45)makeRock(x,z,1.2+rnd()*2); }
+    else if(b===BIOMES.forest){ if(r<0.8)makeTree(x,z,"pine"); else if(r<0.92)makeGrassPatch(x,z,b,rnd); }
+    else { if(r<0.5)makeTree(x,z,"oak"); else if(r<0.55)makeRock(x,z,1); else if(r<0.85)makeGrassPatch(x,z,b,rnd); }
+  }
+  // sparse ore: ~1 vein per chunk on average
+  if(rnd()<0.85){
+    const x=x0+rnd()*CHUNK, z=z0+rnd()*CHUNK;
+    if(Math.abs(x)<HALF-14&&Math.abs(z)<HALF-14&&!townAtClient(x,z)){
+      let blk=false; for(const bl of blockers){ if(Math.hypot(x-bl.x,z-bl.z)<bl.r+2){blk=true;break;} }
+      if(!blk) makeOreRock(x,z,pickOre(Math.hypot(x-TOWN.x,z-TOWN.z),rnd()));
+    }
+  }
+}
+function buildChunk(cx,cz){
+  const ch={cx,cz,group:new THREE.Group(),trees:[],ores:[],grass:[],blockers:[]};
+  scene.add(ch.group); chunks.set(cx+","+cz,ch);
+  curChunk=ch; genChunk(cx,cz); curChunk=null;
+}
+function disposeChunk(ch){
+  scene.remove(ch.group);
+  ch.group.traverse(o=>{ if(o.geometry&&o.geometry.dispose)o.geometry.dispose(); });
+  for(const t of ch.trees){ const i=trees.indexOf(t); if(i>=0)trees.splice(i,1); }
+  for(const o of ch.ores){ const i=oreNodes.indexOf(o); if(i>=0)oreNodes.splice(i,1); }
+  for(const g of ch.grass){ const i=grassTufts.indexOf(g); if(i>=0)grassTufts.splice(i,1); }
+  for(const bl of ch.blockers){ const i=blockers.indexOf(bl); if(i>=0)blockers.splice(i,1); }
+}
+function updateChunks(){
+  const pcx=Math.floor(player.pos.x/CHUNK), pcz=Math.floor(player.pos.z/CHUNK);
+  for(let dx=-CHUNK_R;dx<=CHUNK_R;dx++)for(let dz=-CHUNK_R;dz<=CHUNK_R;dz++){
+    const k=(pcx+dx)+","+(pcz+dz); if(!chunks.has(k)) buildChunk(pcx+dx,pcz+dz);
+  }
+  for(const [k,ch] of chunks){
+    if(Math.abs(ch.cx-pcx)>CHUNK_R+1||Math.abs(ch.cz-pcz)>CHUNK_R+1){ disposeChunk(ch); chunks.delete(k); }
+  }
+}
+updateChunks();   // build the starting area before the first frame
 
 /* ============================================================ *
  *  DARUDE — telegraphed desert boss (client-side, solo)
@@ -1276,7 +1319,7 @@ makeGrass();
 let darude=null;
 const bossFx=[];   // active telegraph decals: {mesh,t,delay,kind,...}
 function makeDarude(){
-  const x=20,z=250;                                   // alone in the deep southern sands
+  const x=20*MAP.SCALE,z=250*MAP.SCALE;               // alone in the deep southern sands
   const m=makeHumanoid({height:7.4,shirt:0xc2a05a,pants:0x8a6a30,skin:0xd8b878,gun:false});
   const horn=box(0.45,1.4,0.45,0x6a4a2a); horn.position.set(-0.5,3.7,0); m.add(horn);
   const horn2=box(0.45,1.4,0.45,0x6a4a2a); horn2.position.set(0.5,3.7,0); m.add(horn2);
@@ -1532,15 +1575,15 @@ function spawnEnemy(type,x,z){
 }
 function townAtClient(x,z){for(const t of MAP.TOWNS)if(Math.hypot(x-t.x,z-t.z)<t.r)return t;return null;}
 function pickByDist(list,dT){
-  const cap=dT<140?40:dT<200?78:999;
+  const S=MAP.SCALE||1, cap=dT<140*S?40:dT<200*S?78:999;
   let pool=list.filter(t=>ENEMY_STATS[t].cmb<cap); if(!pool.length)pool=list.slice();
   const a=pool[Math.floor(Math.random()*pool.length)], b=pool[Math.floor(Math.random()*pool.length)];
   const hi=ENEMY_STATS[a].cmb>=ENEMY_STATS[b].cmb?a:b, lo=(hi===a)?b:a;
-  return dT>200?hi:(Math.random()<0.55?hi:lo);
+  return dT>200*S?hi:(Math.random()<0.55?hi:lo);
 }
 function populateWorld(){
   let placed=0, guard=0;
-  while(placed<150 && guard<9000){
+  while(placed<MAP.ENEMY_COUNT && guard<60000){
     guard++;
     const x=(Math.random()*2-1)*(HALF-12), z=(Math.random()*2-1)*(HALF-12);
     const b=biomeAt(x,z);
@@ -2477,7 +2520,14 @@ function goFullscreen(){ const el=document.documentElement;
   try{ if(el.requestFullscreen) el.requestFullscreen().catch(()=>{}); }catch(e){}
   try{ if(screen.orientation&&screen.orientation.lock) screen.orientation.lock("landscape").catch(()=>{}); }catch(e){} }
 if(IS_TOUCH) addEventListener("pointerdown",()=>goFullscreen(),{once:true});   // first tap → fullscreen + lock
-document.getElementById("mobtoggle").addEventListener("click",()=>document.getElementById("side").classList.toggle("open"));
+document.getElementById("mobtoggle").addEventListener("click",()=>{
+  const open=document.getElementById("side").classList.toggle("open");
+  document.body.classList.toggle("sideopen",open);                 // shifts the button group clear of the panel
+});
+document.getElementById("mob-menu").addEventListener("click",()=>{
+  const m=document.getElementById("escmenu"); if(m.classList.contains("show"))closeEsc(); else openEsc(); });
+document.getElementById("mob-map").addEventListener("click",()=>{
+  const w=document.getElementById("worldmap"); if(w.classList.contains("show"))closeMap(); else openMap(); });
 // WASD orbits the camera around the player (A/D yaw, W/S pitch up/down)
 function cameraKeys(dt){
   const r=2.0*dt;
@@ -2668,9 +2718,11 @@ function loop(now){
     if(e.dead){ if(now>=e.respawnAt){e.dead=false;e.hp=e.maxhp;e.hpDirty=true;
       e.pos.copy(e.home);e.mesh.position.copy(e.home);e.mesh.visible=true;e.aggro=false;} continue; }
     const d=dist2(e.pos,player.pos);
+    if(d>SIM_DIST && player.target!==e){ if(e.mesh.visible)e.mesh.visible=false; continue; }  // far enemies idle + hidden
+    if(!e.mesh.visible)e.mesh.visible=true;
     const wasAggro=e.aggro;
     // low-level mobs near the starting town are passive (only retaliate)
-    const peaceful=e.tier<=1 && Math.hypot(e.pos.x-TOWN.x,e.pos.z-TOWN.z)<100;
+    const peaceful=e.tier<=1 && Math.hypot(e.pos.x-TOWN.x,e.pos.z-TOWN.z)<MAP.STARTER_R;
     if(player.target===e) e.aggro=true;
     if(e.aggro&&d>e.aggroR+10&&player.target!==e) e.aggro=false;
     else if(!e.aggro&&!peaceful&&d<e.aggroR) e.aggro=true;
@@ -2714,7 +2766,8 @@ function loop(now){
 
   // wind-swayed grass
   const gust=Math.sin(now*0.0006)*0.06;
-  for(const g of grassTufts){ g.rotation.z=Math.sin(now*0.002+g.userData.phase)*0.13+g.userData.lean+gust; }
+  for(const g of grassTufts){ if(g.parent&&!g.parent.visible)continue;   // skip culled tufts
+    g.rotation.z=Math.sin(now*0.002+g.userData.phase)*0.13+g.userData.lean+gust; }
 
   updateDarude(dt,now);   // boss telegraphs/AI (both online & offline)
 
@@ -2740,7 +2793,7 @@ function loop(now){
   renderer.render(scene,camera);
 
   uiTick+=dt;
-  if(uiTick>0.15){uiTick=0;updateTopBar();updateMinimap();updateRunUI();updateQuestTracker();
+  if(uiTick>0.15){uiTick=0;updateChunks();updateTopBar();updateMinimap();updateRunUI();updateQuestTracker();
     if(activeTab==="skills"||activeTab==="equip")refreshUI();}
   requestAnimationFrame(loop);
 }
@@ -3091,6 +3144,8 @@ function clearServerWorld(){
 }
 function updateServerWorld(dt,now){
   for(const se of serverEnemies.values()){
+    if(dist2(player.pos,{x:se.tx,z:se.tz})>SIM_DIST){ if(se.mesh.visible)se.mesh.visible=false; continue; }  // far: hide + skip
+    if(!se.mesh.visible)se.mesh.visible=true;
     const px=se.mesh.position.x, pz=se.mesh.position.z;
     se.mesh.position.x+=(se.tx-se.mesh.position.x)*Math.min(1,dt*8);
     se.mesh.position.z+=(se.tz-se.mesh.position.z)*Math.min(1,dt*8);

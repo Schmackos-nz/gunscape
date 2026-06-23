@@ -12,11 +12,12 @@ import '../shared/world-data.js';   // UMD: under ESM `module` is undefined → 
 const { MAP, BIOME_SPAWNS, biomeKind, townAt, WEAPON_COMBAT, ENEMY_STATS, GUN_TIERS, ARMOUR_TIERS, COMBAT_RANGE, inMulti } = globalThis;
 // pick an enemy from a biome list, biased harder the further from the start town
 function pickByDist(list, dT) {
-  const cap = dT < 140 ? 40 : dT < 200 ? 78 : 999;
+  const S = MAP.SCALE || 1;
+  const cap = dT < 140 * S ? 40 : dT < 200 * S ? 78 : 999;
   let pool = list.filter(t => ENEMY_STATS[t].cmb < cap); if (!pool.length) pool = list.slice();
   const a = pool[Math.floor(Math.random() * pool.length)], b = pool[Math.floor(Math.random() * pool.length)];
   const hi = ENEMY_STATS[a].cmb >= ENEMY_STATS[b].cmb ? a : b, lo = (hi === a) ? b : a;
-  return dT > 200 ? hi : (Math.random() < 0.55 ? hi : lo);
+  return dT > 200 * S ? hi : (Math.random() < 0.55 ? hi : lo);
 }
 
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -170,7 +171,7 @@ export class World {
       if (!multi && e.engagedBy != null) { near = e.engagedBy; nd = dist(e, this.players.get(near)); }
       else { for (const [pid, p] of alive) { const d = dist(e, p); if (d < nd) { nd = d; near = pid; } } }
       const tgt = near != null ? this.players.get(near) : null;
-      const peaceful = stats.tier <= 1 && Math.hypot(e.x - MAP.TOWN.x, e.z - MAP.TOWN.z) < 100;
+      const peaceful = stats.tier <= 1 && Math.hypot(e.x - MAP.TOWN.x, e.z - MAP.TOWN.z) < MAP.STARTER_R;
       if (tgt && !peaceful && nd < stats.aggro) e.aggro = true;
       if (e.aggro && (!tgt || nd > stats.aggro + 12)) e.aggro = false;
       // single-combat: claim the player it aggros onto

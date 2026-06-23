@@ -261,7 +261,19 @@ setInterval(() => {
   }
   if (players.length) {
     const w = world.snapshot();
-    broadcast({ t: 'snapshot', players, enemies: w.enemies, loot: w.loot, graves: w.graves });
+    // Interest management: on the 50x map a client only needs the enemies/loot/
+    // graves near it. Send each client a snapshot culled to its own view so we
+    // don't ship (or render) the whole world's worth of entities.
+    const VIEW = 380, VIEW2 = VIEW * VIEW;
+    const inView = (ax, az, bx, bz) => { const dx = ax - bx, dz = az - bz; return dx * dx + dz * dz < VIEW2; };
+    for (const [ws, s] of clients) {
+      if (!s.authed || ws.readyState !== 1) continue;
+      const cx = s.state.x, cz = s.state.z;
+      const enemies = w.enemies.filter(e => inView(cx, cz, e.x, e.z));
+      const loot = w.loot.filter(l => inView(cx, cz, l.x, l.z));
+      const graves = w.graves.filter(g => g.pid === s.id || inView(cx, cz, g.x, g.z));
+      send(ws, { t: 'snapshot', players, enemies, loot, graves });
+    }
   }
   for (const ev of events) { const w = wsById(ev.pid); if (w) send(w, ev); } // xp / death notices
 }, TICK_MS);
