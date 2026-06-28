@@ -99,7 +99,12 @@ export class SpectatorSystem {
       consider(p, attention.canSee(p));
     }
     for (const c of crowd.cctv) consider(c);
-    for (const d of drones) consider(d);
+
+    // Drones are a LAST RESORT: only consider them when no person or CCTV can
+    // see the player. This keeps the lens on civilians + cameras in the city.
+    if (!best || bestScore < CONFIG.spectator.unobservedFloor) {
+      for (const d of drones) consider(d);
+    }
 
     // publish nearest-first eligible list for manual hopping
     this.elig.sort((a, b) => a.dist - b.dist);

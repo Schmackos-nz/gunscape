@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.50",
+ "version": "1.0.51",
  "generated": "2026-06-28",
  "patches": [
+  {
+   "version": "1.0.51",
+   "date": "2026-06-28",
+   "title": "City of Eyes: drones rural-only + true last-resort lens, fix camera in drone",
+   "notes": []
+  },
   {
    "version": "1.0.50",
    "date": "2026-06-28",
@@ -222,12 +228,6 @@ window.PATCHNOTES={
    "version": "1.0.13",
    "date": "2026-06-21",
    "title": "Fix upstairs: stair hole in the floor, full enclosing walls, two-way stairs",
-   "notes": []
-  },
-  {
-   "version": "1.0.11",
-   "date": "2026-06-21",
-   "title": "Use wss:// on secure pages and drop the port so hosted servers connect",
    "notes": []
   }
  ]
