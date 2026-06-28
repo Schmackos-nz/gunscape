@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { CONFIG } from "./config";
 import { World } from "./World";
 import { Input } from "./Input";
+import { addWheels } from "./TrafficSystem";
 
 // The car the player drives after stealing one. Free 2D movement (accelerate /
 // brake-reverse / steer), blocked by buildings. While active the player avatar
@@ -32,6 +33,7 @@ export class PlayerCar {
     );
     lamp.position.set(0, 0.55, 1.98);
     this.group.add(lamp);
+    addWheels(this.group, 1.9, 3.9);
 
     this.group.visible = false;
     world.scene.add(this.group);

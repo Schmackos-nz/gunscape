@@ -15,6 +15,20 @@ interface VehicleType {
   bike: boolean;
 }
 
+// shared wheel geometry/material for all cars
+const WHEEL_GEO = new THREE.CylinderGeometry(0.35, 0.35, 0.22, 12);
+const WHEEL_MAT = new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 0.8 });
+export function addWheels(group: THREE.Group, w: number, l: number) {
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      const wheel = new THREE.Mesh(WHEEL_GEO, WHEEL_MAT);
+      wheel.rotation.z = Math.PI / 2; // axle along X
+      wheel.position.set(sx * (w / 2), 0.35, sz * (l / 2 - 0.85));
+      group.add(wheel);
+    }
+  }
+}
+
 const TYPES: VehicleType[] = [
   { name: "sedan", w: 1.8, l: 3.8, h: 0.7, base: 72, wave: "sawtooth", speedMul: 1.0, vol: 0.05, bike: false },
   { name: "truck", w: 2.3, l: 5.4, h: 1.3, base: 44, wave: "sawtooth", speedMul: 0.78, vol: 0.075, bike: false },
@@ -80,6 +94,7 @@ class Vehicle {
       );
       lamp.position.set(0, 0.55, t.l / 2);
       this.group.add(lamp);
+      addWheels(this.group, t.w, t.l);
     }
 
     this.engine = sfx.createEngine(t.base, t.wave);
@@ -203,6 +218,7 @@ export class TrafficSystem {
     );
     cabin.position.set(0, 1.05, -0.2);
     group.add(cabin);
+    addWheels(group, 1.9, 3.9);
 
     const off = side * CONFIG.traffic.parkOffset;
     const pos = axisZ ? new THREE.Vector3(line + off, 0, along) : new THREE.Vector3(along, 0, line + off);

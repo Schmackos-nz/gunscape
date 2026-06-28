@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.58",
+ "version": "1.0.59",
  "generated": "2026-06-28",
  "patches": [
+  {
+   "version": "1.0.59",
+   "date": "2026-06-28",
+   "title": "City of Eyes: car wheels + main-menu changelog/version (v0.3.0)",
+   "notes": []
+  },
   {
    "version": "1.0.58",
    "date": "2026-06-28",
@@ -234,12 +240,6 @@ window.PATCHNOTES={
    "version": "1.0.20",
    "date": "2026-06-21",
    "title": "Make townships homely: cobble plazas, ring roads, flowers and signposts",
-   "notes": []
-  },
-  {
-   "version": "1.0.19",
-   "date": "2026-06-21",
-   "title": "Mining + Refining skills, ore rocks/furnaces, and real gun models",
    "notes": []
   }
  ]

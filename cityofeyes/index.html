@@ -74,6 +74,13 @@
       .screen button:disabled { opacity: 0.4; cursor: default; }
       .screen label { font-size: 14px; display: flex; align-items: center; gap: 10px; }
       .screen input[type=range] { width: 180px; }
+      .screen .version { position: absolute; bottom: 14px; right: 16px; color: #6b7689; font-size: 12px; }
+      #changelog-body { width: 460px; max-width: 86vw; max-height: 52vh; overflow-y: auto; text-align: left;
+        background: #10151f; border: 1px solid #28344a; border-radius: 8px; padding: 14px 18px; }
+      #changelog-body h3 { color: #ffd166; font-size: 14px; margin: 10px 0 4px; }
+      #changelog-body h3:first-child { margin-top: 0; }
+      #changelog-body ul { margin: 0 0 6px 18px; }
+      #changelog-body li { font-size: 13px; color: #b7c1d0; line-height: 1.5; }
       #shop { position: fixed; inset: 0; z-index: 45; display: none; align-items: center;
         justify-content: center; background: rgba(0,0,0,0.55); font-family: ui-monospace, monospace; }
       #shop .panel { background: #121722; border: 1px solid #2a3346; border-radius: 10px;
@@ -124,6 +131,14 @@
       <button id="btn-new">New Game</button>
       <button id="btn-continue">Continue</button>
       <button id="btn-settings">Settings</button>
+      <button id="btn-changelog">Changelog</button>
+      <div class="version" id="version"></div>
+    </div>
+
+    <div id="changelog" class="screen hidden">
+      <div class="title">Changelog</div>
+      <div id="changelog-body"></div>
+      <button id="btn-clback">Back</button>
     </div>
 
     <div id="pausemenu" class="screen hidden">

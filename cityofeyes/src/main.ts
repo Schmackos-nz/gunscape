@@ -20,6 +20,7 @@ import { PlayerCar } from "./engine/PlayerCar";
 import { Humanoid, randomCivilianColors } from "./engine/Humanoid";
 import { Voice } from "./engine/Voice";
 import { Sfx } from "./engine/Sfx";
+import { VERSION, CHANGELOG } from "./changelog";
 
 function fatal(msg: string) {
   let el = document.getElementById("fatal");
@@ -135,6 +136,7 @@ let settingsReturn: GameState = "menu";
 const mainmenuEl = document.getElementById("mainmenu") as HTMLElement;
 const pausemenuEl = document.getElementById("pausemenu") as HTMLElement;
 const settingsScreen = document.getElementById("settings") as HTMLElement;
+const changelogScreen = document.getElementById("changelog") as HTMLElement;
 const continueBtn = document.getElementById("btn-continue") as HTMLButtonElement;
 const volSlider = document.getElementById("set-vol") as HTMLInputElement;
 const voiceChk = document.getElementById("set-voice") as HTMLInputElement;
@@ -156,10 +158,11 @@ function saveSettings() { localStorage.setItem("cityofeyes_settings", JSON.strin
 const hasSave = () => !!localStorage.getItem("cityofeyes_save");
 function refreshMenu() { continueBtn.disabled = !hasSave(); }
 
-function showScreen(s: "menu" | "pause" | "settings" | null) {
+function showScreen(s: "menu" | "pause" | "settings" | "changelog" | null) {
   mainmenuEl.classList.toggle("hidden", s !== "menu");
   pausemenuEl.classList.toggle("hidden", s !== "pause");
   settingsScreen.classList.toggle("hidden", s !== "settings");
+  changelogScreen.classList.toggle("hidden", s !== "changelog");
 }
 
 function resetGame() {
@@ -182,8 +185,16 @@ function closeSettings() { showScreen(settingsReturn === "menu" ? "menu" : "paus
 
 function handleEscape() {
   if (!settingsScreen.classList.contains("hidden")) { closeSettings(); return; }
+  if (!changelogScreen.classList.contains("hidden")) { showScreen("menu"); return; }
   if (gameState === "playing") { if (shopOpen) closeShop(); else pauseGame(); }
   else if (gameState === "paused") resumeGame();
+}
+
+function buildChangelog() {
+  document.getElementById("version")!.textContent = "v" + VERSION;
+  document.getElementById("changelog-body")!.innerHTML = CHANGELOG
+    .map((e) => `<h3>v${e.version}</h3><ul>${e.notes.map((n) => `<li>${n}</li>`).join("")}</ul>`)
+    .join("");
 }
 
 document.getElementById("btn-new")!.onclick = startNewGame;
@@ -194,6 +205,8 @@ document.getElementById("btn-save")!.onclick = () => saveGame();
 document.getElementById("btn-psettings")!.onclick = () => openSettings("paused");
 document.getElementById("btn-quit")!.onclick = quitToMenu;
 document.getElementById("btn-back")!.onclick = closeSettings;
+document.getElementById("btn-changelog")!.onclick = () => showScreen("changelog");
+document.getElementById("btn-clback")!.onclick = () => showScreen("menu");
 volSlider.oninput = () => { settings.volume = Number(volSlider.value) / 100; applySettings(); saveSettings(); };
 voiceChk.onchange = () => { settings.voice = voiceChk.checked; applySettings(); saveSettings(); };
 
@@ -482,6 +495,7 @@ function updateHud() {
 step(STEP);
 director.update(STEP, player, spectator, attention.heat);
 loadSettings();
+buildChangelog();
 refreshMenu();
 showScreen("menu");
 requestAnimationFrame(frame);
