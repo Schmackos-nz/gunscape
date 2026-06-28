@@ -4,32 +4,32 @@ import { Spectator, LensKind } from "./Spectator";
 
 const SPEED = 10;
 
-// A camera drone that PATROLS the farmland — it never trails the player into
-// the city (where pedestrians and CCTV are the lenses). Only when the player is
-// out in the rural ring does the drone close in and orbit, providing a genuine
-// last-resort lens where there are no people or cameras.
+// Camera drones. ONE is an "overwatch" drone that always trails the player at
+// altitude, so there is always an eligible last-resort lens and the camera
+// never has to fall back to an abstract bird's-eye view. When it's actually the
+// active shot (no person/CCTV can see you) it drops in closer for a real
+// framing. The rest patrol the farmland for flavour.
 class Drone implements Spectator {
   readonly id: string;
   readonly kind: LensKind = "drone";
   readonly mechanical = true;
   readonly stability = 0.6;
-  fieldOfViewCos = Math.cos(THREE.MathUtils.degToRad(75));
+  fieldOfViewCos = Math.cos(THREE.MathUtils.degToRad(80));
 
   readonly group = new THREE.Group();
+  private overwatch: boolean;
   private pos = new THREE.Vector3();
+  private anchor = new THREE.Vector3();
   private fwd = new THREE.Vector3(0, 0, 1);
   private roam = new THREE.Vector3();
   private angle: number;
-  private radius: number;
-  private height: number;
   private rotors: THREE.Mesh[] = [];
   private tmp = new THREE.Vector3();
 
   constructor(index: number) {
     this.id = "drone" + index;
+    this.overwatch = index === 0;
     this.angle = (index / CONFIG.drones.count) * Math.PI * 2;
-    this.radius = CONFIG.drones.radius * (0.85 + Math.random() * 0.4);
-    this.height = CONFIG.drones.height + (Math.random() - 0.5) * 3;
     this.buildModel();
     this.pickRoam();
     this.pos.copy(this.roam);
@@ -66,15 +66,15 @@ class Drone implements Spectator {
       const x = (Math.random() * 2 - 1) * (half - 10);
       const z = (Math.random() * 2 - 1) * (half - 10);
       if (Math.max(Math.abs(x), Math.abs(z)) > townHalf + 8) {
-        this.roam.set(x, this.height, z);
+        this.roam.set(x, CONFIG.drones.height, z);
         return;
       }
     }
-    this.roam.set(half - 14, this.height, half - 14);
+    this.roam.set(half - 14, CONFIG.drones.height, half - 14);
   }
 
-  // eye sits just AHEAD of the drone body (toward the player) so the camera
-  // never frames the drone's own chassis/rotors
+  // eye sits ahead of the body (toward the player) so the camera never frames
+  // the drone's own chassis/rotors
   eyePosition(out: THREE.Vector3): THREE.Vector3 {
     return out.copy(this.pos).addScaledVector(this.fwd, 0.7);
   }
@@ -82,28 +82,26 @@ class Drone implements Spectator {
     return out.copy(this.fwd);
   }
 
-  update(dt: number, playerPos: THREE.Vector3) {
-    const { townHalf } = CONFIG.world;
-    const playerRural = Math.max(Math.abs(playerPos.x), Math.abs(playerPos.z)) > townHalf + 6;
-
-    const target = this.tmp;
-    if (playerRural) {
-      // close in and orbit the rural player
+  /** `active` = this overwatch drone is (about to be) the live shot. */
+  update(dt: number, playerPos: THREE.Vector3, active: boolean) {
+    if (this.overwatch) {
+      // trail the player closely so it's always in range; orbit slowly
+      this.anchor.lerp(playerPos, 1 - Math.pow(0.0001, dt));
       this.angle += dt * CONFIG.drones.orbitSpeed;
-      target.set(
-        playerPos.x + Math.cos(this.angle) * this.radius,
-        this.height,
-        playerPos.z + Math.sin(this.angle) * this.radius
-      );
+      const r = active ? 14 : 24; // close in for a real shot when it's the lens
+      const h = active ? 9 : 16;
+      const tx = this.anchor.x + Math.cos(this.angle) * r;
+      const tz = this.anchor.z + Math.sin(this.angle) * r;
+      this.pos.x += (tx - this.pos.x) * (1 - Math.pow(0.02, dt));
+      this.pos.z += (tz - this.pos.z) * (1 - Math.pow(0.02, dt));
+      this.pos.y += (h - this.pos.y) * (1 - Math.pow(0.05, dt));
     } else {
-      // patrol the farmland; never enter the city
+      // patrol the farmland
       if (this.pos.distanceToSquared(this.roam) < 25) this.pickRoam();
-      target.copy(this.roam);
+      const dir = this.tmp.copy(this.roam).sub(this.pos);
+      const d = dir.length();
+      if (d > 1e-3) this.pos.addScaledVector(dir.divideScalar(d), Math.min(d, SPEED * dt));
     }
-
-    const dir = target.sub(this.pos);
-    const d = dir.length();
-    if (d > 1e-3) this.pos.addScaledVector(dir.divideScalar(d), Math.min(d, SPEED * dt));
 
     this.fwd.copy(playerPos).sub(this.pos).normalize();
     this.group.position.copy(this.pos);
@@ -123,7 +121,9 @@ export class DroneSystem {
     }
   }
 
-  update(dt: number, playerPos: THREE.Vector3) {
-    for (const d of this.drones) d.update(dt, playerPos);
+  /** `coverNeeded` = the camera currently has no person/CCTV lens, so the
+   *  overwatch drone should be the live shot (and close in). */
+  update(dt: number, playerPos: THREE.Vector3, coverNeeded: boolean) {
+    this.drones.forEach((d, i) => d.update(dt, playerPos, coverNeeded && i === 0));
   }
 }

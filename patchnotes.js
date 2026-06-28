@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.56",
+ "version": "1.0.57",
  "generated": "2026-06-28",
  "patches": [
+  {
+   "version": "1.0.57",
+   "date": "2026-06-28",
+   "title": "City of Eyes: overwatch drone so the camera is never unobserved",
+   "notes": []
+  },
   {
    "version": "1.0.56",
    "date": "2026-06-28",
@@ -234,12 +240,6 @@ window.PATCHNOTES={
    "version": "1.0.18",
    "date": "2026-06-21",
    "title": "Texture everything with procedural canvas textures",
-   "notes": []
-  },
-  {
-   "version": "1.0.17",
-   "date": "2026-06-21",
-   "title": "Move upstairs staircases to the back of buildings so they don't block doorways",
    "notes": []
   }
  ]

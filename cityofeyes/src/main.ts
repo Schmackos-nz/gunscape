@@ -259,7 +259,9 @@ function step(dt: number) {
   }
 
   farms.update(dt);
-  drones.update(dt, player.pos);
+  // coverage need (from last frame): no person/CCTV lens → overwatch drone is/was the shot
+  const coverNeeded = spectator.isUnobserved || spectator.active.kind === "drone";
+  drones.update(dt, player.pos, coverNeeded);
   spectator.update(dt, player, crowd, attention, drones.drones, shops.interiorLenses);
 
   // occasional friendly greeting from a calm nearby pedestrian
