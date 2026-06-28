@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.48",
- "generated": "2026-06-23",
+ "version": "1.0.49",
+ "generated": "2026-06-28",
  "patches": [
+  {
+   "version": "1.0.49",
+   "date": "2026-06-28",
+   "title": "Add City of Eyes (2nd-person open-world prototype) under cityofeyes/",
+   "notes": []
+  },
   {
    "version": "1.0.48",
    "date": "2026-06-23",
@@ -216,12 +222,6 @@ window.PATCHNOTES={
    "version": "1.0.11",
    "date": "2026-06-21",
    "title": "Use wss:// on secure pages and drop the port so hosted servers connect",
-   "notes": []
-  },
-  {
-   "version": "1.0.9",
-   "date": "2026-06-21",
-   "title": "Server admin commands: broadcast, announce, DM, kick, ban",
    "notes": []
   }
  ]

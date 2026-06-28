@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>City of Eyes</title>
+    <style>
+      :root { color-scheme: dark; }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 100%; height: 100%; overflow: hidden; background: #05060a; }
+      #app { position: fixed; inset: 0; }
+      canvas { display: block; }
+
+      /* black-flash overlay used for hard camera cuts */
+      #cut-flash {
+        position: fixed; inset: 0; background: #000; opacity: 0;
+        pointer-events: none; transition: opacity 0.18s ease-out; z-index: 30;
+      }
+
+      /* grain overlay for the "unobserved" fallback lens */
+      #grain {
+        position: fixed; inset: 0; pointer-events: none; opacity: 0;
+        transition: opacity 0.5s ease; z-index: 20; mix-blend-mode: overlay;
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.6'/></svg>");
+      }
+
+      .hud {
+        position: fixed; font-family: ui-monospace, "Cascadia Code", Menlo, monospace;
+        font-size: 12px; line-height: 1.5; color: #cdd6e0;
+        text-shadow: 0 1px 2px rgba(0,0,0,0.9); z-index: 40; user-select: none;
+      }
+      #lens { top: 12px; left: 14px; }
+      #lens .kind { font-size: 16px; font-weight: 700; letter-spacing: 0.5px; }
+      #heat { top: 12px; right: 14px; text-align: right; }
+      #heat .bar { display: inline-block; width: 160px; height: 8px; margin-top: 4px;
+        background: #1a2030; border: 1px solid #2a3346; border-radius: 4px; overflow: hidden; }
+      #heat .fill { height: 100%; width: 0%; background: linear-gradient(90deg,#f6c453,#e5484d);
+        transition: width 0.2s ease; }
+      #money { top: 64px; right: 14px; text-align: right; font-size: 18px; font-weight: 700; color: #6ee7a0; }
+      #wanted { top: 90px; right: 14px; text-align: right; font-size: 18px; color: #ffd166; letter-spacing: 2px; }
+      #health { bottom: 60px; left: 14px; }
+      #energy { bottom: 30px; left: 14px; }
+      .meterbar { display: inline-block; width: 200px; height: 11px; margin-top: 3px;
+        background: #1a2030; border: 1px solid #2a3346; border-radius: 4px; overflow: hidden; }
+      .meterbar .fill { height: 100%; width: 100%; transition: width 0.15s ease; }
+      #health .fill { background: linear-gradient(90deg,#e5484d,#5ad17a); }
+      #energy .fill { background: linear-gradient(90deg,#2f6f8f,#33e0ff); }
+      #hotbar { bottom: 10px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; }
+      #hotbar .slot { background: rgba(10,14,22,0.72); border: 1px solid #2a3346; border-radius: 6px;
+        padding: 4px 8px; min-width: 58px; text-align: center; }
+      #hotbar .slot .k { color: #7f8aa0; font-size: 10px; }
+      #hotbar .slot .n { font-size: 13px; }
+      #prompt { bottom: 96px; left: 50%; transform: translateX(-50%);
+        background: rgba(10,14,22,0.78); padding: 6px 14px; border-radius: 6px; display: none; }
+      #prompt b { color: #ffd166; }
+      #toast { top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 22px; font-weight: 700;
+        color: #cdd6e0; opacity: 0; transition: opacity 0.3s ease; pointer-events: none; }
+      #shop { position: fixed; inset: 0; z-index: 45; display: none; align-items: center;
+        justify-content: center; background: rgba(0,0,0,0.55); font-family: ui-monospace, monospace; }
+      #shop .panel { background: #121722; border: 1px solid #2a3346; border-radius: 10px;
+        padding: 18px 22px; min-width: 320px; color: #cdd6e0; }
+      #shop h2 { font-size: 16px; margin-bottom: 8px; }
+      #shop .bal { color: #6ee7a0; margin-bottom: 8px; }
+      #shop .row { display: flex; justify-content: space-between; gap: 18px; padding: 8px 2px;
+        border-top: 1px solid #1e2738; cursor: pointer; }
+      #shop .row:hover { color: #fff; background: #182030; }
+      #shop .row .price { color: #ffd166; }
+      #shop .close { margin-top: 12px; text-align: center; color: #8b97a8; cursor: pointer; }
+      #controls { bottom: 12px; left: 14px; color: #8b97a8; }
+      #controls b { color: #cdd6e0; }
+      #debug { bottom: 12px; right: 14px; text-align: right; color: #7f8aa0; white-space: pre; }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="grain"></div>
+    <div id="cut-flash"></div>
+
+    <div id="lens" class="hud">
+      <div class="kind">— LENS —</div>
+      <div class="who"></div>
+    </div>
+    <div id="heat" class="hud">
+      HEAT / MANHUNT
+      <div class="bar"><div class="fill"></div></div>
+      <div class="witnesses"></div>
+    </div>
+    <div id="money" class="hud">$0</div>
+    <div id="wanted" class="hud"></div>
+    <div id="health" class="hud">
+      HEALTH
+      <div class="meterbar"><div class="fill"></div></div>
+    </div>
+    <div id="energy" class="hud">
+      ENERGY
+      <div class="meterbar"><div class="fill"></div></div>
+    </div>
+    <div id="hotbar" class="hud"></div>
+    <div id="prompt" class="hud"></div>
+    <div id="toast" class="hud"></div>
+    <div id="shop">
+      <div class="panel">
+        <h2>CORNER SHOP</h2>
+        <div class="bal"></div>
+        <div class="rows"></div>
+        <div class="close">[ F or Esc to leave ]</div>
+      </div>
+    </div>
+    <div id="controls" class="hud">
+      <b>W/S</b> move · <b>A/D</b> turn · <b>Shift</b> sprint · <b>G</b> holster · <b>Space</b> shoot ·
+      <b>F</b> shop/harvest · <b>1-5</b> use item · <b>Q/E</b> hop lens · <b>R</b> auto-lens ·
+      <b>K</b> save · <b>L</b> load · <b>Tab</b> debug
+    </div>
+    <div id="debug" class="hud"></div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
