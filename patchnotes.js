@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.49",
+ "version": "1.0.50",
  "generated": "2026-06-28",
  "patches": [
+  {
+   "version": "1.0.50",
+   "date": "2026-06-28",
+   "title": "Feature: build and serve City of Eyes at /cityofeyes",
+   "notes": []
+  },
   {
    "version": "1.0.49",
    "date": "2026-06-28",

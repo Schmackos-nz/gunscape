@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // No bundler needed — copy the static client into dist/ for Cloudflare.
 import { rmSync, mkdirSync, copyFileSync, existsSync, cpSync } from 'node:fs';
+import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -21,4 +22,15 @@ for (const d of DIRS) {
   const src = join(ROOT, d);
   if (existsSync(src)) cpSync(src, join(DIST, d), { recursive: true });
 }
-console.log(`Built dist/ (${FILES.filter(f => existsSync(join(DIST, f))).join(', ')} + ${DIRS.join(', ')})`);
+
+// City of Eyes is a separate Vite + TS app; build it and nest its output at
+// dist/cityofeyes/ so it's served at /cityofeyes/.
+const CE = join(ROOT, 'cityofeyes');
+if (existsSync(join(CE, 'package.json'))) {
+  console.log('Building cityofeyes/ ...');
+  execSync('npm ci', { cwd: CE, stdio: 'inherit' });
+  execSync('npm run build', { cwd: CE, stdio: 'inherit' });
+  cpSync(join(CE, 'dist'), join(DIST, 'cityofeyes'), { recursive: true });
+}
+
+console.log(`Built dist/ (${FILES.filter(f => existsSync(join(DIST, f))).join(', ')} + ${DIRS.join(', ')} + cityofeyes)`);
