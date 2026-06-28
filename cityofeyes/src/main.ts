@@ -231,7 +231,7 @@ function handleEdge() {
 
 function step(dt: number) {
   if (player.driving) {
-    playerCar.update(dt, input);
+    playerCar.update(dt, input, traffic.carCenters());
     player.pos.copy(playerCar.pos);
     player.group.visible = false;
   } else {
@@ -243,7 +243,7 @@ function step(dt: number) {
   pendingGunAlarm = false; // only the first step of the frame applies the alarm
 
   projectiles.update(dt);
-  traffic.update(dt, player);
+  traffic.update(dt, player, player.driving, player.pos);
   attention.update(dt, player, fired);
   crowd.update(dt, player, (p) => attention.canSee(p), sfx, voice);
   police.update(dt, player, crowd, sfx, wanted >= 1, shops.inside, (dmg, dir) => player.takeHit(dmg, dir));

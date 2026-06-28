@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.57",
+ "version": "1.0.58",
  "generated": "2026-06-28",
  "patches": [
+  {
+   "version": "1.0.58",
+   "date": "2026-06-28",
+   "title": "City of Eyes: car-vs-car collision; AI cars brake for the player car",
+   "notes": []
+  },
   {
    "version": "1.0.57",
    "date": "2026-06-28",
@@ -234,12 +240,6 @@ window.PATCHNOTES={
    "version": "1.0.19",
    "date": "2026-06-21",
    "title": "Mining + Refining skills, ore rocks/furnaces, and real gun models",
-   "notes": []
-  },
-  {
-   "version": "1.0.18",
-   "date": "2026-06-21",
-   "title": "Texture everything with procedural canvas textures",
    "notes": []
   }
  ]

@@ -57,7 +57,7 @@ export class PlayerCar {
     return out.copy(this.pos);
   }
 
-  update(dt: number, input: Input) {
+  update(dt: number, input: Input, obstacles: THREE.Vector3[] = []) {
     if (!this.active) return;
     const d = CONFIG.driving;
 
@@ -78,6 +78,20 @@ export class PlayerCar {
     else this.speed *= 0.3;
     if (!this.world.isInsideBuilding(this.pos.x, this.pos.z + fz, 1.0)) this.pos.z += fz;
     else this.speed *= 0.3;
+
+    // collide with other cars: push out of any overlap and crunch the speed
+    const minD = 3.0;
+    for (const o of obstacles) {
+      const ox = this.pos.x - o.x, oz = this.pos.z - o.z;
+      const d2 = ox * ox + oz * oz;
+      if (d2 < minD * minD && d2 > 1e-4) {
+        const dist = Math.sqrt(d2);
+        const push = minD - dist;
+        this.pos.x += (ox / dist) * push;
+        this.pos.z += (oz / dist) * push;
+        this.speed *= 0.25;
+      }
+    }
 
     const half = CONFIG.world.half - 2;
     this.pos.x = THREE.MathUtils.clamp(this.pos.x, -half, half);

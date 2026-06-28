@@ -105,13 +105,21 @@ class Vehicle {
   worldPos(out: THREE.Vector3): THREE.Vector3 { return out.copy(this.group.position); }
   worldHeading(): number { return this.group.rotation.y; }
 
-  update(dt: number, roads: RoadNetwork, player: Player) {
+  update(dt: number, roads: RoadNetwork, player: Player, playerCarActive: boolean, playerCarPos: THREE.Vector3) {
     if (this.taken) { this.group.visible = false; this.engine.set(0, 0); return; }
     const { half } = CONFIG.world;
     if (this.panic > 0) this.panic -= dt;
     this.speed = this.panic > 0 ? this.baseSpeed * 1.7 : this.baseSpeed;
 
-    this.travel += this.dir * this.speed * dt;
+    // brake rather than drive through the player's car
+    const newTravel = this.travel + this.dir * this.speed * dt;
+    if (playerCarActive) {
+      const px = this.axis === "z" ? this.line + this.lane : newTravel;
+      const pz = this.axis === "z" ? newTravel : this.line + this.lane;
+      const dx = playerCarPos.x - px, dz = playerCarPos.z - pz;
+      if (dx * dx + dz * dz < 4 * 4) { this.engine.set(0.7, this.type.vol * 0.3); return; } // hold position
+    }
+    this.travel = newTravel;
     if (this.travel > half || this.travel < -half) { this.respawn(roads, false); return; }
 
     if (this.axis === "z") {
@@ -231,6 +239,15 @@ export class TrafficSystem {
     return this.nearest(playerPos) !== null;
   }
 
+  /** Centres of every solid car (moving + parked, not stolen) for the player
+   *  car's collision checks. */
+  carCenters(): THREE.Vector3[] {
+    const out: THREE.Vector3[] = [];
+    for (const v of this.vehicles) if (!v.taken) out.push(v.worldPos(new THREE.Vector3()));
+    for (const p of this.parked) if (!p.taken) out.push(p.pos);
+    return out;
+  }
+
   /** Take the nearest car; returns where/how to start driving it. */
   steal(playerPos: THREE.Vector3): StealResult | null {
     const pick = this.nearest(playerPos);
@@ -243,7 +260,7 @@ export class TrafficSystem {
     return { pos: pick.pos.clone(), heading: pick.heading, moving: false };
   }
 
-  update(dt: number, player: Player) {
-    for (const v of this.vehicles) v.update(dt, this.roads, player);
+  update(dt: number, player: Player, playerCarActive: boolean, playerCarPos: THREE.Vector3) {
+    for (const v of this.vehicles) v.update(dt, this.roads, player, playerCarActive, playerCarPos);
   }
 }
