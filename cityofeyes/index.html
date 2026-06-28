@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>City of Eyes</title>
+    <title>GTA VI: City of Eyes</title>
     <style>
       :root { color-scheme: dark; }
       * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -58,6 +58,22 @@
       #prompt b { color: #ffd166; }
       #toast { top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 22px; font-weight: 700;
         color: #cdd6e0; opacity: 0; transition: opacity 0.3s ease; pointer-events: none; }
+
+      /* menus */
+      .screen { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column;
+        align-items: center; justify-content: center; gap: 14px;
+        background: radial-gradient(circle at 50% 30%, rgba(20,28,42,0.9), rgba(5,7,12,0.96));
+        font-family: ui-monospace, "Cascadia Code", Menlo, monospace; color: #cdd6e0; }
+      .screen.hidden { display: none; }
+      .screen .title { font-size: 46px; font-weight: 800; letter-spacing: 4px; color: #eaf0f6;
+        text-shadow: 0 2px 18px rgba(80,140,220,0.5); }
+      .screen .subtitle { font-size: 14px; color: #8b97a8; margin-top: -8px; margin-bottom: 18px; letter-spacing: 2px; }
+      .screen button { width: 280px; padding: 12px 0; font: inherit; font-size: 16px; cursor: pointer;
+        color: #dfe7ef; background: #1a2536; border: 1px solid #324460; border-radius: 8px; transition: all 0.12s; }
+      .screen button:hover { background: #25344b; border-color: #4a6286; color: #fff; }
+      .screen button:disabled { opacity: 0.4; cursor: default; }
+      .screen label { font-size: 14px; display: flex; align-items: center; gap: 10px; }
+      .screen input[type=range] { width: 180px; }
       #shop { position: fixed; inset: 0; z-index: 45; display: none; align-items: center;
         justify-content: center; background: rgba(0,0,0,0.55); font-family: ui-monospace, monospace; }
       #shop .panel { background: #121722; border: 1px solid #2a3346; border-radius: 10px;
@@ -101,6 +117,29 @@
     <div id="hotbar" class="hud"></div>
     <div id="prompt" class="hud"></div>
     <div id="toast" class="hud"></div>
+
+    <div id="mainmenu" class="screen">
+      <div class="title">GTA VI: City of Eyes</div>
+      <div class="subtitle">you are always being watched</div>
+      <button id="btn-new">New Game</button>
+      <button id="btn-continue">Continue</button>
+      <button id="btn-settings">Settings</button>
+    </div>
+
+    <div id="pausemenu" class="screen hidden">
+      <div class="title">Paused</div>
+      <button id="btn-resume">Resume</button>
+      <button id="btn-save">Save Game</button>
+      <button id="btn-psettings">Settings</button>
+      <button id="btn-quit">Save &amp; Exit to Menu</button>
+    </div>
+
+    <div id="settings" class="screen hidden">
+      <div class="title">Settings</div>
+      <label>Master Volume <input id="set-vol" type="range" min="0" max="100" /></label>
+      <label><input id="set-voice" type="checkbox" /> Civilian voices</label>
+      <button id="btn-back">Back</button>
+    </div>
     <div id="shop">
       <div class="panel">
         <h2>CORNER SHOP</h2>

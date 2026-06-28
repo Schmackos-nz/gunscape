@@ -115,6 +115,24 @@ export class Player {
     this.knock.set(0, 0, 0);
   }
 
+  /** Full reset for New Game. */
+  reset() {
+    this.pos.set(0, 0, 0);
+    this.facing = 0;
+    this.health = this.maxHealth;
+    this.energy = this.maxEnergy;
+    this.exhausted = false;
+    this.dead = false;
+    this.armed = false;
+    this.driving = false;
+    this.invuln = 0;
+    this.knock.set(0, 0, 0);
+    this.confine = null;
+    this.group.rotation.set(0, 0, 0);
+    this.group.visible = true;
+    this.group.position.copy(this.pos);
+  }
+
   update(dt: number, input: Input) {
     if (this.invuln > 0) this.invuln -= dt;
     if (this.muzzleTimer > 0) {

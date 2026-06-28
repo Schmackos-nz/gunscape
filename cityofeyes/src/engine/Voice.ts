@@ -30,9 +30,12 @@ const CARJACK = [
 export class Voice {
   private last = 0;
   private enabled = typeof window !== "undefined" && "speechSynthesis" in window;
+  muted = false;
+
+  setMuted(b: boolean) { this.muted = b; if (b && this.enabled) window.speechSynthesis.cancel(); }
 
   private say(lines: string[], minGap = 1300) {
-    if (!this.enabled) return;
+    if (!this.enabled || this.muted) return;
     const now = performance.now();
     if (now - this.last < minGap) return;
     if (window.speechSynthesis.speaking) return;

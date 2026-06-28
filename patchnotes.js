@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.55",
+ "version": "1.0.56",
  "generated": "2026-06-28",
  "patches": [
+  {
+   "version": "1.0.56",
+   "date": "2026-06-28",
+   "title": "City of Eyes: main menu / pause / settings; title GTA VI: City of Eyes",
+   "notes": []
+  },
   {
    "version": "1.0.55",
    "date": "2026-06-28",
@@ -234,12 +240,6 @@ window.PATCHNOTES={
    "version": "1.0.17",
    "date": "2026-06-21",
    "title": "Move upstairs staircases to the back of buildings so they don't block doorways",
-   "notes": []
-  },
-  {
-   "version": "1.0.16",
-   "date": "2026-06-21",
-   "title": "Add Gunsmithing skill: forge metals into parts, build guns at a workbench",
    "notes": []
   }
  ]

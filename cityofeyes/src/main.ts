@@ -127,6 +127,76 @@ window.addEventListener("resize", () => {
   director.resize(window.innerWidth / window.innerHeight);
 });
 
+// ── game state + menus ───────────────────────────────────────────────────────
+type GameState = "menu" | "playing" | "paused";
+let gameState: GameState = "menu";
+let settingsReturn: GameState = "menu";
+
+const mainmenuEl = document.getElementById("mainmenu") as HTMLElement;
+const pausemenuEl = document.getElementById("pausemenu") as HTMLElement;
+const settingsScreen = document.getElementById("settings") as HTMLElement;
+const continueBtn = document.getElementById("btn-continue") as HTMLButtonElement;
+const volSlider = document.getElementById("set-vol") as HTMLInputElement;
+const voiceChk = document.getElementById("set-voice") as HTMLInputElement;
+
+const settings = { volume: 0.6, voice: true };
+
+function applySettings() {
+  sfx.setMasterVolume(gameState === "playing" ? settings.volume : 0);
+  voice.setMuted(!settings.voice);
+}
+function loadSettings() {
+  try { Object.assign(settings, JSON.parse(localStorage.getItem("cityofeyes_settings") || "{}")); } catch {}
+  volSlider.value = String(Math.round(settings.volume * 100));
+  voiceChk.checked = settings.voice;
+  applySettings();
+}
+function saveSettings() { localStorage.setItem("cityofeyes_settings", JSON.stringify(settings)); }
+
+const hasSave = () => !!localStorage.getItem("cityofeyes_save");
+function refreshMenu() { continueBtn.disabled = !hasSave(); }
+
+function showScreen(s: "menu" | "pause" | "settings" | null) {
+  mainmenuEl.classList.toggle("hidden", s !== "menu");
+  pausemenuEl.classList.toggle("hidden", s !== "pause");
+  settingsScreen.classList.toggle("hidden", s !== "settings");
+}
+
+function resetGame() {
+  player.reset();
+  money = 0; wanted = 0; crimeTimer = 99;
+  inventory.load({});
+  police.clear();
+  for (const e of ejected) world.scene.remove(e.body.group);
+  ejected.length = 0;
+  shops.inside = false;
+  playerCar.active = false; playerCar.group.visible = false;
+}
+function startNewGame() { resetGame(); gameState = "playing"; applySettings(); showScreen(null); }
+function continueGame() { if (!hasSave()) return; loadGame(); gameState = "playing"; applySettings(); showScreen(null); }
+function pauseGame() { gameState = "paused"; applySettings(); showScreen("pause"); }
+function resumeGame() { gameState = "playing"; applySettings(); showScreen(null); }
+function quitToMenu() { saveGame(); gameState = "menu"; applySettings(); refreshMenu(); showScreen("menu"); }
+function openSettings(from: GameState) { settingsReturn = from; showScreen("settings"); }
+function closeSettings() { showScreen(settingsReturn === "menu" ? "menu" : "pause"); }
+
+function handleEscape() {
+  if (!settingsScreen.classList.contains("hidden")) { closeSettings(); return; }
+  if (gameState === "playing") { if (shopOpen) closeShop(); else pauseGame(); }
+  else if (gameState === "paused") resumeGame();
+}
+
+document.getElementById("btn-new")!.onclick = startNewGame;
+continueBtn.onclick = continueGame;
+document.getElementById("btn-settings")!.onclick = () => openSettings("menu");
+document.getElementById("btn-resume")!.onclick = resumeGame;
+document.getElementById("btn-save")!.onclick = () => saveGame();
+document.getElementById("btn-psettings")!.onclick = () => openSettings("paused");
+document.getElementById("btn-quit")!.onclick = quitToMenu;
+document.getElementById("btn-back")!.onclick = closeSettings;
+volSlider.oninput = () => { settings.volume = Number(volSlider.value) / 100; applySettings(); saveSettings(); };
+voiceChk.onchange = () => { settings.voice = voiceChk.checked; applySettings(); saveSettings(); };
+
 // ── fixed-timestep loop ──────────────────────────────────────────────────────
 const STEP = 1 / 60;
 let acc = 0;
@@ -145,7 +215,6 @@ function handleEdge() {
   if (input.pressed("r")) spectator.clearManual();
   if (input.pressed("g")) { player.armed = !player.armed; sfx.holster(); }
   if (input.pressed("f")) handleInteract();
-  if (input.pressed("escape") && shopOpen) closeShop();
   for (let i = 1; i <= 5; i++) if (input.pressed(String(i))) useSlot(i - 1);
   if (input.pressed("k")) saveGame();
   if (input.pressed("l")) loadGame();
@@ -346,8 +415,14 @@ function frame(now: number) {
   requestAnimationFrame(frame);
   acc += Math.min(0.1, (now - last) / 1000);
   last = now;
-  handleEdge();
-  while (acc >= STEP) { step(STEP); acc -= STEP; }
+
+  if (input.pressed("escape")) handleEscape();
+  if (gameState === "playing") {
+    handleEdge();
+    while (acc >= STEP) { step(STEP); acc -= STEP; }
+  } else {
+    acc = 0; // frozen while in a menu / paused
+  }
 
   director.update(STEP, player, spectator, attention.heat);
   gizmos.update(spectator.candidates, player, spectator.active.eyePosition(new THREE.Vector3()));
@@ -401,6 +476,10 @@ function updateHud() {
   } else debugEl.textContent = "";
 }
 
+// prime one step so the world is framed behind the menu, then show the menu
 step(STEP);
 director.update(STEP, player, spectator, attention.heat);
+loadSettings();
+refreshMenu();
+showScreen("menu");
 requestAnimationFrame(frame);

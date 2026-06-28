@@ -27,6 +27,9 @@ export class Sfx {
     window.addEventListener("keydown", resume);
   }
 
+  /** 0..1 master volume. */
+  setMasterVolume(v: number) { this.master.gain.value = v; }
+
   private now() { return this.ctx.currentTime; }
 
   private playNoise(dur: number, freq: number, gain: number, type: BiquadFilterType = "lowpass") {
