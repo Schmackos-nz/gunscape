@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.52",
+ "version": "1.0.53",
  "generated": "2026-06-28",
  "patches": [
+  {
+   "version": "1.0.53",
+   "date": "2026-06-28",
+   "title": "City of Eyes: fix shop void teleport, energy exhaustion+flash, cop guns, input",
+   "notes": []
+  },
   {
    "version": "1.0.52",
    "date": "2026-06-28",
@@ -228,12 +234,6 @@ window.PATCHNOTES={
    "version": "1.0.15",
    "date": "2026-06-21",
    "title": "Tinhollow village, low-level starter zone, unarmed punch, UI cleanup",
-   "notes": []
-  },
-  {
-   "version": "1.0.13",
-   "date": "2026-06-21",
-   "title": "Fix upstairs: stair hole in the floor, full enclosing walls, two-way stairs",
    "notes": []
   }
  ]

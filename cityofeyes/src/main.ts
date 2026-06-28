@@ -45,6 +45,7 @@ const heatWitEl = document.querySelector("#heat .witnesses") as HTMLElement;
 const healthFillEl = document.querySelector("#health .fill") as HTMLElement;
 const moneyEl = document.getElementById("money") as HTMLElement;
 const wantedEl = document.getElementById("wanted") as HTMLElement;
+const energyEl = document.getElementById("energy") as HTMLElement;
 const energyFillEl = document.querySelector("#energy .fill") as HTMLElement;
 const hotbarEl = document.getElementById("hotbar") as HTMLElement;
 const promptEl = document.getElementById("prompt") as HTMLElement;
@@ -124,33 +125,38 @@ let acc = 0;
 let last = performance.now();
 const aim = new THREE.Vector3();
 const muzzle = new THREE.Vector3();
+let pendingGunAlarm = false;
 
-function step(dt: number) {
+// Edge-triggered input is handled ONCE per rendered frame (not inside the fixed
+// step), so a key press fires exactly once regardless of how many sim steps run
+// that frame — fixes double-toggles at low FPS and dropped presses at high FPS.
+function handleEdge() {
   if (input.pressed("tab")) gizmos.toggle();
   if (input.pressed("q")) spectator.cycle(-1);
   if (input.pressed("e")) spectator.cycle(1);
   if (input.pressed("r")) spectator.clearManual();
-  if (input.pressed("g")) sfx.holster();
-
-  // interact: shop / harvest
+  if (input.pressed("g")) { player.armed = !player.armed; sfx.holster(); }
   if (input.pressed("f")) handleInteract();
   if (input.pressed("escape") && shopOpen) closeShop();
-  // use inventory items with number keys
   for (let i = 1; i <= 5; i++) if (input.pressed(String(i))) useSlot(i - 1);
-  // save / load
   if (input.pressed("k")) saveGame();
   if (input.pressed("l")) loadGame();
 
-  player.update(dt, input);
-
-  // space fires, only with the gun drawn
-  const fired = input.pressed(" ") && player.armed && !player.dead;
-  if (fired) {
+  // fire (gun must be drawn)
+  if (input.pressed(" ") && player.armed && !player.dead) {
     player.flashMuzzle();
     projectiles.spawn(player.getMuzzleWorld(muzzle), player.getAimDir(aim));
     sfx.gun();
     traffic.onGunshot(sfx);
+    pendingGunAlarm = true;
   }
+}
+
+function step(dt: number) {
+  player.update(dt, input);
+
+  const fired = pendingGunAlarm;
+  pendingGunAlarm = false; // only the first step of the frame applies the alarm
 
   projectiles.update(dt);
   traffic.update(dt, player);
@@ -268,6 +274,7 @@ function frame(now: number) {
   requestAnimationFrame(frame);
   acc += Math.min(0.1, (now - last) / 1000);
   last = now;
+  handleEdge();
   while (acc >= STEP) { step(STEP); acc -= STEP; }
 
   director.update(STEP, player, spectator, attention.heat);
@@ -285,6 +292,7 @@ function updateHud() {
 
   healthFillEl.style.width = `${Math.round((player.health / player.maxHealth) * 100)}%`;
   energyFillEl.style.width = `${Math.round((player.energy / player.maxEnergy) * 100)}%`;
+  energyEl.classList.toggle("low", player.exhausted || player.energy < player.maxEnergy * 0.25);
   heatFillEl.style.width = `${Math.round(attention.heat * 100)}%`;
   heatWitEl.textContent = `${attention.witnessCount} witness${attention.witnessCount === 1 ? "" : "es"}`;
   moneyEl.textContent = `$${money}`;

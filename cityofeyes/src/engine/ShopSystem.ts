@@ -174,11 +174,17 @@ export class ShopSystem {
     player.pos.copy(this.spawnIn);
     player.facing = 0; // look into the store (+z)
     player.group.position.copy(player.pos);
+    // confine to the room so the world-bounds clamp doesn't yank the player away
+    player.confine = {
+      minX: STORE.x - HX + 0.6, maxX: STORE.x + HX - 0.6,
+      minZ: STORE.z - HZ + 0.5, maxZ: STORE.z + HZ - 0.6,
+    };
     this.exitPortal.armed = false;
   }
 
   private exit(player: Player) {
     const d = this.doorOut[this.returnIndex];
+    player.confine = null;
     player.pos.set(d.pos.x + d.forward.x * 2.6, 0, d.pos.z + d.forward.z * 2.6);
     player.facing = Math.atan2(d.forward.x, d.forward.z);
     player.group.position.copy(player.pos);

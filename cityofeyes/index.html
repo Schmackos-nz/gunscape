@@ -45,6 +45,9 @@
       .meterbar .fill { height: 100%; width: 100%; transition: width 0.15s ease; }
       #health .fill { background: linear-gradient(90deg,#e5484d,#5ad17a); }
       #energy .fill { background: linear-gradient(90deg,#2f6f8f,#33e0ff); }
+      #energy.low .fill { background: linear-gradient(90deg,#e5484d,#ffb454); animation: epulse 0.5s ease-in-out infinite; }
+      #energy.low { color: #ff8a8a; }
+      @keyframes epulse { 0%,100% { opacity: 1; } 50% { opacity: 0.2; } }
       #hotbar { bottom: 10px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; }
       #hotbar .slot { background: rgba(10,14,22,0.72); border: 1px solid #2a3346; border-radius: 6px;
         padding: 4px 8px; min-width: 58px; text-align: center; }

@@ -19,6 +19,7 @@ class Officer {
   dead = false;
   private deadTimer = 0;
   private body: Humanoid;
+  private weapon: THREE.Mesh;
   private shootCd = 1 + Math.random();
   private eye = new THREE.Vector3();
   private to = new THREE.Vector3();
@@ -28,6 +29,15 @@ class Officer {
       skin: 0xddb38c, hair: 0x20242c, shirt: 0x1f3a6b, pants: 0x161a24, shoes: 0x0c0e12,
     });
     this.group.add(this.body.group);
+    // sidearm held in the right hand, shown when aiming
+    this.weapon = new THREE.Mesh(
+      new THREE.BoxGeometry(0.1, 0.14, 0.46),
+      new THREE.MeshStandardMaterial({ color: 0x14161a, roughness: 0.4, metalness: 0.5 })
+    );
+    this.weapon.position.set(0, -0.08, 0);
+    this.weapon.rotation.x = Math.PI / 2;
+    this.weapon.visible = false;
+    this.body.rightHand.add(this.weapon);
     this.pos.copy(spawn);
     this.group.position.copy(this.pos);
   }
@@ -42,6 +52,7 @@ class Officer {
   /** Returns true once the death animation is done and it can be culled. */
   tickDead(dt: number): boolean {
     this.deadTimer += dt;
+    this.weapon.visible = false;
     this.group.rotation.z = THREE.MathUtils.lerp(this.group.rotation.z, Math.PI / 2, 0.12);
     this.body.update(dt, 0);
     return this.deadTimer > 6;
@@ -49,6 +60,7 @@ class Officer {
 
   idle(dt: number) {
     this.body.setAiming(false);
+    this.weapon.visible = false;
     this.body.update(dt, 0);
   }
 
@@ -75,6 +87,7 @@ class Officer {
       const inRange = dist < CONFIG.police.shootRange && sees;
       if (!inRange || dist > CONFIG.police.shootRange * 0.7) { this.advance(dt, world); moving = CONFIG.police.speed; }
       this.body.setAiming(inRange);
+      this.weapon.visible = inRange;
       this.shootCd -= dt;
       if (inRange && this.shootCd <= 0 && !targetDead) {
         this.shootCd = CONFIG.police.shootCooldown;
@@ -84,6 +97,7 @@ class Officer {
     } else {
       // chase a brawler and break it up on contact
       this.body.setAiming(false);
+      this.weapon.visible = false;
       if (dist > CONFIG.police.arrestRange) { this.advance(dt, world); moving = CONFIG.police.speed; }
       else onArrest();
     }

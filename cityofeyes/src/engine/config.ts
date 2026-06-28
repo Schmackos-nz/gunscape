@@ -20,6 +20,7 @@ export const CONFIG = {
     energyMax: 100,
     sprintDrain: 20, // energy/sec while sprinting
     energyRegen: 14, // energy/sec while not sprinting
+    energyRecover: 30, // once exhausted, energy must recover to this before sprinting again
     buffDrainMul: 0.35, // energy-drink buff makes sprinting cost much less
   },
 

@@ -20,7 +20,10 @@ export class Player {
   energy: number = CONFIG.player.energyMax;
   maxEnergy: number = CONFIG.player.energyMax;
   private energyBuff = 0; // seconds of reduced sprint drain (energy drink)
+  exhausted = false; // hit empty — must recover before sprinting again
   dead = false;
+  // when set, the player is clamped to this box instead of the world (shop interior)
+  confine: { minX: number; maxX: number; minZ: number; maxZ: number } | null = null;
   private invuln = 0;
   private knock = new THREE.Vector3();
 
@@ -127,8 +130,7 @@ export class Player {
       return;
     }
 
-    // toggle the holster
-    if (input.pressed("g")) this.armed = !this.armed;
+    // holster state is toggled by the input handler; reflect it here
     this.weapon.visible = this.armed;
     this.body.setAiming(this.armed);
 
@@ -144,14 +146,17 @@ export class Player {
     if (input.isDown("s")) drive -= 1;
 
     // run energy: sprinting drains it (an active drink buff makes it cheap),
-    // resting regenerates it
+    // resting regenerates it. Once it hits empty you're "exhausted" and can't
+    // sprint again until it recovers past a threshold.
     if (this.energyBuff > 0) this.energyBuff -= dt;
-    this.sprinting = input.isDown("shift") && this.energy > 1 && drive !== 0;
+    this.sprinting = input.isDown("shift") && !this.exhausted && this.energy > 1 && drive !== 0;
     if (this.sprinting) {
       const mul = this.energyBuff > 0 ? CONFIG.player.buffDrainMul : 1;
       this.energy = Math.max(0, this.energy - CONFIG.player.sprintDrain * mul * dt);
+      if (this.energy <= 0) this.exhausted = true;
     } else {
       this.energy = Math.min(this.maxEnergy, this.energy + CONFIG.player.energyRegen * dt);
+      if (this.exhausted && this.energy >= CONFIG.player.energyRecover) this.exhausted = false;
     }
 
     const before = this.tmp.copy(this.pos);
@@ -168,9 +173,16 @@ export class Player {
       this.knock.multiplyScalar(Math.pow(0.02, dt));
     }
 
-    const half = CONFIG.world.half - 2;
-    this.pos.x = THREE.MathUtils.clamp(this.pos.x, -half, half);
-    this.pos.z = THREE.MathUtils.clamp(this.pos.z, -half, half);
+    // keep inside the world — OR inside a room (e.g. the shop interior, which
+    // sits far off the map and would otherwise be clamped away)
+    if (this.confine) {
+      this.pos.x = THREE.MathUtils.clamp(this.pos.x, this.confine.minX, this.confine.maxX);
+      this.pos.z = THREE.MathUtils.clamp(this.pos.z, this.confine.minZ, this.confine.maxZ);
+    } else {
+      const half = CONFIG.world.half - 2;
+      this.pos.x = THREE.MathUtils.clamp(this.pos.x, -half, half);
+      this.pos.z = THREE.MathUtils.clamp(this.pos.z, -half, half);
+    }
 
     // animate legs/arms from how fast we actually moved (reverse plays a touch slower)
     const moved = before.distanceTo(this.pos);
