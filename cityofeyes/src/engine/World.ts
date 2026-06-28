@@ -16,15 +16,36 @@ export class World {
 
   constructor() {
     const s = this.scene;
-    s.background = new THREE.Color(0x1b2536);
-    s.fog = new THREE.Fog(0x1b2536, 120, 340);
+    const horizon = 0xcfe3f2;
+    s.background = new THREE.Color(horizon);
+    s.fog = new THREE.Fog(horizon, 150, 360);
 
-    // lighting — overcast, bright enough to read clearly
-    const hemi = new THREE.HemisphereLight(0xbcd0f0, 0x35404f, 1.3);
+    // daytime gradient sky dome
+    const sky = new THREE.Mesh(
+      new THREE.SphereGeometry(CONFIG.world.half * 1.6, 24, 12),
+      new THREE.ShaderMaterial({
+        side: THREE.BackSide,
+        depthWrite: false,
+        uniforms: {
+          topColor: { value: new THREE.Color(0x3f86d6) },
+          bottomColor: { value: new THREE.Color(horizon) },
+          exponent: { value: 0.7 },
+        },
+        vertexShader:
+          "varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }",
+        fragmentShader:
+          "uniform vec3 topColor; uniform vec3 bottomColor; uniform float exponent; varying vec3 vP;" +
+          "void main(){ float h = normalize(vP).y; float t = pow(max(h,0.0), exponent); gl_FragColor = vec4(mix(bottomColor, topColor, t), 1.0); }",
+      })
+    );
+    s.add(sky);
+
+    // bright daytime lighting
+    const hemi = new THREE.HemisphereLight(0x9fc4ff, 0x6e6b50, 1.1);
     s.add(hemi);
-    s.add(new THREE.AmbientLight(0xffffff, 0.35));
-    const sun = new THREE.DirectionalLight(0xffe6c0, 1.4);
-    sun.position.set(40, 80, 30);
+    s.add(new THREE.AmbientLight(0xffffff, 0.45));
+    const sun = new THREE.DirectionalLight(0xfff4e0, 2.0);
+    sun.position.set(60, 110, 40);
     s.add(sun);
 
     // rural ground (grass) across the whole map...

@@ -43,7 +43,9 @@ export const CONFIG = {
     sidewalkSpread: 1.3, // per-ped jitter across the pavement width
     bodyRadius: 0.36, // collision radius for shoving
     health: 60,
-    aggroToFight: 1.4, // sustained-contact aggression that can spark a brawl
+    aggroToFight: 3.2, // very high — brawls are rare; needs prolonged shoving
+    fightChance: 0.03, // and even then, usually they just grumble
+    armedChance: 0.16, // fraction of civilians secretly carrying a gun
   },
 
   traffic: {
@@ -66,6 +68,11 @@ export const CONFIG = {
     bulletDamage: 35,
     moneyMin: 15,
     moneyMax: 80,
+    // armed civilians defending themselves when the player aims at them
+    civDamage: 9,
+    civShootRange: 20,
+    civAimDeg: 24, // player must be pointing within this cone of the civilian
+    civShootCooldown: 1.4,
   },
 
   wanted: {

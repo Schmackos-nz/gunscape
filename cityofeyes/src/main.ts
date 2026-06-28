@@ -158,10 +158,10 @@ function step(dt: number) {
   crowd.update(dt, player, (p) => attention.canSee(p), sfx, voice);
   police.update(dt, player, crowd, sfx, wanted >= 1, (dmg, dir) => player.takeHit(dmg, dir));
   pickups.update(dt, player.pos);
-  shops.update(dt);
+  shops.update(dt, player);
   farms.update(dt);
   drones.update(dt, player.pos);
-  spectator.update(dt, player, crowd, attention, drones.drones);
+  spectator.update(dt, player, crowd, attention, drones.drones, shops.interiorLenses);
 
   // occasional friendly greeting from a calm nearby pedestrian
   if (Math.random() < dt * 0.5) {
@@ -185,7 +185,7 @@ function step(dt: number) {
 
 function handleInteract() {
   if (shopOpen) { closeShop(); return; }
-  if (shops.nearestWithin(player.pos) >= 0) { openShop(); return; }
+  if (shops.nearCounter(player.pos)) { openShop(); return; }
   const got = farms.tryHarvest(player.pos);
   if (got) {
     inventory.add(got.foodId);
@@ -297,10 +297,12 @@ function updateHud() {
     .join("");
 
   // interact prompt
-  if (!shopOpen) {
-    if (shops.nearestWithin(player.pos) >= 0) { promptEl.style.display = "block"; promptEl.innerHTML = "<b>F</b> — enter shop"; }
-    else if (farms.cropInRange(player.pos)) { promptEl.style.display = "block"; promptEl.innerHTML = "<b>F</b> — take crop"; }
-    else promptEl.style.display = "none";
+  if (!shopOpen && shops.nearCounter(player.pos)) {
+    promptEl.style.display = "block"; promptEl.innerHTML = "<b>F</b> — browse goods";
+  } else if (!shopOpen && shops.nearDoor(player.pos)) {
+    promptEl.style.display = "block"; promptEl.innerHTML = "walk into the doorway to enter";
+  } else if (!shopOpen && farms.cropInRange(player.pos)) {
+    promptEl.style.display = "block"; promptEl.innerHTML = "<b>F</b> — take crop";
   } else promptEl.style.display = "none";
 
   const stars = Math.ceil(wanted);

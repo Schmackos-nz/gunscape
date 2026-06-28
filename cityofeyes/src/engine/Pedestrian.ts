@@ -37,6 +37,12 @@ export class Pedestrian implements Spectator {
   punchCd = 0;
   private reaching = false;
 
+  // armed self-defence
+  readonly armed: boolean;
+  defensive = false; // drawing on the player who's aiming at them
+  shootCd = 0;
+  private weapon?: THREE.Mesh;
+
   // sidewalk navigation state
   private ci = 0; private cj = 0;
   private ni = 0; private nj = 0;
@@ -61,6 +67,18 @@ export class Pedestrian implements Spectator {
 
     this.body = new Humanoid(randomCivilianColors());
     this.group.add(this.body.group);
+
+    this.armed = Math.random() < CONFIG.crowd.armedChance;
+    if (this.armed) {
+      this.weapon = new THREE.Mesh(
+        new THREE.BoxGeometry(0.1, 0.14, 0.46),
+        new THREE.MeshStandardMaterial({ color: 0x14161a, roughness: 0.4, metalness: 0.5 })
+      );
+      this.weapon.position.set(0, -0.08, 0);
+      this.weapon.rotation.x = Math.PI / 2;
+      this.weapon.visible = false;
+      this.body.rightHand.add(this.weapon);
+    }
 
     const start = roads.randomNode();
     this.ci = start.i; this.cj = start.j;
@@ -140,7 +158,12 @@ export class Pedestrian implements Spectator {
       this.fightTarget = null;
     }
 
-    if (this.state === "panic") {
+    if (this.defensive) {
+      // armed civilian standing their ground, aiming back at the player
+      const to = this.tmp.copy(playerPos).sub(this.pos).setY(0);
+      if (to.lengthSq() > 1e-4) this.heading = Math.atan2(to.x, to.z);
+      this.rail.copy(this.pos);
+    } else if (this.state === "panic") {
       const away = this.tmp.copy(this.pos).sub(playerPos).setY(0);
       if (away.lengthSq() < 1e-4) away.set(1, 0, 0);
       away.normalize();
@@ -163,8 +186,10 @@ export class Pedestrian implements Spectator {
     const moved = this.lastPos.distanceTo(this.pos);
     this.lastPos.copy(this.pos);
     this.animSpeed += (moved / Math.max(dt, 1e-4) - this.animSpeed) * 0.4;
-    this.body.setReaching(this.reaching);
+    this.body.setReaching(this.reaching && !this.defensive);
     this.body.setFighting(!!this.fightTarget);
+    this.body.setAiming(this.defensive);
+    if (this.weapon) this.weapon.visible = this.defensive;
     this.body.update(dt, this.animSpeed);
   }
 

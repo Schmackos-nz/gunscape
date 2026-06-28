@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.51",
+ "version": "1.0.52",
  "generated": "2026-06-28",
  "patches": [
+  {
+   "version": "1.0.52",
+   "date": "2026-06-28",
+   "title": "City of Eyes: peaceful civilians + armed self-defence, daytime sky, shop interiors",
+   "notes": []
+  },
   {
    "version": "1.0.51",
    "date": "2026-06-28",

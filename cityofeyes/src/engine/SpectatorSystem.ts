@@ -59,7 +59,7 @@ export class SpectatorSystem {
     this.manual = null;
   }
 
-  update(dt: number, player: Player, crowd: CrowdSystem, attention: AttentionSystem, drones: Spectator[]) {
+  update(dt: number, player: Player, crowd: CrowdSystem, attention: AttentionSystem, drones: Spectator[], extra: Spectator[] = []) {
     player.chestPoint(this.chest);
     this.unobserved.update(dt, player.pos);
     this.candidates.length = 0;
@@ -99,6 +99,7 @@ export class SpectatorSystem {
       consider(p, attention.canSee(p));
     }
     for (const c of crowd.cctv) consider(c);
+    for (const e of extra) consider(e); // interior shop cameras etc.
 
     // Drones are a LAST RESORT: only consider them when no person or CCTV can
     // see the player. This keeps the lens on civilians + cameras in the city.
