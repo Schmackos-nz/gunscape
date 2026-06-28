@@ -7,7 +7,7 @@ export const CONFIG = {
     townHalf: 75, // buildings only within this central radius; beyond it is rural
     blockSize: 24, // building block footprint
     streetWidth: 18, // full gap between building rows
-    roadWidth: 9, // asphalt carriageway (narrower than the gap, leaving pavement)
+    roadWidth: 14, // wide asphalt carriageway (room for lanes + parked cars)
     shopCount: 7, // buildings turned into enterable shops
   },
 
@@ -40,7 +40,7 @@ export const CONFIG = {
     arriveRadius: 1.2,
     // how far from a road centreline the pavement sits (cars drive nearer the
     // middle, pedestrians hug the curb)
-    sidewalkOffset: 6.5, // sits beyond the asphalt edge, on the pavement
+    sidewalkOffset: 8.2, // sits beyond the wide asphalt edge, on the pavement
     sidewalkSpread: 1.3, // per-ped jitter across the pavement width
     bodyRadius: 0.36, // collision radius for shoving
     health: 60,
@@ -53,9 +53,21 @@ export const CONFIG = {
     count: 22,
     speed: 11,
     speedVariance: 4,
-    laneOffset: 2.2, // distance from road centreline to a lane (right-hand)
+    laneOffset: 3.6, // distance from road centreline to a driving lane (right-hand)
+    parkOffset: 6.0, // parked cars sit at the curb
+    parkedCount: 40,
     hitDamage: 34, // damage to the player on a car strike
     panicTime: 6, // seconds vehicles speed away after a gunshot
+  },
+
+  driving: {
+    stealRange: 4.5,
+    accel: 16,
+    maxSpeed: 27,
+    reverseSpeed: 8,
+    brake: 28,
+    friction: 5,
+    turn: 2.0, // steer rate (scaled by how fast you're going)
   },
 
   drones: {

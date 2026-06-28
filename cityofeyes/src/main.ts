@@ -16,6 +16,8 @@ import { ShopSystem } from "./engine/ShopSystem";
 import { FarmSystem } from "./engine/FarmSystem";
 import { Inventory, ITEMS, SHOP_STOCK } from "./engine/Inventory";
 import { DroneSystem } from "./engine/DroneSystem";
+import { PlayerCar } from "./engine/PlayerCar";
+import { Humanoid, randomCivilianColors } from "./engine/Humanoid";
 import { Voice } from "./engine/Voice";
 import { Sfx } from "./engine/Sfx";
 
@@ -76,9 +78,15 @@ const police = new PoliceSystem(world.scene, world);
 const shops = new ShopSystem(world.scene, world);
 const farms = new FarmSystem(world.scene, world);
 const drones = new DroneSystem(world.scene);
+const playerCar = new PlayerCar(world);
 const voice = new Voice();
 const inventory = new Inventory();
 let shopOpen = false;
+
+// carjack victims thrown from a stolen moving car — they flee and yell
+interface Ejected { body: Humanoid; pos: THREE.Vector3; vel: THREE.Vector3; t: number; }
+const ejected: Ejected[] = [];
+const tmpVec = new THREE.Vector3();
 const toastEl = document.getElementById("toast") as HTMLElement;
 let toastTimer = 0;
 
@@ -142,8 +150,8 @@ function handleEdge() {
   if (input.pressed("k")) saveGame();
   if (input.pressed("l")) loadGame();
 
-  // fire (gun must be drawn)
-  if (input.pressed(" ") && player.armed && !player.dead) {
+  // fire (gun must be drawn; not while driving)
+  if (input.pressed(" ") && player.armed && !player.dead && !player.driving) {
     player.flashMuzzle();
     projectiles.spawn(player.getMuzzleWorld(muzzle), player.getAimDir(aim));
     sfx.gun();
@@ -153,7 +161,14 @@ function handleEdge() {
 }
 
 function step(dt: number) {
-  player.update(dt, input);
+  if (player.driving) {
+    playerCar.update(dt, input);
+    player.pos.copy(playerCar.pos);
+    player.group.visible = false;
+  } else {
+    player.update(dt, input);
+  }
+  updateEjected(dt);
 
   const fired = pendingGunAlarm;
   pendingGunAlarm = false; // only the first step of the frame applies the alarm
@@ -162,9 +177,18 @@ function step(dt: number) {
   traffic.update(dt, player);
   attention.update(dt, player, fired);
   crowd.update(dt, player, (p) => attention.canSee(p), sfx, voice);
-  police.update(dt, player, crowd, sfx, wanted >= 1, (dmg, dir) => player.takeHit(dmg, dir));
+  police.update(dt, player, crowd, sfx, wanted >= 1, shops.inside, (dmg, dir) => player.takeHit(dmg, dir));
   pickups.update(dt, player.pos);
+
+  const wasInside = shops.inside;
   shops.update(dt, player);
+  if (shops.inside && !wasInside) {
+    voice.welcome();
+    if (wanted >= 1) police.enterStore(shops.lastDoorPos, shops.storeEntry); // cops give chase inside
+  } else if (!shops.inside && wasInside) {
+    police.exitStore(player.pos);
+  }
+
   farms.update(dt);
   drones.update(dt, player.pos);
   spectator.update(dt, player, crowd, attention, drones.drones, shops.interiorLenses);
@@ -190,13 +214,61 @@ function step(dt: number) {
 }
 
 function handleInteract() {
+  if (player.driving) { // get out of the car
+    player.driving = false;
+    player.pos.copy(playerCar.exitPos(tmpVec));
+    player.facing = playerCar.heading;
+    player.group.position.copy(player.pos);
+    player.group.visible = true;
+    playerCar.active = false;
+    return;
+  }
   if (shopOpen) { closeShop(); return; }
+
+  // steal the nearest car (parked or moving)
+  const car = traffic.steal(player.pos);
+  if (car) {
+    playerCar.enter(car.pos, car.heading);
+    player.driving = true;
+    if (car.moving) { ejectVictim(car.pos); addWanted(1); voice.carjack(); }
+    return;
+  }
+
+  if (shops.canRob(player)) {
+    money += shops.rob();
+    voice.cashier();
+    addWanted(2);
+    sfx.coin();
+    return;
+  }
   if (shops.nearCounter(player.pos)) { openShop(); return; }
   const got = farms.tryHarvest(player.pos);
   if (got) {
     inventory.add(got.foodId);
     sfx.coin();
     if (got.seen) { voice.farmer(); addWanted(1); } // a farmer saw you steal
+  }
+}
+
+function ejectVictim(pos: THREE.Vector3) {
+  const body = new Humanoid(randomCivilianColors());
+  body.group.position.copy(pos);
+  world.scene.add(body.group);
+  const dir = new THREE.Vector3(pos.x - player.pos.x, 0, pos.z - player.pos.z);
+  if (dir.lengthSq() < 1e-3) dir.set(Math.random() - 0.5, 0, Math.random() - 0.5);
+  dir.normalize();
+  ejected.push({ body, pos: pos.clone(), vel: dir.multiplyScalar(4.5), t: 5 });
+}
+
+function updateEjected(dt: number) {
+  for (let i = ejected.length - 1; i >= 0; i--) {
+    const e = ejected[i];
+    e.pos.addScaledVector(e.vel, dt);
+    e.body.group.position.copy(e.pos);
+    e.body.group.rotation.y = Math.atan2(e.vel.x, e.vel.z);
+    e.body.update(dt, e.vel.length());
+    e.t -= dt;
+    if (e.t <= 0) { world.scene.remove(e.body.group); ejected.splice(i, 1); }
   }
 }
 
@@ -305,7 +377,13 @@ function updateHud() {
     .join("");
 
   // interact prompt
-  if (!shopOpen && shops.nearCounter(player.pos)) {
+  if (player.driving) {
+    promptEl.style.display = "block"; promptEl.innerHTML = "<b>F</b> — get out of car";
+  } else if (!shopOpen && traffic.nearStealable(player.pos)) {
+    promptEl.style.display = "block"; promptEl.innerHTML = "<b>F</b> — steal car";
+  } else if (!shopOpen && shops.canRob(player)) {
+    promptEl.style.display = "block"; promptEl.innerHTML = "<b>F</b> — rob the register";
+  } else if (!shopOpen && shops.nearCounter(player.pos)) {
     promptEl.style.display = "block"; promptEl.innerHTML = "<b>F</b> — browse goods";
   } else if (!shopOpen && shops.nearDoor(player.pos)) {
     promptEl.style.display = "block"; promptEl.innerHTML = "walk into the doorway to enter";

@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.54",
+ "version": "1.0.55",
  "generated": "2026-06-28",
  "patches": [
+  {
+   "version": "1.0.55",
+   "date": "2026-06-28",
+   "title": "City of Eyes: store robbery+police-follow+shopping (A) and cars: wider roads, parked, steal/drive + carjack victims (B)",
+   "notes": []
+  },
   {
    "version": "1.0.54",
    "date": "2026-06-28",
@@ -234,12 +240,6 @@ window.PATCHNOTES={
    "version": "1.0.16",
    "date": "2026-06-21",
    "title": "Add Gunsmithing skill: forge metals into parts, build guns at a workbench",
-   "notes": []
-  },
-  {
-   "version": "1.0.15",
-   "date": "2026-06-21",
-   "title": "Tinhollow village, low-level starter zone, unarmed punch, UI cleanup",
    "notes": []
   }
  ]

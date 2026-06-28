@@ -22,6 +22,7 @@ export class Player {
   private energyBuff = 0; // seconds of reduced sprint drain (energy drink)
   exhausted = false; // hit empty — must recover before sprinting again
   dead = false;
+  driving = false; // controlling a stolen car (avatar hidden, see main)
   // when set, the player is clamped to this box instead of the world (shop interior)
   confine: { minX: number; maxX: number; minZ: number; maxZ: number } | null = null;
   private invuln = 0;

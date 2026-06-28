@@ -35,7 +35,12 @@ export class ShopSystem {
   private spawnIn = new THREE.Vector3(STORE.x, 0, STORE.z - HZ + 3);
   private counterPos = new THREE.Vector3(STORE.x, 0, STORE.z + HZ - 2);
   private keeper: Humanoid;
+  private keeperPos = new THREE.Vector3(STORE.x, 0, STORE.z + HZ - 1);
+  private keeperPanic = 0;
+  private robCd = 0;
   private returnIndex = 0;
+  readonly lastDoorPos = new THREE.Vector3();
+  get storeEntry(): THREE.Vector3 { return this.spawnIn; }
 
   constructor(scene: THREE.Scene, world: World) {
     // outside: a glowing portal pad + sign + frame at each shop door
@@ -156,7 +161,30 @@ export class ShopSystem {
     return !this.inside && this.doorOut.some((d) => playerPos.distanceToSquared(d.pos) < 4);
   }
 
+  /** Player is inside with a gun trained on the cashier. */
+  aimingAtCashier(player: Player): boolean {
+    if (!this.inside || !player.armed) return false;
+    const dx = this.keeperPos.x - player.pos.x;
+    const dz = this.keeperPos.z - player.pos.z;
+    const d = Math.hypot(dx, dz);
+    if (d > 6 || d < 0.3) return false;
+    const fx = Math.sin(player.facing), fz = Math.cos(player.facing);
+    return (fx * dx + fz * dz) / d > Math.cos(THREE.MathUtils.degToRad(40));
+  }
+  canRob(player: Player): boolean {
+    return this.aimingAtCashier(player) && this.robCd <= 0;
+  }
+  /** Empty the register: returns the haul and sends the cashier into a panic. */
+  rob(): number {
+    this.keeperPanic = 4;
+    this.robCd = 12;
+    return 60 + Math.floor(Math.random() * 120);
+  }
+
   update(dt: number, player: Player) {
+    this.keeperPanic -= dt;
+    this.robCd -= dt;
+    this.keeper.setHandsUp(this.keeperPanic > 0);
     this.keeper.update(dt, 0);
 
     if (!this.inside) {
@@ -170,6 +198,7 @@ export class ShopSystem {
 
   private enter(i: number, player: Player) {
     this.returnIndex = i;
+    this.lastDoorPos.copy(this.doorOut[i].pos);
     this.inside = true;
     player.pos.copy(this.spawnIn);
     player.facing = 0; // look into the store (+z)

@@ -17,6 +17,15 @@ const FARMER = [
   "Hey! My crops!", "Get off my land!", "Thief! Thief!", "Those are my vegetables!",
   "Oi! Hands off!", "I'm calling the cops!", "You little crook!",
 ];
+const CASHIER = [
+  "Please don't shoot!", "Take the money, just go!", "Oh god, please!",
+  "Don't hurt me!", "Here, take it all!", "I have a family!",
+];
+const WELCOME = ["Welcome in!", "Hi, looking for anything?", "Let me know if you need help.", "Afternoon!"];
+const CARJACK = [
+  "Hey! That guy stole my car!", "Somebody stop him!", "That's my car!",
+  "He's taking my car!", "Thief! He's got my car!", "Are you kidding me?!",
+];
 
 export class Voice {
   private last = 0;
@@ -39,4 +48,7 @@ export class Voice {
   abuse() { this.say(ABUSE); }
   empathy() { this.say(EMPATHY); }
   farmer() { this.say(FARMER, 800); } // farmers get priority — they're yelling
+  cashier() { this.say(CASHIER, 700); }
+  welcome() { this.say(WELCOME); }
+  carjack() { this.say(CARJACK, 700); }
 }

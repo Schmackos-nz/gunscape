@@ -60,6 +60,7 @@ export class Humanoid {
   private aiming = false;
   private reaching = false; // hands out, shoving
   private fighting = false; // throwing punches
+  private handsUp = false; // surrendering (robbed cashier)
   private fightClock = Math.random() * 10;
 
   constructor(colors: HumanoidColors) {
@@ -200,6 +201,11 @@ export class Humanoid {
     this.fighting = on;
   }
 
+  /** Hands raised overhead (surrendering). */
+  setHandsUp(on: boolean) {
+    this.handsUp = on;
+  }
+
   /** Tint clothing red as alarm rises (0..1) so witnesses read at a glance. */
   setAlarm(a: number) {
     this.shirtMat.emissive.setRGB(a * 0.85, 0, 0);
@@ -219,7 +225,12 @@ export class Humanoid {
     this.kneeR.rotation.x = Math.max(0, -s) * amp * 1.3;
 
     this.fightClock += dt;
-    if (this.fighting) {
+    if (this.handsUp) {
+      // surrender — both arms raised overhead
+      this.armR.rotation.x = -2.7;
+      this.armL.rotation.x = -2.7;
+      this.elbowR.rotation.x = -0.2;
+    } else if (this.fighting) {
       // alternating forward jabs on a fast independent clock
       const j = Math.sin(this.fightClock * 12);
       this.armR.rotation.x = -1.05 - Math.max(0, j) * 0.7;

@@ -95,7 +95,7 @@ export class SpectatorSystem {
     };
 
     for (const p of crowd.peds) {
-      if (p.dead) continue; // don't ride a corpse
+      if (p.dead || p.shopping) continue; // don't ride a corpse or someone who's gone inside
       consider(p, attention.canSee(p));
     }
     for (const c of crowd.cctv) consider(c);

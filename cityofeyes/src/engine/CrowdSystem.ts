@@ -30,12 +30,21 @@ export class CrowdSystem {
   update(dt: number, player: Player, seesPlayer: (p: Pedestrian) => boolean, sfx: Sfx, voice: Voice) {
     // armed civilians assess whether the player is drawing on them (before they
     // pick their behaviour for the frame)
-    for (const p of this.peds) if (p.armed && !p.dead) this.assessThreat(dt, p, player, sfx, voice);
+    for (const p of this.peds) if (p.armed && !p.dead && !p.shopping) this.assessThreat(dt, p, player, sfx, voice);
 
     for (const p of this.peds) {
       p.update(dt, player.pos, seesPlayer(p));
       if (p.enteredPanic && p.pos.distanceToSquared(player.pos) < 32 * 32 && Math.random() < 0.5) {
         voice.empathy();
+      }
+      // calm citizens occasionally duck into a shop to buy something
+      if (!p.shopping && !p.dead && p.state === "calm" && !p.fightTarget) {
+        for (const door of this.world.shopDoors) {
+          if (p.pos.distanceToSquared(door.pos) < 12 && Math.random() < dt * 0.6) {
+            p.goShopping(5 + Math.random() * 6);
+            break;
+          }
+        }
       }
     }
     this.resolveCollisions(dt, player, sfx, voice);
@@ -77,11 +86,11 @@ export class CrowdSystem {
 
     for (let i = 0; i < peds.length; i++) {
       const a = peds[i];
-      if (a.dead) continue;
+      if (a.dead || a.shopping) continue;
 
       for (let j = i + 1; j < peds.length; j++) {
         const b = peds[j];
-        if (b.dead) continue;
+        if (b.dead || b.shopping) continue;
         let dx = b.pos.x - a.pos.x;
         let dz = b.pos.z - a.pos.z;
         let d2 = dx * dx + dz * dz;

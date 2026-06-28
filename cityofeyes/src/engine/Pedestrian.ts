@@ -27,6 +27,8 @@ export class Pedestrian implements Spectator {
   enteredPanic = false; // true on the frame they first panic (for voice lines)
   private prevState: AlarmState = "calm";
   dead = false;
+  shopping = false; // ducked into a store; hidden + inert
+  private shopTimer = 0;
   health = CONFIG.crowd.health;
 
   // shoving / brawling
@@ -130,7 +132,19 @@ export class Pedestrian implements Spectator {
     this.fightTimer = seconds;
   }
 
+  /** Pop into a store: hide and go inert for a few seconds. */
+  goShopping(seconds: number) {
+    this.shopping = true;
+    this.shopTimer = seconds;
+    this.group.visible = false;
+  }
+
   update(dt: number, playerPos: THREE.Vector3, canSeePlayer: boolean) {
+    if (this.shopping) {
+      this.shopTimer -= dt;
+      if (this.shopTimer <= 0) { this.shopping = false; this.group.visible = true; }
+      return;
+    }
     if (this.dead) {
       this.group.position.copy(this.pos);
       this.group.rotation.z = THREE.MathUtils.lerp(this.group.rotation.z, Math.PI / 2, 0.12);

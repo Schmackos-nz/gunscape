@@ -84,7 +84,7 @@ export class ProjectileSystem {
     let best: Pedestrian | null = null;
     let bestT = Infinity;
     for (const p of this.crowd.peds) {
-      if (p.dead) continue;
+      if (p.dead || p.shopping) continue;
       this.hitPoint.set(p.pos.x, 1.0, p.pos.z);
       const t = distToSegmentSq(this.hitPoint, b.prev, b.mesh.position);
       if (t < HIT_RADIUS * HIT_RADIUS && t < bestT) { bestT = t; best = p; }

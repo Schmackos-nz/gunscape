@@ -17,6 +17,7 @@ class Officer {
   heading = 0;
   health = CONFIG.police.health;
   dead = false;
+  inStore = false;
   private deadTimer = 0;
   private body: Humanoid;
   private weapon: THREE.Mesh;
@@ -153,12 +154,32 @@ export class PoliceSystem {
     this.officers.length = 0;
   }
 
+  /** Officers near the door the player just used follow them into the store. */
+  enterStore(doorPos: THREE.Vector3, entry: THREE.Vector3) {
+    for (const o of this.officers) {
+      if (o.dead || o.inStore) continue;
+      if (o.pos.distanceToSquared(doorPos) < 32 * 32) {
+        o.pos.set(entry.x + (Math.random() - 0.5) * 3, 0, entry.z - 1 - Math.random() * 1.5);
+        o.inStore = true;
+      }
+    }
+  }
+  /** Bring any in-store officers back out to where the player exited. */
+  exitStore(outsidePos: THREE.Vector3) {
+    for (const o of this.officers) {
+      if (!o.inStore) continue;
+      o.pos.set(outsidePos.x + (Math.random() - 0.5) * 2, 0, outsidePos.z + (Math.random() - 0.5) * 2);
+      o.inStore = false;
+    }
+  }
+
   update(
     dt: number,
     player: Player,
     crowd: CrowdSystem,
     sfx: Sfx,
     playerWanted: boolean,
+    playerInStore: boolean,
     onShootPlayer: (dmg: number, dir: THREE.Vector3) => void
   ) {
     const fugitives = crowd.peds.filter((p) => !p.dead && p.fightTarget);
@@ -170,15 +191,20 @@ export class PoliceSystem {
         continue;
       }
 
-      // nearest threat: player (if wanted) or a brawler
+      // nearest threat. The player is only a valid target if officer and player
+      // are on the same side of the door (both inside the store, or both out).
       let targetPos: THREE.Vector3 | null = null;
       let isPlayer = false;
       let targetPed: Pedestrian | null = null;
       let bestD = Infinity;
-      if (playerWanted) { targetPos = player.pos; isPlayer = true; bestD = o.pos.distanceToSquared(player.pos); }
-      for (const f of fugitives) {
-        const d = o.pos.distanceToSquared(f.pos);
-        if (d < bestD) { bestD = d; targetPos = f.pos; isPlayer = false; targetPed = f; }
+      if (playerWanted && o.inStore === playerInStore) {
+        targetPos = player.pos; isPlayer = true; bestD = o.pos.distanceToSquared(player.pos);
+      }
+      if (!o.inStore) {
+        for (const f of fugitives) {
+          const d = o.pos.distanceToSquared(f.pos);
+          if (d < bestD) { bestD = d; targetPos = f.pos; isPlayer = false; targetPed = f; }
+        }
       }
 
       if (!targetPos) { o.idle(dt); continue; }
