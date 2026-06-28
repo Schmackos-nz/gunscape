@@ -149,7 +149,9 @@ export class Player {
     // resting regenerates it. Once it hits empty you're "exhausted" and can't
     // sprint again until it recovers past a threshold.
     if (this.energyBuff > 0) this.energyBuff -= dt;
-    this.sprinting = input.isDown("shift") && !this.exhausted && this.energy > 1 && drive !== 0;
+    // sprint until energy hits 0 (then locked out until it recovers). No energy
+    // floor in the gate — otherwise it stops at 1 and never trips the lockout.
+    this.sprinting = input.isDown("shift") && !this.exhausted && drive !== 0;
     if (this.sprinting) {
       const mul = this.energyBuff > 0 ? CONFIG.player.buffDrainMul : 1;
       this.energy = Math.max(0, this.energy - CONFIG.player.sprintDrain * mul * dt);

@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.53",
+ "version": "1.0.54",
  "generated": "2026-06-28",
  "patches": [
+  {
+   "version": "1.0.54",
+   "date": "2026-06-28",
+   "title": "City of Eyes: actually stop sprinting at 0 energy",
+   "notes": []
+  },
   {
    "version": "1.0.53",
    "date": "2026-06-28",
