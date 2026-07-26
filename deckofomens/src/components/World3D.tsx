@@ -254,6 +254,7 @@ export const World3D: React.FC<World3DProps> = ({
           hp: Math.floor(hp),
           nextIntentDamage: Math.floor(damage),
           defeatReward: 20 * enemyLevel,
+          attackRating: Math.round(18 + enemyLevel * 3 + Math.random() * 6),
         };
 
         spawnEnemyAt(spawn, enemy, {
@@ -294,9 +295,11 @@ export const World3D: React.FC<World3DProps> = ({
         hp,
         nextIntentDamage: damage,
         defeatReward: 150 * (bossLevelBasis + 1) * (isSpecialFloor ? 2 : 1),
+        attackRating: Math.round((26 + bossLevelBasis * 4) * specialMultiplier),
+        // Only the special "Ascendant" boss carries real bonus armor.
+        defenseRating: isSpecialFloor ? 4 + Math.floor(bossLevelBasis / 2) : undefined,
         isBoss: true,
         isSpecialBoss: isSpecialFloor,
-        armor: isSpecialFloor ? 20 : undefined,
         attacksPerTurn: isSpecialFloor ? 2 : undefined,
       };
 
@@ -374,6 +377,7 @@ export const World3D: React.FC<World3DProps> = ({
             hp: Math.floor(minionHp),
             nextIntentDamage: Math.floor(minionDamage),
             defeatReward: 20 * bossLevelBasis,
+            attackRating: Math.round(18 + bossLevelBasis * 3),
           };
 
           spawnEnemyAt({ x: mx, z: mz }, minion, {

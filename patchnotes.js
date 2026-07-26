@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.76",
+ "version": "1.0.77",
  "generated": "2026-07-26",
  "patches": [
+  {
+   "version": "1.0.77",
+   "date": "2026-07-26",
+   "title": "Deck of Omens: rating-based combat, enemy bolster, post-fight heal, pause menu, logo buttons",
+   "notes": []
+  },
   {
    "version": "1.0.76",
    "date": "2026-07-26",
@@ -228,12 +234,6 @@ window.PATCHNOTES={
    "version": "1.0.38",
    "date": "2026-06-22",
    "title": "World: gun barrel aligns with the arm axis so it follows arm rotation",
-   "notes": []
-  },
-  {
-   "version": "1.0.37",
-   "date": "2026-06-22",
-   "title": "Aim pose when shooting, faces, fix remote weapons, richer music",
    "notes": []
   }
  ]

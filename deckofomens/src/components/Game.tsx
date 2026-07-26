@@ -3,6 +3,7 @@ import { GameState, Card, CombatState, DeckType, DeckOffer, Enemy, Item, Player 
 import { generateDeck, generateEmpoweredDeck, generateMythicalDeck, shuffleDeck, drawCards } from '../cardData';
 import { generateLoot, generateBossLoot } from '../itemData';
 import { generateDeckPickups } from '../worldGen';
+import { playerAttackRating, playerDefenseRating, applyMitigation } from '../combatMath';
 import { playSound } from '../audio';
 import { getRandomTaunt, getRandomEnemyTaunt, getRandomVictoryLine, getRandomDefeatLine, getEnemyVoice, speak } from '../taunts';
 import { saveGame, loadGame, clearSave, hasSave } from '../saveGame';
@@ -14,6 +15,7 @@ import { LootScreen } from './LootScreen';
 import { InventoryScreen } from './InventoryScreen';
 import { DeckOfferScreen } from './DeckOfferScreen';
 import { DeckRevealScreen } from './DeckRevealScreen';
+import { PauseMenu } from './PauseMenu';
 
 // Applies a single card's effect to a combat state and returns the updated
 // copy. Shared by playCard (for the card just clicked) and the Mythical
@@ -22,12 +24,17 @@ import { DeckRevealScreen } from './DeckRevealScreen';
 function applyCardEffect(combat: CombatState, card: Card, player: Player): CombatState {
   const next = { ...combat };
 
+  // Player card damage is mitigated by the enemy's defense rating measured
+  // against the player's attack rating (most enemies have no defense rating,
+  // so their cards land in full).
+  const atkRating = playerAttackRating(player);
+  const enemyDef = next.enemy.defenseRating ?? 0;
+
   if (card.type === 'attack') {
     playSound('attack');
     const hits = card.name.includes('Assault') ? 2 : 1;
-    const withGear = card.value * (1 + player.attackPercent / 100) * hits;
-    const armorReduction = next.enemy.armor ? 1 - next.enemy.armor / 100 : 1;
-    const damage = Math.max(1, Math.round(withGear * armorReduction));
+    const raw = card.value * (1 + player.attackPercent / 100) * hits;
+    const damage = applyMitigation(raw, enemyDef, atkRating, 1);
     next.enemy = { ...next.enemy, hp: next.enemy.hp - damage };
     next.message = hits > 1 ? `Dealt ${damage} damage (2 hits)!` : `Dealt ${damage} damage!`;
 
@@ -60,9 +67,8 @@ function applyCardEffect(combat: CombatState, card: Card, player: Player): Comba
 
     // Mythical hybrid defense cards also deal damage at the same time.
     if (card.isMythical) {
-      const withGear = card.value * (1 + player.attackPercent / 100);
-      const armorReduction = next.enemy.armor ? 1 - next.enemy.armor / 100 : 1;
-      const damage = Math.max(1, Math.round(withGear * armorReduction));
+      const raw = card.value * (1 + player.attackPercent / 100);
+      const damage = applyMitigation(raw, enemyDef, atkRating, 1);
       next.enemy = { ...next.enemy, hp: next.enemy.hp - damage };
       next.message += ` Dealt ${damage} damage!`;
 
@@ -130,6 +136,7 @@ export const Game: React.FC = () => {
   // whether to resume a save or start fresh, even if one exists.
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [showInventory, setShowInventory] = useState(false);
+  const [paused, setPaused] = useState(false);
   const [view, setView] = useState<'title' | 'deckSelect'>('title');
 
   useEffect(() => {
@@ -141,6 +148,8 @@ export const Game: React.FC = () => {
   const resetToMenu = () => {
     clearSave();
     setGameState(null);
+    setPaused(false);
+    setShowInventory(false);
     setView('title');
   };
 
@@ -279,6 +288,10 @@ export const Game: React.FC = () => {
     combat.immuneThisTurn = false;
     const attacksPerTurn = combat.enemy.attacksPerTurn ?? 1;
     const enemyDamage = combat.enemy.nextIntentDamage;
+    // Player defense rating for this turn folds in the shield built up from
+    // cards (`defense`). Bring it above the enemy's attack rating to halve
+    // hits, up to fully negating them at double - see combatMath.ts.
+    const defRating = playerDefenseRating(gameState.player, defense);
     let totalDamage = 0;
     let blockedAHit = false;
 
@@ -288,9 +301,7 @@ export const Game: React.FC = () => {
           blockedAHit = true;
           continue;
         }
-        // Armor fully absorbs a hit when it meets or beats the damage - no
-        // more forced chip damage that made high shield feel pointless.
-        totalDamage += Math.max(0, enemyDamage - defense);
+        totalDamage += applyMitigation(enemyDamage, defRating, combat.enemy.attackRating);
       }
     }
     combat.blockNextHit = false;
@@ -318,6 +329,16 @@ export const Game: React.FC = () => {
       const nextIntents = [6, 8, 10, 12, 15, 18, 20];
       combat.enemy.nextIntentDamage =
         nextIntents[Math.floor(Math.random() * nextIntents.length)];
+
+      // The enemy sometimes bolsters, permanently raising its attack rating
+      // for the rest of the fight so a drawn-out battle gets harder to defend
+      // against - a nudge to finish enemies off rather than turtle forever.
+      if (Math.random() < 0.3) {
+        const boost = 2 + Math.floor(combat.enemy.level / 3) + Math.floor(Math.random() * 3);
+        combat.enemy = { ...combat.enemy, attackRating: combat.enemy.attackRating + boost };
+        combat.message += ` ${combat.enemy.name} bolsters its strength! (Attack ${combat.enemy.attackRating})`;
+        playSound('bossVictory');
+      }
     }
 
     const drawCount = 5 + gameState.player.bonusDraw;
@@ -370,6 +391,9 @@ export const Game: React.FC = () => {
       gold: goldGain,
       experience: expGain,
       coinOffered,
+      // Heal is always an alternative reward - 40% of max HP, a meaningful
+      // top-up for skipping the loot.
+      healAmount: Math.round(gameState.player.maxHP * 0.4),
     };
 
     setGameState(nextState);
@@ -379,19 +403,19 @@ export const Game: React.FC = () => {
     resetToMenu();
   };
 
-  const continueLoot = (choice?: 'item' | 'coin') => {
+  const continueLoot = (choice?: 'item' | 'coin' | 'heal') => {
     if (!gameState?.lootReward) return;
 
-    playSound('pickup');
-
     const player = { ...gameState.player };
-    if (gameState.lootReward.coinOffered) {
-      if (choice === 'coin') {
-        player.coins += 1;
-      } else {
-        player.inventory.push(...gameState.lootReward.items);
-      }
+    if (choice === 'heal') {
+      playSound('healing');
+      player.hp = Math.min(player.maxHP, player.hp + gameState.lootReward.healAmount);
+    } else if (choice === 'coin' && gameState.lootReward.coinOffered) {
+      playSound('pickup');
+      player.coins += 1;
     } else {
+      // Default/'item' - take the dropped item(s).
+      playSound('pickup');
       player.inventory.push(...gameState.lootReward.items);
     }
 
@@ -593,6 +617,24 @@ export const Game: React.FC = () => {
     );
   }
 
+  if (paused) {
+    return (
+      <PauseMenu
+        inCombat={gameState.screen === 'combat'}
+        onResume={() => {
+          playSound('click');
+          setPaused(false);
+        }}
+        onInventory={() => {
+          playSound('click');
+          setPaused(false);
+          setShowInventory(true);
+        }}
+        onQuit={resetToMenu}
+      />
+    );
+  }
+
   if (gameState.screen === 'world') {
     return (
       <World3D
@@ -617,7 +659,10 @@ export const Game: React.FC = () => {
         onEndTurn={endTurn}
         onVictory={handleCombatVictory}
         onDefeat={handleCombatDefeat}
-        onMenu={resetToMenu}
+        onMenu={() => {
+          playSound('click');
+          setPaused(true);
+        }}
       />
     );
   }

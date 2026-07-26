@@ -56,12 +56,20 @@ export interface Enemy {
   nextIntentDamage: number;
   defeatReward: number;
   level: number;
+  // Attack rating (shown beside the name) governs how hard the enemy is to
+  // defend against: a player must raise their defense rating toward it to
+  // mitigate hits. It's "fairly high" and can climb mid-fight when the enemy
+  // bolsters. See combatMath.ts for the mitigation curve.
+  attackRating: number;
+  // Defense rating mitigates the PLAYER's card damage the same way the
+  // player's defense rating mitigates the enemy - most enemies have none;
+  // special bosses carry a real one ("bonus armor").
+  defenseRating?: number;
   isBoss?: boolean;
   // Extra qualities for the periodic "special" boss (every few floors):
-  // damage reduction against it, multiple attacks per turn, and (handled in
-  // Game.tsx's loot generation) dropping loot a level higher than usual.
+  // multiple attacks per turn and (handled in Game.tsx's loot generation)
+  // dropping loot a level higher than usual.
   isSpecialBoss?: boolean;
-  armor?: number;
   attacksPerTurn?: number;
 }
 
@@ -145,6 +153,9 @@ export interface GameState {
     gold: number;
     experience: number;
     coinOffered: boolean;
+    // Post-fight heal is always offered as an alternative reward choice; this
+    // is the HP it restores if the player picks it over the item/coin.
+    healAmount: number;
   };
   deckOffer?: DeckOffer;
   deckReveal?: {

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { GameState, Card } from '../types';
 import { HeartIcon, BoltIcon, ArmorIcon, SwordIcon, ShieldIcon, SparkleIcon, EnemySprite, PlayerSprite } from './Icons';
+import { playerAttackRating, playerDefenseRating, applyMitigation } from '../combatMath';
 
 interface GameScreenProps {
   gameState: GameState;
@@ -92,15 +93,15 @@ export const GameScreen: React.FC<GameScreenProps> = ({
     return combat.playerEnergy >= card.cost && !combat.gameOver;
   };
 
+  const atkRating = playerAttackRating(gameState.player);
+  const enemyDef = combat.enemy.defenseRating ?? 0;
+
   // The value shown on a card should reflect what it will ACTUALLY do,
-  // including equipped item bonuses - not just the card's base number.
+  // including gear bonuses and the enemy's defense-rating mitigation.
   const getEffectiveValue = (card: Card): string | number => {
     const hits = card.name.includes('Assault') ? 2 : 1;
-    const armorReduction = combat.enemy.armor ? 1 - combat.enemy.armor / 100 : 1;
-    const damage = Math.max(
-      1,
-      Math.round(card.value * (1 + gameState.player.attackPercent / 100) * hits * armorReduction)
-    );
+    const raw = card.value * (1 + gameState.player.attackPercent / 100) * hits;
+    const damage = applyMitigation(raw, enemyDef, atkRating, 1);
     const shield = Math.round(card.value * (1 + gameState.player.defensePercent / 100));
 
     // Mythical hybrid cards do both at once - show both numbers.
@@ -149,6 +150,15 @@ export const GameScreen: React.FC<GameScreenProps> = ({
 
   const playerHPPercent = (Math.max(0, combat.playerHP) / combat.playerMaxHP) * 100;
   const attacksPerTurn = combat.enemy.attacksPerTurn ?? 1;
+
+  // Player's defense rating folds in this turn's shield, so it climbs live as
+  // defense cards are played; the intent shows the resulting mitigated hit.
+  const playerDefRating = playerDefenseRating(gameState.player, combat.defense);
+  const incomingPerHit = applyMitigation(
+    combat.enemy.nextIntentDamage,
+    playerDefRating,
+    combat.enemy.attackRating
+  );
 
   // Energy shown as discrete gems so the player reads their pool at a glance.
   // Cards can push energy above the normal max (Focus, Second Wind); those
@@ -204,6 +214,22 @@ export const GameScreen: React.FC<GameScreenProps> = ({
                 {combat.enemy.name}
                 {combat.enemy.isBoss && <span className="boss-tag">BOSS</span>}
               </div>
+              <div className="rating-row">
+                <span
+                  className="rating-badge atk-rating"
+                  title="Attack rating — raise your Defense toward it to reduce its hits"
+                >
+                  <SwordIcon size={13} /> {combat.enemy.attackRating}
+                </span>
+                {enemyDef > 0 && (
+                  <span
+                    className="rating-badge def-rating"
+                    title="Defense rating — mitigates your card damage"
+                  >
+                    <ArmorIcon size={13} /> {enemyDef}
+                  </span>
+                )}
+              </div>
               <div className="enemy-hp">
                 <div className="hp-bar">
                   <div
@@ -220,15 +246,9 @@ export const GameScreen: React.FC<GameScreenProps> = ({
                   <div className="intent-badge attack-intent">
                     <SwordIcon size={14} />
                     <span>
-                      {combat.enemy.nextIntentDamage}
-                      {attacksPerTurn > 1 ? ` ×${attacksPerTurn}` : ''}
+                      {incomingPerHit}
+                      {attacksPerTurn > 1 ? ` ×${attacksPerTurn}` : ''} dmg
                     </span>
-                  </div>
-                )}
-                {!!combat.enemy.armor && (
-                  <div className="intent-badge armor-intent">
-                    <ArmorIcon size={14} />
-                    <span>{combat.enemy.armor}%</span>
                   </div>
                 )}
               </div>
@@ -248,6 +268,20 @@ export const GameScreen: React.FC<GameScreenProps> = ({
             )}
             <div className="player-sprite-wrapper">
               <PlayerSprite size={110} />
+            </div>
+            <div className="player-ratings">
+              <span
+                className="rating-badge atk-rating"
+                title="Your Attack rating — higher pierces enemy Defense"
+              >
+                <SwordIcon size={14} /> {atkRating}
+              </span>
+              <span
+                className="rating-badge def-rating"
+                title="Your Defense rating (incl. this turn's shield) — beat the enemy's Attack to halve hits"
+              >
+                <ArmorIcon size={14} /> {playerDefRating}
+              </span>
             </div>
           </div>
           <div className="hand-container">

@@ -30,7 +30,6 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({ hasSave, onNewGame, on
 
       <div className="deck-selection-content title-screen-content">
         <OmenLogo />
-        <p className="subtitle title-subtitle">A roguelike deckbuilding adventure</p>
 
         <div className="title-screen-buttons">
           <button className="btn title-screen-btn" onClick={handleNewGame}>
