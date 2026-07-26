@@ -142,17 +142,13 @@ function shuffleIndices(indices: number[]): number[] {
   return arr;
 }
 
-// Builds a starter deck with a chance of empowered cards among its
-// attack/defense cards (utility cards are excluded - "offensive/defensive
-// stats" doesn't apply to them). `requestedCount` (rolled 1-52 by whoever
-// creates the offer) caps the CANDIDATE pool considered; each candidate
-// then gets its own d4 roll, so the actual empowered count usually ends up
-// well below that cap. Returns the actual count applied.
-export function generateEmpoweredDeck(
-  deckType: DeckType,
-  requestedCount: number
-): { cards: Card[]; empoweredCount: number } {
-  const cards = buildDeckCards(deckType);
+// Empowers cards in place among the attack/defense cards (utility cards -
+// including the unique Mythical card - are never candidates). `requestedCount`
+// (rolled 1-52 by whoever creates the offer) caps the CANDIDATE pool; each
+// candidate then gets its own d4 roll, so the actual empowered count usually
+// lands well below that cap. Returns an unshuffled deck + the count applied;
+// callers shuffle. Shared by the normal and Mythical deck generators.
+function applyEmpowerment(cards: Card[], requestedCount: number): { cards: Card[]; empoweredCount: number } {
   const eligibleIndices = cards.reduce<number[]>((acc, c, i) => {
     if (c.type !== 'utility') acc.push(i);
     return acc;
@@ -172,7 +168,15 @@ export function generateEmpoweredDeck(
     return card;
   });
 
-  return { cards: shuffleDeck(finalCards), empoweredCount };
+  return { cards: finalCards, empoweredCount };
+}
+
+export function generateEmpoweredDeck(
+  deckType: DeckType,
+  requestedCount: number
+): { cards: Card[]; empoweredCount: number } {
+  const { cards, empoweredCount } = applyEmpowerment(buildDeckCards(deckType), requestedCount);
+  return { cards: shuffleDeck(cards), empoweredCount };
 }
 
 export function shuffleDeck(deck: Card[]): Card[] {
@@ -293,8 +297,12 @@ function hybridizeCard(card: Card): Card {
 
 // Mythical decks are always Balanced-composition, but with every attack/
 // defense card hybridized (halved damage+shield in one) and exactly one of
-// the 52 slots replaced with a random unique Mythical special card.
-export function generateMythicalDeck(): { cards: Card[]; mythicalCard: Card } {
+// the 52 slots replaced with a random unique Mythical special card. Like a
+// normal empowered deck, its hybrid cards can also be empowered (cheaper or
+// 50% stronger) - a card can be both Mythical and Empowered at once.
+export function generateMythicalDeck(
+  requestedCount: number = 0
+): { cards: Card[]; mythicalCard: Card; empoweredCount: number } {
   const baseCards = buildDeckCards('balanced');
   const hybridCards = baseCards.map(hybridizeCard);
 
@@ -304,5 +312,6 @@ export function generateMythicalDeck(): { cards: Card[]; mythicalCard: Card } {
   const replaceIndex = Math.floor(Math.random() * hybridCards.length);
   hybridCards[replaceIndex] = mythicalCard;
 
-  return { cards: shuffleDeck(hybridCards), mythicalCard };
+  const { cards, empoweredCount } = applyEmpowerment(hybridCards, requestedCount);
+  return { cards: shuffleDeck(cards), mythicalCard, empoweredCount };
 }

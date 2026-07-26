@@ -20,6 +20,7 @@ export const DeckRevealScreen: React.FC<DeckRevealScreenProps> = ({ gameState, o
 
   if (reveal.isMythical && reveal.mythicalCard) {
     const card = reveal.mythicalCard;
+    const empoweredCount = reveal.empoweredCards.length;
     return (
       <div className="loot-screen">
         <div className="loot-modal deck-offer-modal mythical-modal">
@@ -27,8 +28,10 @@ export const DeckRevealScreen: React.FC<DeckRevealScreenProps> = ({ gameState, o
 
           <p className="deck-offer-desc">
             Your deck is now a <strong>Mythical Balanced Deck</strong>: every attack card also
-            shields you, and every defense card also strikes the enemy, both halved. Hidden among
-            its 52 cards is one unique Mythical card:
+            shields you, and every defense card also strikes the enemy, both halved. It also carries{' '}
+            <strong>{empoweredCount}</strong> empowered card{empoweredCount === 1 ? '' : 's'} (cheaper
+            or 50% stronger, marked with a star), and hidden among its 52 cards is one unique Mythical
+            card:
           </p>
 
           <div className="empowered-card-list">
@@ -37,6 +40,21 @@ export const DeckRevealScreen: React.FC<DeckRevealScreenProps> = ({ gameState, o
               <span className="empowered-card-name">{card.name}</span>
               <span className="empowered-card-value">{card.description}</span>
             </div>
+            {!showCards && empoweredCount > 0 && (
+              <button className="btn-small" onClick={() => setShowCards(true)}>
+                View {empoweredCount} Empowered Card{empoweredCount === 1 ? '' : 's'}
+              </button>
+            )}
+            {showCards &&
+              reveal.empoweredCards.map((ec) => (
+                <div key={ec.id} className="empowered-card-row">
+                  <span className="empowered-card-star">★</span>
+                  <span className="empowered-card-name">{ec.name}</span>
+                  <span className="empowered-card-value">
+                    Cost {ec.cost} · Value {ec.value}
+                  </span>
+                </div>
+              ))}
           </div>
 
           <div className="loot-actions">

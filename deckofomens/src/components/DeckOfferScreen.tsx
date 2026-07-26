@@ -31,8 +31,9 @@ export const DeckOfferScreen: React.FC<DeckOfferScreenProps> = ({ gameState, onS
           <p className="deck-offer-desc">
             A shimmering, impossible deck radiates power far beyond a normal find. Every attack card
             also shields you, and every defense card also strikes back - both halved in exchange for
-            doing both at once. Hidden within it is one unique Mythical card with a game-changing
-            effect, but you won't know what it does until you claim it.
+            doing both at once. Some of its cards are also empowered, and hidden within it is one
+            unique Mythical card with a game-changing effect - but you won't know how many, or what it
+            does, until you claim it.
           </p>
         ) : (
           <p className="deck-offer-desc">

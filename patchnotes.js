@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.77",
+ "version": "1.0.78",
  "generated": "2026-07-26",
  "patches": [
+  {
+   "version": "1.0.78",
+   "date": "2026-07-26",
+   "title": "Deck of Omens: Mythical decks get empowered cards too",
+   "notes": []
+  },
   {
    "version": "1.0.77",
    "date": "2026-07-26",
@@ -228,12 +234,6 @@ window.PATCHNOTES={
    "version": "1.0.39",
    "date": "2026-06-22",
    "title": "World: two-handed aim for rifles — support arm grips the gun while firing",
-   "notes": []
-  },
-  {
-   "version": "1.0.38",
-   "date": "2026-06-22",
-   "title": "World: gun barrel aligns with the arm axis so it follows arm rotation",
    "notes": []
   }
  ]

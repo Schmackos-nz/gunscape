@@ -331,7 +331,9 @@ export const GameScreen: React.FC<GameScreenProps> = ({
                     title={card.description}
                   >
                     <div className="card-cost">{card.cost}</div>
-                    {card.isEmpowered && <div className="card-star">★</div>}
+                    {card.isEmpowered && (
+                      <div className={`card-star${card.isMythical ? ' shifted' : ''}`}>★</div>
+                    )}
                     {card.isMythical && <div className="card-star mythical-star">🌈</div>}
                     <div className="card-top">
                       <div className="card-icon">

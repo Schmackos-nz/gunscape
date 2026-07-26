@@ -467,7 +467,8 @@ export const Game: React.FC = () => {
     const claimedId = gameState.deckOffer.id;
 
     if (gameState.deckOffer.isMythical) {
-      const { cards, mythicalCard } = generateMythicalDeck();
+      const { cards, mythicalCard } = generateMythicalDeck(gameState.deckOffer.empoweredCount);
+      const empoweredCards = cards.filter((c) => c.isEmpowered);
       setGameState({
         ...gameState,
         player,
@@ -475,7 +476,7 @@ export const Game: React.FC = () => {
         deckCards: cards,
         screen: 'deckReveal',
         deckOffer: undefined,
-        deckReveal: { deckType: 'balanced', empoweredCards: [], isMythical: true, mythicalCard },
+        deckReveal: { deckType: 'balanced', empoweredCards, isMythical: true, mythicalCard },
         collectedDeckIds: [...gameState.collectedDeckIds, claimedId],
       });
       return;

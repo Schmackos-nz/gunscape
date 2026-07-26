@@ -31,7 +31,8 @@ export function generateDeckPickups(level: number): DeckPickupData[] {
     pickups.push({
       id: `mythical-pickup-${level}-${i}`,
       deckType: 'balanced',
-      empoweredCount: 0,
+      // Mythical decks are empowered the same way normal ones are.
+      empoweredCount: 1 + Math.floor(Math.random() * 52),
       isMythical: true,
       x: (Math.random() * 2 - 1) * (WORLD_HALF - 10),
       z: (Math.random() * 2 - 1) * (WORLD_HALF - 10),
