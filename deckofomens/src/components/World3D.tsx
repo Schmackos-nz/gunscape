@@ -704,7 +704,7 @@ export const World3D: React.FC<World3DProps> = ({
       // The pivot is the player's head - the camera orbits it at a fixed
       // radius along lookDir with no extra offset, so pitch swings the
       // camera around the head rather than sliding it up/down separately.
-      const eyeHeight = 1.8 + headBob * 0.06 + groundOffset;
+      const eyeHeight = 2.6 + headBob * 0.06 + groundOffset;
       const headPos = new THREE.Vector3(
         playerRef.current.x,
         playerRef.current.y + eyeHeight,
@@ -713,6 +713,11 @@ export const World3D: React.FC<World3DProps> = ({
 
       const orbitDistance = 6;
       const desiredCamPos = headPos.clone().addScaledVector(lookDir, -orbitDistance);
+      // The camera orbits away from the player's own (x, z), so it can end
+      // up over a hill the player isn't standing on - clamp it above that
+      // hill's actual surface instead of letting it sink into the ground.
+      const camGroundY = getTerrainHeight(desiredCamPos.x, desiredCamPos.z);
+      desiredCamPos.y = Math.max(desiredCamPos.y, camGroundY + 1.2);
       camera.position.lerp(desiredCamPos, 0.12);
 
       // Orientation is set directly from yaw/pitch (not camera.lookAt, which
@@ -839,10 +844,12 @@ export const World3D: React.FC<World3DProps> = ({
     );
     const initialHeadPos = new THREE.Vector3(
       playerRef.current.x,
-      playerRef.current.y + 1.8,
+      playerRef.current.y + 2.6,
       playerRef.current.z
     );
-    camera.position.copy(initialHeadPos.addScaledVector(initialLookDir, -6));
+    const initialCamPos = initialHeadPos.addScaledVector(initialLookDir, -6);
+    initialCamPos.y = Math.max(initialCamPos.y, getTerrainHeight(initialCamPos.x, initialCamPos.z) + 1.2);
+    camera.position.copy(initialCamPos);
     camera.rotation.set(pitch, -yaw, 0);
 
     animate();

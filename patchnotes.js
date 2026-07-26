@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.68",
+ "version": "1.0.69",
  "generated": "2026-07-26",
  "patches": [
+  {
+   "version": "1.0.69",
+   "date": "2026-07-26",
+   "title": "Deck of Omens: fix camera clipping through hills, taller player",
+   "notes": []
+  },
   {
    "version": "1.0.68",
    "date": "2026-07-26",
@@ -228,12 +234,6 @@ window.PATCHNOTES={
    "version": "1.0.30",
    "date": "2026-06-22",
    "title": "Camera spring-arm: pull in when blocked by walls/terrain",
-   "notes": []
-  },
-  {
-   "version": "1.0.29",
-   "date": "2026-06-22",
-   "title": "RS-style bottom-right panel + specialized vendors with their own shop window",
    "notes": []
   }
  ]
