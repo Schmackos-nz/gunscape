@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { GameState, Card, DeckType, Enemy, Item, Player } from '../types';
-import { generateDeck, drawCards } from '../cardData';
+import { GameState, Card, DeckType, DeckOffer, Enemy, Item, Player } from '../types';
+import { generateDeck, generateEmpoweredDeck, shuffleDeck, drawCards } from '../cardData';
 import { generateLoot, generateBossLoot } from '../itemData';
 import { playSound } from '../audio';
 import { getRandomTaunt, getRandomEnemyTaunt, getRandomVictoryLine, getRandomDefeatLine, getEnemyVoice, speak } from '../taunts';
@@ -10,6 +10,8 @@ import { GameScreen } from './GameScreen';
 import { World3D } from './World3D';
 import { LootScreen } from './LootScreen';
 import { InventoryScreen } from './InventoryScreen';
+import { DeckOfferScreen } from './DeckOfferScreen';
+import { DeckRevealScreen } from './DeckRevealScreen';
 
 export const Game: React.FC = () => {
   const [gameState, setGameState] = useState<GameState | null>(() => loadGame());
@@ -34,9 +36,12 @@ export const Game: React.FC = () => {
       hp: 100,
       attackPower: 5,
       defense: 0,
+      bonusEnergy: 0,
+      bonusDraw: 0,
       inventory: [],
       equippedItems: {},
       gold: 0,
+      coins: 0,
     };
 
     const state: GameState = {
@@ -47,6 +52,7 @@ export const Game: React.FC = () => {
       worldPosition: 0,
       worldLength: 30,
       deckType,
+      deckCards: generateDeck(deckType),
       bossTier: 0,
     };
 
@@ -64,16 +70,21 @@ export const Game: React.FC = () => {
     speak(enemyTaunt, getEnemyVoice(enemy.name, enemy.isBoss));
     speak(taunt);
 
-    const deck = generateDeck(gameState.deckType);
-    const { hand, deck: newDeck, discard } = drawCards(deck, [], 5, []);
+    // Reshuffles the player's persistent deck pool for this fight - the
+    // pool itself only changes when they swap it for one found in the
+    // world, not every combat.
+    const deck = shuffleDeck(gameState.deckCards);
+    const startingEnergy = 3 + gameState.player.bonusEnergy;
+    const startingDraw = 5 + gameState.player.bonusDraw;
+    const { hand, deck: newDeck, discard } = drawCards(deck, [], startingDraw, []);
 
     const newState = { ...gameState };
     newState.screen = 'combat';
     newState.combat = {
       playerHP: gameState.player.hp,
       playerMaxHP: gameState.player.maxHP,
-      playerEnergy: 3,
-      playerMaxEnergy: 3,
+      playerEnergy: startingEnergy,
+      playerMaxEnergy: startingEnergy,
       defense: 0,
       turn: 1,
       hand,
@@ -175,7 +186,8 @@ export const Game: React.FC = () => {
         nextIntents[Math.floor(Math.random() * nextIntents.length)];
     }
 
-    const { hand, deck, discard } = drawCards(combat.deck, combat.discard, 5, []);
+    const drawCount = 5 + gameState.player.bonusDraw;
+    const { hand, deck, discard } = drawCards(combat.deck, combat.discard, drawCount, []);
     combat.hand = hand;
     combat.deck = deck;
     combat.discard = discard;
@@ -196,6 +208,9 @@ export const Game: React.FC = () => {
     const expGain = enemy.defeatReward;
     const goldGain = enemy.level * 20;
     const items = isBoss ? generateBossLoot(enemy.level) : generateLoot(enemy.level);
+    // A kill sometimes also offers a coin - spendable on deck pickups found
+    // in the world - as an alternative to the item, never both.
+    const coinOffered = Math.random() < 0.3;
 
     player.experience += expGain;
     player.gold += goldGain;
@@ -214,6 +229,7 @@ export const Game: React.FC = () => {
       items,
       gold: goldGain,
       experience: expGain,
+      coinOffered,
     };
 
     setGameState(nextState);
@@ -223,13 +239,21 @@ export const Game: React.FC = () => {
     resetToMenu();
   };
 
-  const continueLoot = () => {
+  const continueLoot = (choice?: 'item' | 'coin') => {
     if (!gameState?.lootReward) return;
 
     playSound('pickup');
 
     const player = { ...gameState.player };
-    player.inventory.push(...gameState.lootReward.items);
+    if (gameState.lootReward.coinOffered) {
+      if (choice === 'coin') {
+        player.coins += 1;
+      } else {
+        player.inventory.push(...gameState.lootReward.items);
+      }
+    } else {
+      player.inventory.push(...gameState.lootReward.items);
+    }
 
     const nextState = { ...gameState };
     nextState.player = player;
@@ -268,6 +292,67 @@ export const Game: React.FC = () => {
     startCombat(enemy);
   };
 
+  const handleDeckPickup = (offer: DeckOffer) => {
+    if (!gameState) return;
+    playSound('pickup');
+    setGameState({ ...gameState, screen: 'deckOffer', deckOffer: offer });
+  };
+
+  const swapDeck = () => {
+    if (!gameState?.deckOffer || gameState.player.coins < 1) return;
+
+    playSound('levelup');
+
+    const { cards } = generateEmpoweredDeck(gameState.deckOffer.deckType, gameState.deckOffer.empoweredCount);
+    const empoweredCards = cards.filter((c) => c.isEmpowered);
+
+    const player = { ...gameState.player, coins: gameState.player.coins - 1 };
+    setGameState({
+      ...gameState,
+      player,
+      deckType: gameState.deckOffer.deckType,
+      deckCards: cards,
+      screen: 'deckReveal',
+      deckOffer: undefined,
+      deckReveal: { deckType: gameState.deckOffer.deckType, empoweredCards },
+    });
+  };
+
+  const declineDeckOffer = () => {
+    if (!gameState) return;
+    playSound('click');
+    setGameState({ ...gameState, screen: 'world', deckOffer: undefined });
+  };
+
+  const continueDeckReveal = () => {
+    if (!gameState) return;
+    setGameState({ ...gameState, screen: 'world', deckReveal: undefined });
+  };
+
+  // Resets stats to their base values then re-sums every equipped item's
+  // bonuses - shared by equip/unequip so the two paths can't drift apart.
+  const recalculateStats = (player: Player) => {
+    player.attackPower = 5;
+    player.defense = 0;
+    player.maxHP = 100;
+    player.bonusEnergy = 0;
+    player.bonusDraw = 0;
+
+    Object.values(player.equippedItems).forEach((eq) => {
+      if (eq) {
+        player.attackPower += eq.bonus.attackPower || 0;
+        player.defense += eq.bonus.defense || 0;
+        player.maxHP += eq.bonus.maxHP || 0;
+        player.bonusEnergy += eq.bonus.energyBonus || 0;
+        player.bonusDraw += eq.bonus.drawBonus || 0;
+      }
+    });
+
+    if (player.hp > player.maxHP) {
+      player.hp = player.maxHP;
+    }
+  };
+
   const equipItem = (item: Item, slot: 'weapon' | 'armor' | 'accessory') => {
     if (!gameState) return;
 
@@ -283,22 +368,7 @@ export const Game: React.FC = () => {
       player.inventory.push(unequipped);
     }
 
-    player.attackPower = 5;
-    player.defense = 0;
-    player.maxHP = 100;
-
-    Object.values(player.equippedItems).forEach((eq) => {
-      if (eq) {
-        player.attackPower += eq.bonus.attackPower || 0;
-        player.defense += eq.bonus.defense || 0;
-        player.maxHP += eq.bonus.maxHP || 0;
-      }
-    });
-
-    if (player.hp > player.maxHP) {
-      player.hp = player.maxHP;
-    }
-
+    recalculateStats(player);
     setGameState({ ...gameState, player });
   };
 
@@ -311,22 +381,7 @@ export const Game: React.FC = () => {
     if (item) {
       delete player.equippedItems[slot];
       player.inventory.push(item);
-
-      player.attackPower = 5;
-      player.defense = 0;
-      player.maxHP = 100;
-
-      Object.values(player.equippedItems).forEach((eq) => {
-        if (eq) {
-          player.attackPower += eq.bonus.attackPower || 0;
-          player.defense += eq.bonus.defense || 0;
-          player.maxHP += eq.bonus.maxHP || 0;
-        }
-      });
-
-      if (player.hp > player.maxHP) {
-        player.hp = player.maxHP;
-      }
+      recalculateStats(player);
     }
 
     setGameState({ ...gameState, player });
@@ -356,6 +411,7 @@ export const Game: React.FC = () => {
         gameState={gameState}
         onEncounter={handleEncounter}
         onLevelComplete={handleLevelComplete}
+        onDeckPickup={handleDeckPickup}
         onOpenInventory={() => {
           playSound('click');
           setShowInventory(true);
@@ -379,6 +435,14 @@ export const Game: React.FC = () => {
 
   if (gameState.screen === 'loot') {
     return <LootScreen gameState={gameState} onContinue={continueLoot} />;
+  }
+
+  if (gameState.screen === 'deckOffer') {
+    return <DeckOfferScreen gameState={gameState} onSwap={swapDeck} onDecline={declineDeckOffer} />;
+  }
+
+  if (gameState.screen === 'deckReveal') {
+    return <DeckRevealScreen gameState={gameState} onContinue={continueDeckReveal} />;
   }
 
   return null;

@@ -16,6 +16,7 @@ export interface Card {
   cost: number;
   description: string;
   effect?: UtilityEffect;
+  isEmpowered?: boolean;
 }
 
 export interface Item {
@@ -27,6 +28,8 @@ export interface Item {
     maxHP?: number;
     attackPower?: number;
     defense?: number;
+    energyBonus?: number;
+    drawBonus?: number;
   };
   description: string;
   level: number;
@@ -50,6 +53,8 @@ export interface Player {
   hp: number;
   attackPower: number;
   defense: number;
+  bonusEnergy: number;
+  bonusDraw: number;
   inventory: Item[];
   equippedItems: {
     weapon?: Item;
@@ -57,6 +62,7 @@ export interface Player {
     accessory?: Item;
   };
   gold: number;
+  coins: number;
 }
 
 export interface CombatState {
@@ -78,19 +84,31 @@ export interface CombatState {
   resultLine?: string;
 }
 
+export interface DeckOffer {
+  deckType: DeckType;
+  empoweredCount: number;
+}
+
 export interface GameState {
-  screen: 'menu' | 'world' | 'combat' | 'loot' | 'inventory';
+  screen: 'menu' | 'world' | 'combat' | 'loot' | 'inventory' | 'deckOffer' | 'deckReveal';
   player: Player;
   currentLevel: number;
   maxLevels: number;
   worldPosition: number;
   worldLength: number;
   deckType: DeckType;
+  deckCards: Card[];
   bossTier: number;
   combat?: CombatState;
   lootReward?: {
     items: Item[];
     gold: number;
     experience: number;
+    coinOffered: boolean;
+  };
+  deckOffer?: DeckOffer;
+  deckReveal?: {
+    deckType: DeckType;
+    empoweredCards: Card[];
   };
 }

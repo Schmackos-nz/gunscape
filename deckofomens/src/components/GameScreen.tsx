@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { GameState, Card } from '../types';
 import { HeartIcon, BoltIcon, ArmorIcon, SwordIcon, ShieldIcon, SparkleIcon, EnemySprite, PlayerSprite } from './Icons';
 
@@ -23,6 +23,32 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   const [drawnCards, setDrawnCards] = useState<Set<string>>(new Set());
   const [showEnemyTaunt, setShowEnemyTaunt] = useState(true);
   const [showPlayerTaunt, setShowPlayerTaunt] = useState(false);
+  const [damageHit, setDamageHit] = useState<{ amount: number; key: number } | null>(null);
+  const [enemyAttacking, setEnemyAttacking] = useState(false);
+  const prevPlayerHPRef = useRef<number | undefined>(combat?.playerHP);
+
+  // Whenever the enemy's attack lands (playerHP drops), show a big floating
+  // damage number and lunge the enemy sprite forward.
+  useEffect(() => {
+    if (!combat) return;
+    const prevHP = prevPlayerHPRef.current;
+    let hitTimer: ReturnType<typeof setTimeout> | undefined;
+    let lungeTimer: ReturnType<typeof setTimeout> | undefined;
+
+    if (prevHP !== undefined && combat.playerHP < prevHP) {
+      const amount = prevHP - combat.playerHP;
+      setDamageHit({ amount, key: Date.now() });
+      setEnemyAttacking(true);
+      hitTimer = setTimeout(() => setDamageHit(null), 1000);
+      lungeTimer = setTimeout(() => setEnemyAttacking(false), 500);
+    }
+
+    prevPlayerHPRef.current = combat.playerHP;
+    return () => {
+      if (hitTimer) clearTimeout(hitTimer);
+      if (lungeTimer) clearTimeout(lungeTimer);
+    };
+  }, [combat?.playerHP]);
 
   // Enemy gets the first word in, player's line follows shortly after -
   // matches the order the lines are actually spoken in (see Game.tsx).
@@ -142,7 +168,10 @@ export const GameScreen: React.FC<GameScreenProps> = ({
       <div className="game-board">
         <div className="board-section">
           <div className="enemy-zone">
-            <div className="enemy-sprite-container" style={{ position: 'relative' }}>
+            <div
+              className={`enemy-sprite-container${enemyAttacking ? ' attacking' : ''}`}
+              style={{ position: 'relative' }}
+            >
               {showEnemyTaunt && combat.enemyTaunt && (
                 <div className="speech-bubble enemy-bubble">{combat.enemyTaunt}</div>
               )}
@@ -179,6 +208,11 @@ export const GameScreen: React.FC<GameScreenProps> = ({
             {showPlayerTaunt && combat.playerTaunt && (
               <div className="speech-bubble">{combat.playerTaunt}</div>
             )}
+            {damageHit && (
+              <div className="damage-number" key={damageHit.key}>
+                -{damageHit.amount}
+              </div>
+            )}
             <div className="player-sprite-wrapper">
               <PlayerSprite size={110} />
             </div>
@@ -201,7 +235,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
                     key={card.id}
                     className={`card ${card.type} ${
                       !canPlayCard(card) ? 'disabled' : ''
-                    } ${alreadyDrawn ? 'drawn' : ''}`}
+                    } ${alreadyDrawn ? 'drawn' : ''} ${card.isEmpowered ? 'empowered' : ''}`}
                     style={
                       alreadyDrawn ? undefined : { animationDelay: `${idx * 0.15}s` }
                     }
@@ -209,6 +243,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
                     title={card.description}
                   >
                     <div className="card-cost">{card.cost}</div>
+                    {card.isEmpowered && <div className="card-star">★</div>}
                     <div className="card-icon">
                       {card.type === 'attack' ? (
                         <SwordIcon size={28} />

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { GameState, Enemy } from '../types';
+import { GameState, Enemy, DeckOffer, DeckType } from '../types';
 import { playSound } from '../audio';
 import { getEnemySpriteUrl, getEnemySpriteHeight } from '../enemySprites';
 
@@ -9,6 +9,7 @@ interface World3DProps {
   onEncounter: (enemy: Enemy) => void;
   onLevelComplete: () => void;
   onOpenInventory: () => void;
+  onDeckPickup: (offer: DeckOffer) => void;
 }
 
 interface Enemy3D {
@@ -16,6 +17,13 @@ interface Enemy3D {
   mesh: THREE.Sprite;
   ring: THREE.Mesh;
   light: THREE.PointLight;
+  position: THREE.Vector3;
+  triggerRadius: number;
+}
+
+interface DeckPickup3D {
+  id: string;
+  offer: DeckOffer;
   position: THREE.Vector3;
   triggerRadius: number;
 }
@@ -52,6 +60,7 @@ export const World3D: React.FC<World3DProps> = ({
   onEncounter,
   onLevelComplete,
   onOpenInventory,
+  onDeckPickup,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -60,7 +69,9 @@ export const World3D: React.FC<World3DProps> = ({
   const playerRef = useRef(new THREE.Vector3(0, 0, 0));
   const keysRef = useRef<Record<string, boolean>>({});
   const enemiesRef = useRef<Enemy3D[]>([]);
+  const deckPickupsRef = useRef<DeckPickup3D[]>([]);
   const hasEncounteredRef = useRef<Set<string>>(new Set());
+  const hasCollectedDeckRef = useRef<Set<string>>(new Set());
   const [isPointerLocked, setIsPointerLocked] = useState(false);
 
   useEffect(() => {
@@ -149,7 +160,9 @@ export const World3D: React.FC<World3DProps> = ({
     // never inherits stale position/enemies from a previous run.
     playerRef.current.set(0, getTerrainHeight(0, 0), 0);
     enemiesRef.current = [];
+    deckPickupsRef.current = [];
     hasEncounteredRef.current = new Set();
+    hasCollectedDeckRef.current = new Set();
 
     // Enemy spawning - each enemy is a camera-facing sprite using the exact
     // same portrait art shown in combat, so what you meet in the field is
@@ -325,6 +338,68 @@ export const World3D: React.FC<World3DProps> = ({
       x: (Math.random() * 2 - 1) * (WORLD_HALF - 10),
       z: (Math.random() * 2 - 1) * (WORLD_HALF - 10),
     });
+
+    // Empowered deck pickups: a small glowing stack of cards, color-themed
+    // per deck type, that offers a swap when walked into.
+    const deckTypeColors: Record<DeckType, number> = {
+      offensive: 0xff4444,
+      defensive: 0x4488ff,
+      balanced: 0xffaa33,
+    };
+    const deckTypes: DeckType[] = ['offensive', 'defensive', 'balanced'];
+    const pickupVisuals: { group: THREE.Group; ring: THREE.Mesh; light: THREE.PointLight; baseY: number }[] = [];
+
+    const DECK_PICKUP_COUNT = 4;
+    for (let i = 0; i < DECK_PICKUP_COUNT; i++) {
+      const { x, z } = scatterPoint();
+      const groundY = getTerrainHeight(x, z);
+      const deckType = deckTypes[Math.floor(Math.random() * deckTypes.length)];
+      const empoweredCount = 1 + Math.floor(Math.random() * 52);
+      const color = deckTypeColors[deckType];
+
+      const pickupGroup = new THREE.Group();
+      pickupGroup.position.set(x, groundY + 1.2, z);
+      const cardMaterial = new THREE.MeshStandardMaterial({
+        color,
+        emissive: color,
+        emissiveIntensity: 0.6,
+        roughness: 0.4,
+      });
+      for (let c = 0; c < 5; c++) {
+        const cardMesh = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.08, 1.3), cardMaterial);
+        cardMesh.position.set(0, c * 0.1, 0);
+        cardMesh.rotation.y = c * 0.15;
+        pickupGroup.add(cardMesh);
+      }
+      scene.add(pickupGroup);
+
+      const sparkleRing = new THREE.Mesh(
+        new THREE.TorusGeometry(3, 0.15, 8, 32),
+        new THREE.MeshStandardMaterial({
+          color: 0xffe066,
+          emissive: 0xffe066,
+          emissiveIntensity: 0.6,
+          transparent: true,
+          opacity: 0.5,
+        })
+      );
+      sparkleRing.rotation.x = -Math.PI / 2;
+      sparkleRing.position.set(x, groundY + 0.1, z);
+      scene.add(sparkleRing);
+
+      const pickupLight = new THREE.PointLight(color, 0.8, 15);
+      pickupLight.position.set(x, groundY + 2, z);
+      scene.add(pickupLight);
+
+      pickupVisuals.push({ group: pickupGroup, ring: sparkleRing, light: pickupLight, baseY: groundY });
+
+      deckPickupsRef.current.push({
+        id: `deck-pickup-${gameState.currentLevel}-${i}`,
+        offer: { deckType, empoweredCount },
+        position: new THREE.Vector3(x, groundY, z),
+        triggerRadius: 4,
+      });
+    }
 
     const treeColliders: { x: number; z: number; radius: number }[] = [];
 
@@ -711,6 +786,29 @@ export const World3D: React.FC<World3DProps> = ({
         }
       }
 
+      // Bob/spin the deck pickups and check if the player walked into one.
+      const nowMs = performance.now();
+      pickupVisuals.forEach((p, i) => {
+        const phase = nowMs * 0.001 + i;
+        p.group.position.y = p.baseY + 1.2 + Math.sin(phase * 1.5) * 0.2;
+        p.group.rotation.y += 0.01;
+        p.ring.rotation.z += 0.005;
+        p.light.intensity = 0.6 + Math.sin(phase * 2) * 0.3;
+      });
+
+      for (const pickup of deckPickupsRef.current) {
+        if (hasCollectedDeckRef.current.has(pickup.id)) continue;
+
+        const dx = playerRef.current.x - pickup.position.x;
+        const dz = playerRef.current.z - pickup.position.z;
+        if (Math.hypot(dx, dz) < pickup.triggerRadius) {
+          hasCollectedDeckRef.current.add(pickup.id);
+          hasTransitioned = true;
+          onDeckPickup(pickup.offer);
+          return;
+        }
+      }
+
       // Check level completion
       if (playerRef.current.z < LEVEL_COMPLETE_Z) {
         hasTransitioned = true;
@@ -720,6 +818,23 @@ export const World3D: React.FC<World3DProps> = ({
 
       renderer.render(scene, camera);
     };
+
+    // Place the camera at its correct orbit position immediately - without
+    // this, it defaults to (0,0,0) and only lerps toward the real position
+    // over the first several frames, rendering below the terrain surface
+    // (which sits above y=0) until it catches up.
+    const initialLookDir = new THREE.Vector3(
+      Math.sin(yaw) * Math.cos(pitch),
+      Math.sin(pitch),
+      -Math.cos(yaw) * Math.cos(pitch)
+    );
+    const initialHeadPos = new THREE.Vector3(
+      playerRef.current.x,
+      playerRef.current.y + 1.8,
+      playerRef.current.z
+    );
+    camera.position.copy(initialHeadPos.addScaledVector(initialLookDir, -6));
+    camera.rotation.set(pitch, -yaw, 0);
 
     animate();
 
@@ -745,7 +860,7 @@ export const World3D: React.FC<World3DProps> = ({
       document.removeEventListener('pointerlockchange', handlePointerLockChange);
       containerRef.current?.removeChild(renderer.domElement);
     };
-  }, [gameState.currentLevel, gameState.bossTier, onEncounter, onLevelComplete]);
+  }, [gameState.currentLevel, gameState.bossTier, onEncounter, onLevelComplete, onDeckPickup]);
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100vh' }}>
@@ -771,6 +886,7 @@ export const World3D: React.FC<World3DProps> = ({
         <div style={{ fontSize: '0.9rem', lineHeight: '1.6' }}>
           <div>❤️ HP: {gameState.player.hp}/{gameState.player.maxHP}</div>
           <div>💰 Gold: {gameState.player.gold}</div>
+          <div>🪙 Coins: {gameState.player.coins}</div>
           <div>📊 Level: {gameState.player.level}</div>
         </div>
       </div>

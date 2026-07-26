@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.65",
+ "version": "1.0.66",
  "generated": "2026-07-26",
  "patches": [
+  {
+   "version": "1.0.66",
+   "date": "2026-07-26",
+   "title": "Deck of Omens: empowered deck pickups, coin economy, combat feedback",
+   "notes": []
+  },
   {
    "version": "1.0.65",
    "date": "2026-07-26",
@@ -228,12 +234,6 @@ window.PATCHNOTES={
    "version": "1.0.27",
    "date": "2026-06-22",
    "title": "Stronger WebGL fallback: try WebGL1, accurate diagnostics, reload button",
-   "notes": []
-  },
-  {
-   "version": "1.0.26",
-   "date": "2026-06-22",
-   "title": "Don't let a WebGL failure brick the whole page",
    "notes": []
   }
  ]

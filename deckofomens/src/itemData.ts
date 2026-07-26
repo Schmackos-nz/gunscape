@@ -7,20 +7,57 @@ const rarityColors = {
   legendary: '#ff6b9d',
 };
 
-const weaponNames = [
-  'Iron Sword', 'Steel Blade', 'Longsword', 'Battleaxe', 'War Hammer',
-  'Greatsword', 'Curved Blade', 'Cleaver', 'Spear', 'Pike',
-  'Enchanted Sword', 'Dragon Slayer', 'Rune Blade', 'Void Edge', 'Celestial Lance',
+// Each name carries its own base stat(s) so two different items never come
+// from the same formula - a "Mithril Armor" is intrinsically stronger than
+// an "Iron Plate", not just randomly lucky.
+const weaponTemplates = [
+  { name: 'Iron Sword', baseAttack: 3 },
+  { name: 'Spear', baseAttack: 4 },
+  { name: 'Steel Blade', baseAttack: 4 },
+  { name: 'Curved Blade', baseAttack: 5 },
+  { name: 'Pike', baseAttack: 5 },
+  { name: 'Longsword', baseAttack: 5 },
+  { name: 'Cleaver', baseAttack: 6 },
+  { name: 'Battleaxe', baseAttack: 6 },
+  { name: 'War Hammer', baseAttack: 7 },
+  { name: 'Greatsword', baseAttack: 8 },
+  { name: 'Enchanted Sword', baseAttack: 9 },
+  { name: 'Rune Blade', baseAttack: 10 },
+  { name: 'Void Edge', baseAttack: 11 },
+  { name: 'Dragon Slayer', baseAttack: 13 },
+  { name: 'Celestial Lance', baseAttack: 14 },
 ];
 
-const armorNames = [
-  'Leather Armor', 'Iron Plate', 'Steel Armor', 'Chain Mail', 'Plate Armor',
-  'Reinforced Vest', 'Knight\'s Plate', 'Dragon Scale', 'Mithril Armor', 'Adamantite Plate',
+const armorTemplates = [
+  { name: 'Leather Armor', baseDefense: 2, baseHP: 8 },
+  { name: 'Iron Plate', baseDefense: 3, baseHP: 10 },
+  { name: 'Steel Armor', baseDefense: 4, baseHP: 12 },
+  { name: 'Chain Mail', baseDefense: 4, baseHP: 14 },
+  { name: 'Plate Armor', baseDefense: 5, baseHP: 16 },
+  { name: 'Reinforced Vest', baseDefense: 5, baseHP: 18 },
+  { name: "Knight's Plate", baseDefense: 6, baseHP: 20 },
+  { name: 'Dragon Scale', baseDefense: 8, baseHP: 24 },
+  { name: 'Mithril Armor', baseDefense: 9, baseHP: 28 },
+  { name: 'Adamantite Plate', baseDefense: 10, baseHP: 32 },
 ];
 
-const accessoryNames = [
-  'Iron Ring', 'Amulet', 'Pendant', 'Bracelet', 'Crown',
-  'Enchanted Gem', 'Rune Stone', 'Power Orb', 'Mystic Charm', 'Soul Artifact',
+type AccessoryBonusType = 'maxHP' | 'attackPower' | 'defense' | 'energyBonus' | 'drawBonus';
+
+// Energy and draw are much more powerful per unit than raw stats (even +1
+// energy or +1 card every turn compounds a lot), so their base stays small
+// regardless of name - the name still fixes WHICH stat the item grants,
+// just not an unbounded base amount for those two.
+const accessoryTemplates: { name: string; bonusType: AccessoryBonusType; base: number }[] = [
+  { name: 'Iron Ring', bonusType: 'defense', base: 2 },
+  { name: 'Bracelet', bonusType: 'defense', base: 4 },
+  { name: 'Pendant', bonusType: 'attackPower', base: 3 },
+  { name: 'Power Orb', bonusType: 'attackPower', base: 5 },
+  { name: 'Amulet', bonusType: 'maxHP', base: 15 },
+  { name: 'Enchanted Gem', bonusType: 'maxHP', base: 20 },
+  { name: 'Crown', bonusType: 'maxHP', base: 25 },
+  { name: 'Soul Artifact', bonusType: 'maxHP', base: 35 },
+  { name: 'Rune Stone', bonusType: 'energyBonus', base: 1 },
+  { name: 'Mystic Charm', bonusType: 'drawBonus', base: 1 },
 ];
 
 function getRandomRarity(level: number): ItemRarity {
@@ -48,14 +85,20 @@ function getStatBonus(rarity: ItemRarity, level: number, baseAmount: number) {
   return Math.round((baseAmount + levelBonus) * multiplier);
 }
 
+// Energy/draw stay flat by rarity instead of scaling with level/base - see
+// the comment on accessoryTemplates for why.
+function getUtilityBonus(rarity: ItemRarity): number {
+  return rarity === 'legendary' ? 2 : 1;
+}
+
 export function generateWeapon(level: number, forcedRarity?: ItemRarity): Item {
   const rarity = forcedRarity ?? getRandomRarity(level);
-  const name = weaponNames[Math.floor(Math.random() * weaponNames.length)];
-  const attackBonus = getStatBonus(rarity, level, 5);
+  const template = weaponTemplates[Math.floor(Math.random() * weaponTemplates.length)];
+  const attackBonus = getStatBonus(rarity, level, template.baseAttack);
 
   return {
     id: `weapon-${Date.now()}-${Math.random()}`,
-    name,
+    name: template.name,
     type: 'weapon',
     rarity,
     bonus: { attackPower: attackBonus },
@@ -66,13 +109,13 @@ export function generateWeapon(level: number, forcedRarity?: ItemRarity): Item {
 
 export function generateArmor(level: number, forcedRarity?: ItemRarity): Item {
   const rarity = forcedRarity ?? getRandomRarity(level);
-  const name = armorNames[Math.floor(Math.random() * armorNames.length)];
-  const defenseBonus = getStatBonus(rarity, level, 4);
-  const hpBonus = getStatBonus(rarity, level, 10);
+  const template = armorTemplates[Math.floor(Math.random() * armorTemplates.length)];
+  const defenseBonus = getStatBonus(rarity, level, template.baseDefense);
+  const hpBonus = getStatBonus(rarity, level, template.baseHP);
 
   return {
     id: `armor-${Date.now()}-${Math.random()}`,
-    name,
+    name: template.name,
     type: 'armor',
     rarity,
     bonus: { defense: defenseBonus, maxHP: hpBonus },
@@ -83,43 +126,49 @@ export function generateArmor(level: number, forcedRarity?: ItemRarity): Item {
 
 export function generateAccessory(level: number, forcedRarity?: ItemRarity): Item {
   const rarity = forcedRarity ?? getRandomRarity(level);
-  const name = accessoryNames[Math.floor(Math.random() * accessoryNames.length)];
-  const roll = Math.random();
+  const template = accessoryTemplates[Math.floor(Math.random() * accessoryTemplates.length)];
 
-  if (roll < 0.33) {
-    const hpBonus = getStatBonus(rarity, level, 20);
+  if (template.bonusType === 'energyBonus') {
+    const energyBonus = getUtilityBonus(rarity);
     return {
       id: `accessory-${Date.now()}-${Math.random()}`,
-      name,
+      name: template.name,
       type: 'accessory',
       rarity,
-      bonus: { maxHP: hpBonus },
-      description: `+${hpBonus} max HP`,
-      level,
-    };
-  } else if (roll < 0.66) {
-    const attackBonus = getStatBonus(rarity, level, 3);
-    return {
-      id: `accessory-${Date.now()}-${Math.random()}`,
-      name,
-      type: 'accessory',
-      rarity,
-      bonus: { attackPower: attackBonus },
-      description: `+${attackBonus} attack power`,
-      level,
-    };
-  } else {
-    const defenseBonus = getStatBonus(rarity, level, 2);
-    return {
-      id: `accessory-${Date.now()}-${Math.random()}`,
-      name,
-      type: 'accessory',
-      rarity,
-      bonus: { defense: defenseBonus },
-      description: `+${defenseBonus} defense`,
+      bonus: { energyBonus },
+      description: `+${energyBonus} energy per turn`,
       level,
     };
   }
+
+  if (template.bonusType === 'drawBonus') {
+    const drawBonus = getUtilityBonus(rarity);
+    return {
+      id: `accessory-${Date.now()}-${Math.random()}`,
+      name: template.name,
+      type: 'accessory',
+      rarity,
+      bonus: { drawBonus },
+      description: `+${drawBonus} card${drawBonus > 1 ? 's' : ''} drawn per turn`,
+      level,
+    };
+  }
+
+  const amount = getStatBonus(rarity, level, template.base);
+  const labels: Record<'maxHP' | 'attackPower' | 'defense', string> = {
+    maxHP: 'max HP',
+    attackPower: 'attack power',
+    defense: 'defense',
+  };
+  return {
+    id: `accessory-${Date.now()}-${Math.random()}`,
+    name: template.name,
+    type: 'accessory',
+    rarity,
+    bonus: { [template.bonusType]: amount },
+    description: `+${amount} ${labels[template.bonusType as 'maxHP' | 'attackPower' | 'defense']}`,
+    level,
+  };
 }
 
 export function generateLoot(level: number): Item[] {

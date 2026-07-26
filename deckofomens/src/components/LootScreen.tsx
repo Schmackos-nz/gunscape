@@ -4,7 +4,7 @@ import { getRarityColor } from '../itemData';
 
 interface LootScreenProps {
   gameState: GameState;
-  onContinue: () => void;
+  onContinue: (choice?: 'item' | 'coin') => void;
 }
 
 export const LootScreen: React.FC<LootScreenProps> = ({ gameState, onContinue }) => {
@@ -30,9 +30,9 @@ export const LootScreen: React.FC<LootScreenProps> = ({ gameState, onContinue })
             </div>
           </div>
 
-          {loot.items.length > 0 && (
+          {!loot.coinOffered && loot.items.length > 0 && (
             <div className="reward-group" style={{ marginTop: '1.5rem' }}>
-              <h3 style={{ marginBottom: '1rem', color: '#ff6b9d' }}>Items Found</h3>
+              <h3 style={{ marginBottom: '1rem', color: '#ff6b9d' }}>Item Found</h3>
               <div className="loot-items">
                 {loot.items.map((item) => (
                   <div key={item.id} className="loot-item" style={{ borderColor: getRarityColor(item.rarity) }}>
@@ -59,13 +59,55 @@ export const LootScreen: React.FC<LootScreenProps> = ({ gameState, onContinue })
               </div>
             </div>
           )}
+
+          {loot.coinOffered && (
+            <div className="reward-group" style={{ marginTop: '1.5rem' }}>
+              <h3 style={{ marginBottom: '1rem', color: '#ff6b9d' }}>Choose Your Reward</h3>
+              <div className="loot-choice-options">
+                {loot.items.map((item) => (
+                  <div
+                    key={item.id}
+                    className="loot-item loot-choice"
+                    style={{ borderColor: getRarityColor(item.rarity) }}
+                    onClick={() => onContinue('item')}
+                  >
+                    <div className="loot-item-header">
+                      <span className="loot-item-name">{item.name}</span>
+                      <span
+                        style={{
+                          color: getRarityColor(item.rarity),
+                          fontSize: '0.8rem',
+                          fontWeight: 'bold',
+                          textTransform: 'uppercase',
+                        }}
+                      >
+                        {item.rarity}
+                      </span>
+                    </div>
+                    <div className="loot-item-desc">{item.description}</div>
+                    <button className="btn-small loot-choice-btn">Take Item</button>
+                  </div>
+                ))}
+
+                <div className="loot-item loot-choice coin-choice" onClick={() => onContinue('coin')}>
+                  <div className="loot-item-header">
+                    <span className="loot-item-name">🪙 A Coin</span>
+                  </div>
+                  <div className="loot-item-desc">Spend it to swap your deck for an empowered one found in the field.</div>
+                  <button className="btn-small loot-choice-btn">Take Coin</button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
-        <div className="loot-actions">
-          <button className="btn" onClick={onContinue}>
-            Continue
-          </button>
-        </div>
+        {!loot.coinOffered && (
+          <div className="loot-actions">
+            <button className="btn" onClick={() => onContinue()}>
+              Continue
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -702,6 +702,83 @@ body {
   z-index: 5;
 }
 
+.card.empowered {
+  border-color: #ffd700;
+  box-shadow: 0 0 12px rgba(255, 215, 0, 0.5);
+}
+
+.card.empowered:hover {
+  box-shadow: 0 12px 24px rgba(255, 215, 0, 0.5);
+}
+
+.card-star {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #1a1a2e;
+  border: 2px solid #ffd700;
+  color: #ffd700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  z-index: 5;
+}
+
+@keyframes damageFloat {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 0) scale(0.5);
+  }
+  15% {
+    opacity: 1;
+    transform: translate(-50%, -10px) scale(1.3);
+  }
+  30% {
+    transform: translate(-50%, -20px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -90px) scale(1);
+  }
+}
+
+.damage-number {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  font-size: 3rem;
+  font-weight: 900;
+  color: #ff3333;
+  text-shadow: 0 0 10px rgba(255, 0, 0, 0.8), 2px 2px 0 #000;
+  animation: damageFloat 1s ease-out forwards;
+  pointer-events: none;
+  z-index: 30;
+  white-space: nowrap;
+}
+
+@keyframes enemyLunge {
+  0% {
+    transform: translateX(0) scale(1);
+  }
+  30% {
+    transform: translateX(-18px) scale(1.08);
+  }
+  55% {
+    transform: translateX(10px) scale(0.98);
+  }
+  100% {
+    transform: translateX(0) scale(1);
+  }
+}
+
+.enemy-sprite-container.attacking {
+  animation: enemyLunge 0.5s ease-in-out;
+}
+
 /* Modal */
 .modal-overlay {
   position: fixed;
@@ -1093,6 +1170,118 @@ body {
 .loot-actions {
   text-align: center;
   margin-top: 2rem;
+}
+
+.loot-choice-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+}
+
+.loot-choice {
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+.loot-choice:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+}
+
+.loot-choice-btn {
+  margin-top: auto;
+  width: 100%;
+  padding: 0.5rem;
+  margin-top: 0.8rem;
+  background: #ff6b9d;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.coin-choice {
+  border-color: #ffd700 !important;
+}
+
+.coin-choice .loot-choice-btn {
+  background: #ffd700;
+  color: #1a1a2e;
+}
+
+/* Deck Offer / Reveal Screens */
+.deck-offer-modal {
+  max-width: 480px;
+}
+
+.deck-offer-title {
+  font-size: 1.8rem;
+}
+
+.deck-offer-desc {
+  color: #c0c0c0;
+  line-height: 1.6;
+  margin-bottom: 1.5rem;
+}
+
+.deck-offer-cost {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+  padding: 1rem 1.2rem;
+  margin-bottom: 1rem;
+  font-size: 1.1rem;
+}
+
+.deck-offer-coin {
+  color: #ffd700;
+  font-weight: bold;
+}
+
+.deck-offer-warning {
+  font-size: 0.85rem;
+  color: #808080;
+  margin-bottom: 1.5rem;
+}
+
+.empowered-card-list {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+  max-height: 240px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.empowered-card-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: rgba(255, 215, 0, 0.08);
+  border: 1px solid rgba(255, 215, 0, 0.3);
+  border-radius: 6px;
+  padding: 0.5rem 0.8rem;
+}
+
+.empowered-card-star {
+  color: #ffd700;
+}
+
+.empowered-card-name {
+  flex: 1;
+  text-align: left;
+  font-size: 0.9rem;
+}
+
+.empowered-card-value {
+  font-weight: bold;
+  color: #ffd700;
 }
 
 /* Inventory Screen */
