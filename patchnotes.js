@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.59",
- "generated": "2026-06-28",
+ "version": "1.0.60",
+ "generated": "2026-07-26",
  "patches": [
+  {
+   "version": "1.0.60",
+   "date": "2026-07-26",
+   "title": "Add Deck of Omens as a subdirectory alongside cityofeyes",
+   "notes": []
+  },
   {
    "version": "1.0.59",
    "date": "2026-06-28",
@@ -234,12 +240,6 @@ window.PATCHNOTES={
    "version": "1.0.21",
    "date": "2026-06-22",
    "title": "Expand the world: 8 towns, 8 new monsters, difficulty gradient",
-   "notes": []
-  },
-  {
-   "version": "1.0.20",
-   "date": "2026-06-21",
-   "title": "Make townships homely: cobble plazas, ring roads, flowers and signposts",
    "notes": []
   }
  ]
