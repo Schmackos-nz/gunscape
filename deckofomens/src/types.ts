@@ -1,6 +1,8 @@
 export type DeckType = 'offensive' | 'defensive' | 'balanced';
 
-export type CardType = 'attack' | 'defense';
+export type CardType = 'attack' | 'defense' | 'utility';
+
+export type UtilityEffect = 'draw' | 'energy' | 'drawEnergy';
 
 export type ItemType = 'weapon' | 'armor' | 'accessory';
 
@@ -11,7 +13,9 @@ export interface Card {
   name: string;
   type: CardType;
   value: number;
+  cost: number;
   description: string;
+  effect?: UtilityEffect;
 }
 
 export interface Item {

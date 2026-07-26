@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.60",
+ "version": "1.0.62",
  "generated": "2026-07-26",
  "patches": [
+  {
+   "version": "1.0.62",
+   "date": "2026-07-26",
+   "title": "Deck of Omens: utility cards, terrain-follow movement, mouse-look, more SFX",
+   "notes": []
+  },
   {
    "version": "1.0.60",
    "date": "2026-07-26",
@@ -228,12 +234,6 @@ window.PATCHNOTES={
    "version": "1.0.23",
    "date": "2026-06-22",
    "title": "Mobile support: touch controls, landscape fullscreen, responsive HUD",
-   "notes": []
-  },
-  {
-   "version": "1.0.22",
-   "date": "2026-06-22",
-   "title": "Add Darude, a telegraphed desert boss, with the Sands of Fury quest",
    "notes": []
   }
  ]

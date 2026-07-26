@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { GameState, Card } from '../types';
-import { HeartIcon, BoltIcon, ArmorIcon, SwordIcon, ShieldIcon, EnemySprite, PlayerSprite } from './Icons';
+import { HeartIcon, BoltIcon, ArmorIcon, SwordIcon, ShieldIcon, SparkleIcon, EnemySprite, PlayerSprite } from './Icons';
 
 interface GameScreenProps {
   gameState: GameState;
@@ -47,9 +47,8 @@ export const GameScreen: React.FC<GameScreenProps> = ({
 
   const enemyHPPercent = (combat.enemy.hp / combat.enemy.maxHP) * 100;
 
-  const canPlayCard = (_card: Card) => {
-    const cardCost = 1;
-    return combat.playerEnergy >= cardCost && !combat.gameOver;
+  const canPlayCard = (card: Card) => {
+    return combat.playerEnergy >= card.cost && !combat.gameOver;
   };
 
   if (combat.gameOver) {
@@ -164,11 +163,14 @@ export const GameScreen: React.FC<GameScreenProps> = ({
                     onClick={() => canPlayCard(card) && onPlayCard(card)}
                     title={card.description}
                   >
+                    <div className="card-cost">{card.cost}</div>
                     <div className="card-icon">
                       {card.type === 'attack' ? (
                         <SwordIcon size={28} />
-                      ) : (
+                      ) : card.type === 'defense' ? (
                         <ShieldIcon size={28} />
+                      ) : (
+                        <SparkleIcon size={28} />
                       )}
                     </div>
                     <div className="card-name">{card.name}</div>

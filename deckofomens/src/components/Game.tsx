@@ -42,6 +42,8 @@ export const Game: React.FC = () => {
   const startCombat = (enemy: Enemy) => {
     if (!gameState) return;
 
+    playSound('encounter');
+
     const deck = generateDeck(gameState.deckType);
     const { hand, deck: newDeck, discard } = drawCards(deck, [], 5, []);
 
@@ -69,7 +71,7 @@ export const Game: React.FC = () => {
   const playCard = (card: Card) => {
     if (!gameState?.combat || gameState.combat.gameOver) return;
 
-    const cardCost = 1;
+    const cardCost = card.cost;
     if (gameState.combat.playerEnergy < cardCost) {
       setGameState({
         ...gameState,
@@ -97,11 +99,26 @@ export const Game: React.FC = () => {
         combat.playerWon = true;
         combat.message = `Defeated ${combat.enemy.name}!`;
       }
-    } else {
+    } else if (card.type === 'defense') {
       playSound('defense');
       const armor = card.value + gameState.player.defense;
       combat.defense += armor;
       combat.message = `Gained ${armor} armor!`;
+    } else {
+      playSound('utility');
+      if (card.effect === 'draw' || card.effect === 'drawEnergy') {
+        const { hand, deck, discard } = drawCards(combat.deck, combat.discard, card.value, combat.hand);
+        combat.hand = hand;
+        combat.deck = deck;
+        combat.discard = discard;
+      }
+      if (card.effect === 'energy') {
+        combat.playerEnergy += card.value;
+      }
+      if (card.effect === 'drawEnergy') {
+        combat.playerEnergy += 1;
+      }
+      combat.message = card.description;
     }
 
     setGameState({ ...gameState, combat });
@@ -175,6 +192,8 @@ export const Game: React.FC = () => {
   const continueLoot = () => {
     if (!gameState?.lootReward) return;
 
+    playSound('pickup');
+
     const player = { ...gameState.player };
     player.inventory.push(...gameState.lootReward.items);
 
@@ -217,6 +236,8 @@ export const Game: React.FC = () => {
 
   const equipItem = (item: Item, slot: 'weapon' | 'armor' | 'accessory') => {
     if (!gameState) return;
+
+    playSound('click');
 
     const player = { ...gameState.player };
     const unequipped = player.equippedItems[slot];
@@ -287,7 +308,10 @@ export const Game: React.FC = () => {
         gameState={gameState}
         onEquip={equipItem}
         onUnequip={unequipItem}
-        onClose={() => setShowInventory(false)}
+        onClose={() => {
+          playSound('click');
+          setShowInventory(false);
+        }}
       />
     );
   }
@@ -298,7 +322,10 @@ export const Game: React.FC = () => {
         gameState={gameState}
         onEncounter={handleEncounter}
         onLevelComplete={handleLevelComplete}
-        onOpenInventory={() => setShowInventory(true)}
+        onOpenInventory={() => {
+          playSound('click');
+          setShowInventory(true);
+        }}
       />
     );
   }

@@ -9,9 +9,22 @@ function getAudioContext(): AudioContext {
   return audioContext;
 }
 
-export function playSound(
-  type: 'attack' | 'defense' | 'damage' | 'healing' | 'victory' | 'defeat' | 'card' | 'levelup'
-) {
+export type SoundType =
+  | 'attack'
+  | 'defense'
+  | 'damage'
+  | 'healing'
+  | 'victory'
+  | 'defeat'
+  | 'card'
+  | 'levelup'
+  | 'utility'
+  | 'footstep'
+  | 'encounter'
+  | 'click'
+  | 'pickup';
+
+export function playSound(type: SoundType) {
   // Prevent audio spam - only allow one sound every 50ms
   const now = Date.now();
   if (now - lastSoundTime < SOUND_COOLDOWN) {
@@ -128,6 +141,76 @@ export function playSound(
         gain.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
         osc.start(t);
         osc.stop(t + 0.3);
+        break;
+      }
+      case 'utility': {
+        const notes = [700, 900];
+        notes.forEach((freq, i) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.frequency.setValueAtTime(freq, t + i * 0.06);
+          gain.gain.setValueAtTime(0.18, t + i * 0.06);
+          gain.gain.exponentialRampToValueAtTime(0.01, t + i * 0.06 + 0.1);
+          osc.start(t + i * 0.06);
+          osc.stop(t + i * 0.06 + 0.1);
+        });
+        break;
+      }
+      case 'footstep': {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(90 + Math.random() * 20, t);
+        osc.frequency.exponentialRampToValueAtTime(60, t + 0.08);
+        gain.gain.setValueAtTime(0.08, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+        osc.start(t);
+        osc.stop(t + 0.08);
+        break;
+      }
+      case 'encounter': {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(120, t);
+        osc.frequency.exponentialRampToValueAtTime(300, t + 0.35);
+        gain.gain.setValueAtTime(0.25, t);
+        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.35);
+        osc.start(t);
+        osc.stop(t + 0.35);
+        break;
+      }
+      case 'click': {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.setValueAtTime(500, t);
+        gain.gain.setValueAtTime(0.12, t);
+        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.05);
+        osc.start(t);
+        osc.stop(t + 0.05);
+        break;
+      }
+      case 'pickup': {
+        const notes = [660, 880, 1100];
+        notes.forEach((freq, i) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.frequency.setValueAtTime(freq, t + i * 0.07);
+          gain.gain.setValueAtTime(0.2, t + i * 0.07);
+          gain.gain.exponentialRampToValueAtTime(0.01, t + i * 0.07 + 0.12);
+          osc.start(t + i * 0.07);
+          osc.stop(t + i * 0.07 + 0.12);
+        });
         break;
       }
     }
