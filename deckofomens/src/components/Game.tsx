@@ -288,15 +288,21 @@ export const Game: React.FC = () => {
           blockedAHit = true;
           continue;
         }
-        totalDamage += Math.max(1, enemyDamage - defense);
+        // Armor fully absorbs a hit when it meets or beats the damage - no
+        // more forced chip damage that made high shield feel pointless.
+        totalDamage += Math.max(0, enemyDamage - defense);
       }
     }
     combat.blockNextHit = false;
 
-    playSound(wasImmune || (blockedAHit && !totalDamage) ? 'defense' : 'damage');
+    playSound(wasImmune || totalDamage === 0 ? 'defense' : 'damage');
     combat.playerHP -= totalDamage;
     combat.message = wasImmune
       ? 'Aegis made you immune to all damage this turn!'
+      : totalDamage === 0
+      ? blockedAHit
+        ? 'Fortify and your armor absorbed everything!'
+        : `Your armor absorbed the blow${attacksPerTurn > 1 ? 's' : ''}!`
       : blockedAHit
       ? `Fortify blocked one hit! Took ${totalDamage} damage${attacksPerTurn > 1 ? ' from the rest' : ''}.`
       : `${combat.enemy.name} dealt ${totalDamage} damage${attacksPerTurn > 1 ? ` (${attacksPerTurn} hits)` : ''}!`;

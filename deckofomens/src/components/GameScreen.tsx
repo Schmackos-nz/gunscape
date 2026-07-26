@@ -299,18 +299,22 @@ export const GameScreen: React.FC<GameScreenProps> = ({
                     <div className="card-cost">{card.cost}</div>
                     {card.isEmpowered && <div className="card-star">★</div>}
                     {card.isMythical && <div className="card-star mythical-star">🌈</div>}
-                    <div className="card-icon">
-                      {card.type === 'attack' ? (
-                        <SwordIcon size={30} />
-                      ) : card.type === 'defense' ? (
-                        <ShieldIcon size={30} />
-                      ) : (
-                        <SparkleIcon size={30} />
-                      )}
+                    <div className="card-top">
+                      <div className="card-icon">
+                        {card.type === 'attack' ? (
+                          <SwordIcon size={30} />
+                        ) : card.type === 'defense' ? (
+                          <ShieldIcon size={30} />
+                        ) : (
+                          <SparkleIcon size={30} />
+                        )}
+                      </div>
+                      <div className="card-name">{card.name}</div>
+                      <div className={`card-value${isHybrid ? ' hybrid' : ''}`}>{effVal}</div>
                     </div>
-                    <div className="card-name">{card.name}</div>
-                    <div className={`card-value${isHybrid ? ' hybrid' : ''}`}>{effVal}</div>
-                    <div className="card-desc">{card.description}</div>
+                    <div className="card-desc">
+                      <span className="card-desc-text">{card.description}</span>
+                    </div>
                   </div>
                   );
                 })

@@ -2,6 +2,7 @@ import React from 'react';
 import { DeckType } from '../types';
 import { playSound } from '../audio';
 import { SwordIcon, ShieldIcon, SparkleIcon } from './Icons';
+import { OmenLogo } from './OmenLogo';
 
 interface DeckSelectionProps {
   onSelectDeck: (deckType: DeckType) => void;
@@ -71,7 +72,7 @@ export const DeckSelection: React.FC<DeckSelectionProps> = ({ onSelectDeck }) =>
       <div className="floating-card floating-card-4" />
 
       <div className="deck-selection-content">
-        <h1 className="title">Deck of Omens</h1>
+        <OmenLogo compact />
         <p className="subtitle">Choose your deck and face the trials ahead</p>
 
         <div className="deck-options">

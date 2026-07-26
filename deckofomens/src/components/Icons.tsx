@@ -1,8 +1,24 @@
 import React from 'react';
 
 export const SwordIcon: React.FC<{ size?: number }> = ({ size = 24 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M12 2v8M12 10l-4-4M12 10l4-4M6 8l-2-2M18 8l2-2M4 14h16M6 14v6h12v-6" />
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    stroke="currentColor"
+    strokeWidth="0.75"
+    strokeLinejoin="round"
+  >
+    {/* blade with a central fuller line */}
+    <path d="M12 1.5l1.6 4.2v9.3h-3.2V5.7L12 1.5z" />
+    <path d="M12 3.5v10.5" stroke="rgba(0,0,0,0.28)" strokeWidth="0.9" fill="none" />
+    {/* crossguard */}
+    <rect x="6.5" y="15" width="11" height="2.2" rx="1.1" />
+    {/* grip */}
+    <rect x="10.9" y="17.2" width="2.2" height="4" />
+    {/* pommel */}
+    <circle cx="12" cy="22" r="1.7" />
   </svg>
 );
 

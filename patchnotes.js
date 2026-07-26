@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.75",
+ "version": "1.0.76",
  "generated": "2026-07-26",
  "patches": [
+  {
+   "version": "1.0.76",
+   "date": "2026-07-26",
+   "title": "Deck of Omens: full-block shield, sword icon, 65% card separator, stylized menu logo",
+   "notes": []
+  },
   {
    "version": "1.0.75",
    "date": "2026-07-26",
@@ -228,12 +234,6 @@ window.PATCHNOTES={
    "version": "1.0.37",
    "date": "2026-06-22",
    "title": "Aim pose when shooting, faces, fix remote weapons, richer music",
-   "notes": []
-  },
-  {
-   "version": "1.0.36",
-   "date": "2026-06-22",
-   "title": "Gunscape rebrand, escape menu+settings+music, /simulate, gun-in-hand fixes",
    "notes": []
   }
  ]

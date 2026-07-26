@@ -1,5 +1,6 @@
 import React from 'react';
 import { playSound } from '../audio';
+import { OmenLogo } from './OmenLogo';
 
 interface TitleScreenProps {
   hasSave: boolean;
@@ -28,8 +29,8 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({ hasSave, onNewGame, on
       <div className="floating-card floating-card-4" />
 
       <div className="deck-selection-content title-screen-content">
-        <h1 className="title title-screen-title">Deck of Omens</h1>
-        <p className="subtitle">A roguelike deckbuilding adventure</p>
+        <OmenLogo />
+        <p className="subtitle title-subtitle">A roguelike deckbuilding adventure</p>
 
         <div className="title-screen-buttons">
           <button className="btn title-screen-btn" onClick={handleNewGame}>
