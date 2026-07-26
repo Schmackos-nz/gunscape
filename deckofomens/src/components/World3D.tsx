@@ -4,12 +4,17 @@ import { GameState, Enemy, DeckOffer, DeckType } from '../types';
 import { playSound } from '../audio';
 import { getEnemySpriteUrl, getEnemySpriteHeight } from '../enemySprites';
 
+interface WorldPos {
+  x: number;
+  z: number;
+}
+
 interface World3DProps {
   gameState: GameState;
-  onEncounter: (enemy: Enemy) => void;
+  onEncounter: (enemy: Enemy, position: WorldPos) => void;
   onLevelComplete: () => void;
-  onOpenInventory: () => void;
-  onDeckPickup: (offer: DeckOffer) => void;
+  onOpenInventory: (position: WorldPos) => void;
+  onDeckPickup: (offer: DeckOffer, position: WorldPos) => void;
 }
 
 interface Enemy3D {
@@ -156,9 +161,13 @@ export const World3D: React.FC<World3DProps> = ({
     const sky = new THREE.Mesh(skyGeometry, skyMaterial);
     scene.add(sky);
 
-    // Reset per-run state so a re-run of this effect (or a fresh mount)
-    // never inherits stale position/enemies from a previous run.
-    playerRef.current.set(0, getTerrainHeight(0, 0), 0);
+    // Resume where the player actually was - this mounts fresh every time
+    // the screen leaves 'world' and comes back (combat, inventory, a deck
+    // offer), so without resuming from gameState.playerPosition they'd get
+    // teleported back to the map's start line each time.
+    const startX = gameState.playerPosition.x;
+    const startZ = gameState.playerPosition.z;
+    playerRef.current.set(startX, getTerrainHeight(startX, startZ), startZ);
     enemiesRef.current = [];
     deckPickupsRef.current = [];
     hasEncounteredRef.current = new Set();
@@ -523,7 +532,7 @@ export const World3D: React.FC<World3DProps> = ({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Tab') {
         e.preventDefault();
-        onOpenInventory();
+        onOpenInventory({ x: playerRef.current.x, z: playerRef.current.z });
         return;
       }
       if (e.code === 'Space') {
@@ -768,7 +777,7 @@ export const World3D: React.FC<World3DProps> = ({
         if (distance < e3d.triggerRadius) {
           hasEncounteredRef.current.add(e3d.enemy.id);
           hasTransitioned = true;
-          onEncounter(e3d.enemy);
+          onEncounter(e3d.enemy, { x: playerRef.current.x, z: playerRef.current.z });
           return;
         }
 
@@ -804,7 +813,7 @@ export const World3D: React.FC<World3DProps> = ({
         if (Math.hypot(dx, dz) < pickup.triggerRadius) {
           hasCollectedDeckRef.current.add(pickup.id);
           hasTransitioned = true;
-          onDeckPickup(pickup.offer);
+          onDeckPickup(pickup.offer, { x: playerRef.current.x, z: playerRef.current.z });
           return;
         }
       }
@@ -926,7 +935,7 @@ export const World3D: React.FC<World3DProps> = ({
         }}
       >
         <button
-          onClick={onOpenInventory}
+          onClick={() => onOpenInventory({ x: playerRef.current.x, z: playerRef.current.z })}
           style={{
             background: '#6ba3ff',
             color: 'white',

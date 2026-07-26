@@ -54,12 +54,13 @@ export const Game: React.FC = () => {
       deckType,
       deckCards: generateDeck(deckType),
       bossTier: 0,
+      playerPosition: { x: 0, z: 0 },
     };
 
     setGameState(state);
   };
 
-  const startCombat = (enemy: Enemy) => {
+  const startCombat = (enemy: Enemy, position: { x: number; z: number }) => {
     if (!gameState) return;
 
     playSound('encounter');
@@ -80,6 +81,8 @@ export const Game: React.FC = () => {
 
     const newState = { ...gameState };
     newState.screen = 'combat';
+    newState.worldPosition = gameState.worldPosition + 1;
+    newState.playerPosition = position;
     newState.combat = {
       playerHP: gameState.player.hp,
       playerMaxHP: gameState.player.maxHP,
@@ -277,6 +280,7 @@ export const Game: React.FC = () => {
     const nextState = { ...gameState };
     nextState.currentLevel += 1;
     nextState.worldPosition = 0;
+    nextState.playerPosition = { x: 0, z: 0 };
     nextState.player.level += 1;
     nextState.player.maxHP += 10;
     nextState.player.hp = nextState.player.maxHP;
@@ -284,18 +288,10 @@ export const Game: React.FC = () => {
     setGameState(nextState);
   };
 
-  const handleEncounter = (enemy: Enemy) => {
-    if (!gameState) return;
-    const newState = { ...gameState };
-    newState.worldPosition += 1;
-    setGameState(newState);
-    startCombat(enemy);
-  };
-
-  const handleDeckPickup = (offer: DeckOffer) => {
+  const handleDeckPickup = (offer: DeckOffer, position: { x: number; z: number }) => {
     if (!gameState) return;
     playSound('pickup');
-    setGameState({ ...gameState, screen: 'deckOffer', deckOffer: offer });
+    setGameState({ ...gameState, screen: 'deckOffer', deckOffer: offer, playerPosition: position });
   };
 
   const swapDeck = () => {
@@ -409,11 +405,12 @@ export const Game: React.FC = () => {
     return (
       <World3D
         gameState={gameState}
-        onEncounter={handleEncounter}
+        onEncounter={startCombat}
         onLevelComplete={handleLevelComplete}
         onDeckPickup={handleDeckPickup}
-        onOpenInventory={() => {
+        onOpenInventory={(position) => {
           playSound('click');
+          setGameState({ ...gameState, playerPosition: position });
           setShowInventory(true);
         }}
       />

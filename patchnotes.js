@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.66",
+ "version": "1.0.67",
  "generated": "2026-07-26",
  "patches": [
+  {
+   "version": "1.0.67",
+   "date": "2026-07-26",
+   "title": "Deck of Omens: fix player teleporting back to spawn on inventory/deck offer",
+   "notes": []
+  },
   {
    "version": "1.0.66",
    "date": "2026-07-26",
@@ -228,12 +234,6 @@ window.PATCHNOTES={
    "version": "1.0.28",
    "date": "2026-06-22",
    "title": "Flowers off the pavement, lush clustered grass, guns held in-hand",
-   "notes": []
-  },
-  {
-   "version": "1.0.27",
-   "date": "2026-06-22",
-   "title": "Stronger WebGL fallback: try WebGL1, accurate diagnostics, reload button",
    "notes": []
   }
  ]

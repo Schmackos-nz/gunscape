@@ -99,6 +99,7 @@ export interface GameState {
   deckType: DeckType;
   deckCards: Card[];
   bossTier: number;
+  playerPosition: { x: number; z: number };
   combat?: CombatState;
   lootReward?: {
     items: Item[];
