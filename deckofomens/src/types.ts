@@ -26,8 +26,11 @@ export interface Item {
   rarity: ItemRarity;
   bonus: {
     maxHP?: number;
-    attackPower?: number;
-    defense?: number;
+    // Attack/defense are percentage bonuses (0.15 = +15%) applied to a
+    // card's own value, not flat numbers added to it - so a weapon makes
+    // your cards hit harder proportionally instead of by a fixed amount.
+    attackPercent?: number;
+    defensePercent?: number;
     energyBonus?: number;
     drawBonus?: number;
   };
@@ -44,6 +47,12 @@ export interface Enemy {
   defeatReward: number;
   level: number;
   isBoss?: boolean;
+  // Extra qualities for the periodic "special" boss (every few floors):
+  // damage reduction against it, multiple attacks per turn, and (handled in
+  // Game.tsx's loot generation) dropping loot a level higher than usual.
+  isSpecialBoss?: boolean;
+  armor?: number;
+  attacksPerTurn?: number;
 }
 
 export interface Player {
@@ -51,8 +60,8 @@ export interface Player {
   experience: number;
   maxHP: number;
   hp: number;
-  attackPower: number;
-  defense: number;
+  attackPercent: number;
+  defensePercent: number;
   bonusEnergy: number;
   bonusDraw: number;
   inventory: Item[];

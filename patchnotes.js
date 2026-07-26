@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.72",
+ "version": "1.0.73",
  "generated": "2026-07-26",
  "patches": [
+  {
+   "version": "1.0.73",
+   "date": "2026-07-26",
+   "title": "Deck of Omens: percentage item stats, infinite scaling, special bosses",
+   "notes": []
+  },
   {
    "version": "1.0.72",
    "date": "2026-07-26",
@@ -228,12 +234,6 @@ window.PATCHNOTES={
    "version": "1.0.34",
    "date": "2026-06-22",
    "title": "Detailed patch notes: category tags + before/after values",
-   "notes": []
-  },
-  {
-   "version": "1.0.33",
-   "date": "2026-06-22",
-   "title": "Roads between villages, drop the per-house spokes, hide admin note",
    "notes": []
   }
  ]

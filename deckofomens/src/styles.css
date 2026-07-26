@@ -573,6 +573,19 @@ body {
   text-align: center;
 }
 
+.hand-energy {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: #ffaa33;
+  font-weight: bold;
+}
+
+.hand-energy .stat-value {
+  color: #ffaa33;
+  font-size: 1.1rem;
+}
+
 .hand {
   display: flex;
   justify-content: center;

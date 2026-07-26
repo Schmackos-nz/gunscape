@@ -40,8 +40,8 @@ export const Game: React.FC = () => {
       experience: 0,
       maxHP: 100,
       hp: 100,
-      attackPower: 5,
-      defense: 0,
+      attackPercent: 0,
+      defensePercent: 0,
       bonusEnergy: 0,
       bonusDraw: 0,
       inventory: [],
@@ -137,7 +137,10 @@ export const Game: React.FC = () => {
       playSound('attack');
       // Assault's own text promises two hits - it was only ever dealing one.
       const hits = card.name.includes('Assault') ? 2 : 1;
-      const damage = (card.value + gameState.player.attackPower) * hits;
+      const withGear = card.value * (1 + gameState.player.attackPercent / 100) * hits;
+      // A special boss's own armor reduces incoming damage.
+      const armorReduction = combat.enemy.armor ? 1 - combat.enemy.armor / 100 : 1;
+      const damage = Math.max(1, Math.round(withGear * armorReduction));
       combat.enemy.hp -= damage;
       combat.message = hits > 1 ? `Dealt ${damage} damage (2 hits)!` : `Dealt ${damage} damage!`;
 
@@ -158,7 +161,7 @@ export const Game: React.FC = () => {
       }
     } else if (card.type === 'defense') {
       playSound('defense');
-      const armor = card.value + gameState.player.defense;
+      const armor = Math.round(card.value * (1 + gameState.player.defensePercent / 100));
       combat.defense += armor;
       combat.message = `Gained ${armor} armor!`;
 
@@ -204,22 +207,33 @@ export const Game: React.FC = () => {
     combat.defense = 0;
     combat.turn += 1;
 
+    // Special bosses can attack more than once per turn - Fortify's block
+    // only negates one of those hits, the rest still land.
+    const attacksPerTurn = combat.enemy.attacksPerTurn ?? 1;
     const enemyDamage = combat.enemy.nextIntentDamage;
-    const blocked = combat.blockNextHit;
-    combat.blockNextHit = false;
-    const damageAfterDefense = blocked ? 0 : Math.max(1, enemyDamage - defense);
+    let totalDamage = 0;
+    let blockedAHit = false;
 
-    playSound(blocked ? 'defense' : 'damage');
-    combat.playerHP -= damageAfterDefense;
-    combat.message = blocked
-      ? `Fortify blocked the attack completely!`
-      : `${combat.enemy.name} dealt ${damageAfterDefense} damage!`;
+    for (let i = 0; i < attacksPerTurn; i++) {
+      if (combat.blockNextHit && !blockedAHit) {
+        blockedAHit = true;
+        continue;
+      }
+      totalDamage += Math.max(1, enemyDamage - defense);
+    }
+    combat.blockNextHit = false;
+
+    playSound(blockedAHit && !totalDamage ? 'defense' : 'damage');
+    combat.playerHP -= totalDamage;
+    combat.message = blockedAHit
+      ? `Fortify blocked one hit! Took ${totalDamage} damage${attacksPerTurn > 1 ? ' from the rest' : ''}.`
+      : `${combat.enemy.name} dealt ${totalDamage} damage${attacksPerTurn > 1 ? ` (${attacksPerTurn} hits)` : ''}!`;
 
     if (combat.playerHP <= 0) {
       playSound('defeat');
       combat.gameOver = true;
       combat.playerWon = false;
-      combat.message = `${combat.enemy.name} dealt ${damageAfterDefense} damage. You were defeated!`;
+      combat.message = `${combat.enemy.name} dealt ${totalDamage} damage. You were defeated!`;
       combat.resultLine = getRandomDefeatLine();
       speak(combat.resultLine, { pitch: 1.3, rate: 0.85 });
     } else {
@@ -249,7 +263,9 @@ export const Game: React.FC = () => {
     const player = { ...gameState.player };
     const expGain = enemy.defeatReward;
     const goldGain = enemy.level * 20;
-    const items = isBoss ? generateBossLoot(enemy.level) : generateLoot(enemy.level);
+    // Special bosses drop loot rolled a level higher than they actually are.
+    const lootLevel = enemy.isSpecialBoss ? enemy.level + 1 : enemy.level;
+    const items = isBoss ? generateBossLoot(lootLevel) : generateLoot(lootLevel);
     // A kill sometimes also offers a coin - spendable on deck pickups found
     // in the world - as an alternative to the item, never both.
     const coinOffered = Math.random() < 0.3;
@@ -397,16 +413,16 @@ export const Game: React.FC = () => {
   // Resets stats to their base values then re-sums every equipped item's
   // bonuses - shared by equip/unequip so the two paths can't drift apart.
   const recalculateStats = (player: Player) => {
-    player.attackPower = 5;
-    player.defense = 0;
+    player.attackPercent = 0;
+    player.defensePercent = 0;
     player.maxHP = 100;
     player.bonusEnergy = 0;
     player.bonusDraw = 0;
 
     Object.values(player.equippedItems).forEach((eq) => {
       if (eq) {
-        player.attackPower += eq.bonus.attackPower || 0;
-        player.defense += eq.bonus.defense || 0;
+        player.attackPercent += eq.bonus.attackPercent || 0;
+        player.defensePercent += eq.bonus.defensePercent || 0;
         player.maxHP += eq.bonus.maxHP || 0;
         player.bonusEnergy += eq.bonus.energyBonus || 0;
         player.bonusDraw += eq.bonus.drawBonus || 0;

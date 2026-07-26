@@ -3,7 +3,7 @@ import { GameState } from './types';
 // Bump this whenever GameState/Player gains required fields - an old save
 // missing them would otherwise load with undefined stats (NaN energy, etc).
 // A version bump just makes loadGame() miss and start fresh instead.
-const SAVE_KEY = 'deckOfOmens.save.v4';
+const SAVE_KEY = 'deckOfOmens.save.v5';
 
 export function saveGame(state: GameState) {
   try {

@@ -271,24 +271,33 @@ export const World3D: React.FC<World3DProps> = ({
     // corner of the map. Its stats and its lair's location both key off
     // bossTier, so defeating one visibly "upgrades" the world - the next
     // boss is tougher and waits somewhere new.
+    // Every few floors gets a beefed-up boss: more HP/damage, its own armor
+    // (damage reduction), multiple attacks per turn, better loot, and a
+    // couple of minions guarding the lair.
+    const isSpecialFloor = gameState.currentLevel % 3 === 0;
+
     const spawnBoss = () => {
       const bossIndex = gameState.bossTier % BOSS_NAMES.length;
       const bossName = BOSS_NAMES[bossIndex];
       const corner = BOSS_CORNERS[bossIndex];
       const bossLevelBasis = gameState.currentLevel + gameState.bossTier;
 
-      const hp = Math.floor((60 + bossLevelBasis * 20) * 3);
-      const damage = Math.floor((10 + bossLevelBasis * 3) * 2.5);
+      const specialMultiplier = isSpecialFloor ? 1.5 : 1;
+      const hp = Math.floor((60 + bossLevelBasis * 20) * 3 * specialMultiplier);
+      const damage = Math.floor((10 + bossLevelBasis * 3) * 2.5 * specialMultiplier);
 
       const boss: Enemy = {
         id: `boss-${gameState.bossTier}`,
-        name: bossName,
+        name: isSpecialFloor ? `${bossName}, Ascendant` : bossName,
         level: bossLevelBasis + 5,
         maxHP: hp,
         hp,
         nextIntentDamage: damage,
-        defeatReward: 150 * (bossLevelBasis + 1),
+        defeatReward: 150 * (bossLevelBasis + 1) * (isSpecialFloor ? 2 : 1),
         isBoss: true,
+        isSpecialBoss: isSpecialFloor,
+        armor: isSpecialFloor ? 20 : undefined,
+        attacksPerTurn: isSpecialFloor ? 2 : undefined,
       };
 
       const groundY = getTerrainHeight(corner.x, corner.z);
@@ -336,6 +345,45 @@ export const World3D: React.FC<World3DProps> = ({
         ringColor: 0xff1111,
         lightIntensity: 1,
       });
+
+      // Minions guarding the lair - regular enemies, just placed near the
+      // boss and tied to this boss instance's own id/tier so a fresh minion
+      // pair shows up whenever a new (post-defeat) boss takes over the spot.
+      if (isSpecialFloor) {
+        const minionNames = ['Goblin Scout', 'Orc Raider', 'Bandit', 'Dark Knight', 'Shadow Beast'];
+        const minionOffsets = [
+          { dx: 20, dz: 10 },
+          { dx: -20, dz: -10 },
+        ];
+
+        minionOffsets.forEach((offset, i) => {
+          const minionId = `minion-${gameState.bossTier}-${i}`;
+          if (gameState.defeatedEnemyIds.includes(minionId)) return;
+
+          const mx = corner.x + offset.dx;
+          const mz = corner.z + offset.dz;
+          const minionName = minionNames[Math.floor(Math.random() * minionNames.length)];
+          const minionHp = 25 + bossLevelBasis * 5;
+          const minionDamage = 6 + bossLevelBasis * 1.5;
+
+          const minion: Enemy = {
+            id: minionId,
+            name: minionName,
+            level: bossLevelBasis,
+            maxHP: Math.floor(minionHp),
+            hp: Math.floor(minionHp),
+            nextIntentDamage: Math.floor(minionDamage),
+            defeatReward: 20 * bossLevelBasis,
+          };
+
+          spawnEnemyAt({ x: mx, z: mz }, minion, {
+            spriteHeight: getEnemySpriteHeight(minionName),
+            ringRadius: 10,
+            ringColor: 0xff6644,
+            lightIntensity: 0.6,
+          });
+        });
+      }
     };
 
     spawnBoss();

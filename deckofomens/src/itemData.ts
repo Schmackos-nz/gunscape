@@ -9,49 +9,51 @@ const rarityColors = {
 
 // Each name carries its own base stat(s) so two different items never come
 // from the same formula - a "Mithril Armor" is intrinsically stronger than
-// an "Iron Plate", not just randomly lucky.
+// an "Iron Plate", not just randomly lucky. Attack/defense are percent
+// points (3 = +3%), not flat numbers - see attackPercent/defensePercent.
 const weaponTemplates = [
-  { name: 'Iron Sword', baseAttack: 3 },
-  { name: 'Spear', baseAttack: 4 },
-  { name: 'Steel Blade', baseAttack: 4 },
-  { name: 'Curved Blade', baseAttack: 5 },
-  { name: 'Pike', baseAttack: 5 },
-  { name: 'Longsword', baseAttack: 5 },
-  { name: 'Cleaver', baseAttack: 6 },
-  { name: 'Battleaxe', baseAttack: 6 },
-  { name: 'War Hammer', baseAttack: 7 },
-  { name: 'Greatsword', baseAttack: 8 },
-  { name: 'Enchanted Sword', baseAttack: 9 },
-  { name: 'Rune Blade', baseAttack: 10 },
-  { name: 'Void Edge', baseAttack: 11 },
-  { name: 'Dragon Slayer', baseAttack: 13 },
-  { name: 'Celestial Lance', baseAttack: 14 },
+  { name: 'Iron Sword', basePercent: 3 },
+  { name: 'Spear', basePercent: 4 },
+  { name: 'Steel Blade', basePercent: 4 },
+  { name: 'Curved Blade', basePercent: 5 },
+  { name: 'Pike', basePercent: 5 },
+  { name: 'Longsword', basePercent: 5 },
+  { name: 'Cleaver', basePercent: 6 },
+  { name: 'Battleaxe', basePercent: 6 },
+  { name: 'War Hammer', basePercent: 7 },
+  { name: 'Greatsword', basePercent: 8 },
+  { name: 'Enchanted Sword', basePercent: 9 },
+  { name: 'Rune Blade', basePercent: 10 },
+  { name: 'Void Edge', basePercent: 11 },
+  { name: 'Dragon Slayer', basePercent: 13 },
+  { name: 'Celestial Lance', basePercent: 14 },
 ];
 
 const armorTemplates = [
-  { name: 'Leather Armor', baseDefense: 2, baseHP: 8 },
-  { name: 'Iron Plate', baseDefense: 3, baseHP: 10 },
-  { name: 'Steel Armor', baseDefense: 4, baseHP: 12 },
-  { name: 'Chain Mail', baseDefense: 4, baseHP: 14 },
-  { name: 'Plate Armor', baseDefense: 5, baseHP: 16 },
-  { name: 'Reinforced Vest', baseDefense: 5, baseHP: 18 },
-  { name: "Knight's Plate", baseDefense: 6, baseHP: 20 },
-  { name: 'Dragon Scale', baseDefense: 8, baseHP: 24 },
-  { name: 'Mithril Armor', baseDefense: 9, baseHP: 28 },
-  { name: 'Adamantite Plate', baseDefense: 10, baseHP: 32 },
+  { name: 'Leather Armor', basePercent: 2, baseHP: 8 },
+  { name: 'Iron Plate', basePercent: 3, baseHP: 10 },
+  { name: 'Steel Armor', basePercent: 4, baseHP: 12 },
+  { name: 'Chain Mail', basePercent: 4, baseHP: 14 },
+  { name: 'Plate Armor', basePercent: 5, baseHP: 16 },
+  { name: 'Reinforced Vest', basePercent: 5, baseHP: 18 },
+  { name: "Knight's Plate", basePercent: 6, baseHP: 20 },
+  { name: 'Dragon Scale', basePercent: 8, baseHP: 24 },
+  { name: 'Mithril Armor', basePercent: 9, baseHP: 28 },
+  { name: 'Adamantite Plate', basePercent: 10, baseHP: 32 },
 ];
 
-type AccessoryBonusType = 'maxHP' | 'attackPower' | 'defense' | 'energyBonus' | 'drawBonus';
+type AccessoryBonusType = 'maxHP' | 'attackPercent' | 'defensePercent' | 'energyBonus' | 'drawBonus';
 
 // Energy and draw are much more powerful per unit than raw stats (even +1
 // energy or +1 card every turn compounds a lot), so their base stays small
-// regardless of name - the name still fixes WHICH stat the item grants,
-// just not an unbounded base amount for those two.
+// regardless of name AND doesn't get the infinite per-level scaling below -
+// the name still fixes WHICH stat the item grants, just not an unbounded
+// amount for those two.
 const accessoryTemplates: { name: string; bonusType: AccessoryBonusType; base: number }[] = [
-  { name: 'Iron Ring', bonusType: 'defense', base: 2 },
-  { name: 'Bracelet', bonusType: 'defense', base: 4 },
-  { name: 'Pendant', bonusType: 'attackPower', base: 3 },
-  { name: 'Power Orb', bonusType: 'attackPower', base: 5 },
+  { name: 'Iron Ring', bonusType: 'defensePercent', base: 2 },
+  { name: 'Bracelet', bonusType: 'defensePercent', base: 4 },
+  { name: 'Pendant', bonusType: 'attackPercent', base: 3 },
+  { name: 'Power Orb', bonusType: 'attackPercent', base: 5 },
   { name: 'Amulet', bonusType: 'maxHP', base: 15 },
   { name: 'Enchanted Gem', bonusType: 'maxHP', base: 20 },
   { name: 'Crown', bonusType: 'maxHP', base: 25 },
@@ -72,6 +74,10 @@ function getRandomRarity(level: number): ItemRarity {
   return 'common';
 }
 
+// Items never plateau: level (tied directly to the floor they dropped on)
+// compounds at +10% per level instead of the old flat "+level*0.5", so gear
+// found on floor 20 is meaningfully stronger than floor 2 gear of the same
+// name/rarity rather than converging toward the same few extra points.
 function getStatBonus(rarity: ItemRarity, level: number, baseAmount: number) {
   const rarityMultipliers = {
     common: 1,
@@ -81,8 +87,8 @@ function getStatBonus(rarity: ItemRarity, level: number, baseAmount: number) {
   };
 
   const multiplier = rarityMultipliers[rarity];
-  const levelBonus = level * 0.5;
-  return Math.round((baseAmount + levelBonus) * multiplier);
+  const levelMultiplier = Math.pow(1.1, level);
+  return Math.round(baseAmount * multiplier * levelMultiplier);
 }
 
 // Energy/draw stay flat by rarity instead of scaling with level/base - see
@@ -94,15 +100,15 @@ function getUtilityBonus(rarity: ItemRarity): number {
 export function generateWeapon(level: number, forcedRarity?: ItemRarity): Item {
   const rarity = forcedRarity ?? getRandomRarity(level);
   const template = weaponTemplates[Math.floor(Math.random() * weaponTemplates.length)];
-  const attackBonus = getStatBonus(rarity, level, template.baseAttack);
+  const attackPercent = getStatBonus(rarity, level, template.basePercent);
 
   return {
     id: `weapon-${Date.now()}-${Math.random()}`,
     name: template.name,
     type: 'weapon',
     rarity,
-    bonus: { attackPower: attackBonus },
-    description: `Deals ${attackBonus} additional damage`,
+    bonus: { attackPercent },
+    description: `+${attackPercent}% damage`,
     level,
   };
 }
@@ -110,7 +116,7 @@ export function generateWeapon(level: number, forcedRarity?: ItemRarity): Item {
 export function generateArmor(level: number, forcedRarity?: ItemRarity): Item {
   const rarity = forcedRarity ?? getRandomRarity(level);
   const template = armorTemplates[Math.floor(Math.random() * armorTemplates.length)];
-  const defenseBonus = getStatBonus(rarity, level, template.baseDefense);
+  const defensePercent = getStatBonus(rarity, level, template.basePercent);
   const hpBonus = getStatBonus(rarity, level, template.baseHP);
 
   return {
@@ -118,8 +124,8 @@ export function generateArmor(level: number, forcedRarity?: ItemRarity): Item {
     name: template.name,
     type: 'armor',
     rarity,
-    bonus: { defense: defenseBonus, maxHP: hpBonus },
-    description: `+${defenseBonus} defense, +${hpBonus} max HP`,
+    bonus: { defensePercent, maxHP: hpBonus },
+    description: `+${defensePercent}% defense, +${hpBonus} max HP`,
     level,
   };
 }
@@ -155,18 +161,26 @@ export function generateAccessory(level: number, forcedRarity?: ItemRarity): Ite
   }
 
   const amount = getStatBonus(rarity, level, template.base);
-  const labels: Record<'maxHP' | 'attackPower' | 'defense', string> = {
-    maxHP: 'max HP',
-    attackPower: 'attack power',
-    defense: 'defense',
-  };
+  if (template.bonusType === 'maxHP') {
+    return {
+      id: `accessory-${Date.now()}-${Math.random()}`,
+      name: template.name,
+      type: 'accessory',
+      rarity,
+      bonus: { maxHP: amount },
+      description: `+${amount} max HP`,
+      level,
+    };
+  }
+
+  const label = template.bonusType === 'attackPercent' ? 'damage' : 'defense';
   return {
     id: `accessory-${Date.now()}-${Math.random()}`,
     name: template.name,
     type: 'accessory',
     rarity,
     bonus: { [template.bonusType]: amount },
-    description: `+${amount} ${labels[template.bonusType as 'maxHP' | 'attackPower' | 'defense']}`,
+    description: `+${amount}% ${label}`,
     level,
   };
 }

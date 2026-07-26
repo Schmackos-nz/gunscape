@@ -97,9 +97,11 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   const getEffectiveValue = (card: Card) => {
     if (card.type === 'attack') {
       const hits = card.name.includes('Assault') ? 2 : 1;
-      return (card.value + gameState.player.attackPower) * hits;
+      const withGear = card.value * (1 + gameState.player.attackPercent / 100) * hits;
+      const armorReduction = combat.enemy.armor ? 1 - combat.enemy.armor / 100 : 1;
+      return Math.max(1, Math.round(withGear * armorReduction));
     }
-    if (card.type === 'defense') return card.value + gameState.player.defense;
+    if (card.type === 'defense') return Math.round(card.value * (1 + gameState.player.defensePercent / 100));
     return card.value;
   };
 
@@ -149,13 +151,6 @@ export const GameScreen: React.FC<GameScreenProps> = ({
               {Math.max(0, combat.playerHP)}/{combat.playerMaxHP}
             </span>
           </div>
-          <div className="stat-box energy-stat">
-            <BoltIcon size={20} />
-            <span className="stat-label">Energy</span>
-            <span className="stat-value">
-              {combat.playerEnergy}/{combat.playerMaxEnergy}
-            </span>
-          </div>
           <div className="stat-box" style={{ color: '#6ba3ff' }}>
             <ArmorIcon size={20} />
             <span className="stat-label">Armor</span>
@@ -199,7 +194,16 @@ export const GameScreen: React.FC<GameScreenProps> = ({
                   <span style={{ marginRight: '0.3rem', display: 'inline-flex' }}>
                     <BoltIcon size={14} />
                   </span>
-                  Deals {combat.enemy.nextIntentDamage} DMG next turn
+                  Deals {combat.enemy.nextIntentDamage} DMG
+                  {(combat.enemy.attacksPerTurn ?? 1) > 1 ? ` x${combat.enemy.attacksPerTurn} hits` : ''} next turn
+                </div>
+              )}
+              {!!combat.enemy.armor && (
+                <div className="enemy-intent" style={{ color: '#6ba3ff' }}>
+                  <span style={{ marginRight: '0.3rem', display: 'inline-flex' }}>
+                    <ArmorIcon size={14} />
+                  </span>
+                  {combat.enemy.armor}% damage reduction
                 </div>
               )}
             </div>
@@ -223,6 +227,12 @@ export const GameScreen: React.FC<GameScreenProps> = ({
           <div className="hand-container">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
               <div className="hand-label">Hand ({combat.hand.length})</div>
+              <div className="hand-energy">
+                <BoltIcon size={20} />
+                <span className="stat-value">
+                  {combat.playerEnergy}/{combat.playerMaxEnergy}
+                </span>
+              </div>
               <div className="deck-pile">
                 <div className="deck-count">{combat.deck.length + combat.discard.length}</div>
               </div>
