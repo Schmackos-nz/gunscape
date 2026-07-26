@@ -27,8 +27,8 @@ export const DeckOfferScreen: React.FC<DeckOfferScreenProps> = ({ gameState, onS
 
         <p className="deck-offer-desc">
           A mysterious <strong>{DECK_LABELS[offer.deckType]}</strong> radiates power. Some of its
-          cards have been empowered - 50% stronger, marked with a star - but you won't know how
-          many, or which ones, until you claim it.
+          cards have been empowered - either cheaper to play or 50% stronger, marked with a star -
+          but you won't know how many, or which ones, until you claim it.
         </p>
 
         <div className="deck-offer-cost">

@@ -4,7 +4,8 @@ import { generateDeck, generateEmpoweredDeck, shuffleDeck, drawCards } from '../
 import { generateLoot, generateBossLoot } from '../itemData';
 import { playSound } from '../audio';
 import { getRandomTaunt, getRandomEnemyTaunt, getRandomVictoryLine, getRandomDefeatLine, getEnemyVoice, speak } from '../taunts';
-import { saveGame, loadGame, clearSave } from '../saveGame';
+import { saveGame, loadGame, clearSave, hasSave } from '../saveGame';
+import { TitleScreen } from './TitleScreen';
 import { DeckSelection } from './DeckSelection';
 import { GameScreen } from './GameScreen';
 import { World3D } from './World3D';
@@ -14,8 +15,11 @@ import { DeckOfferScreen } from './DeckOfferScreen';
 import { DeckRevealScreen } from './DeckRevealScreen';
 
 export const Game: React.FC = () => {
-  const [gameState, setGameState] = useState<GameState | null>(() => loadGame());
+  // Never auto-load on mount - the title screen is always what decides
+  // whether to resume a save or start fresh, even if one exists.
+  const [gameState, setGameState] = useState<GameState | null>(null);
   const [showInventory, setShowInventory] = useState(false);
+  const [view, setView] = useState<'title' | 'deckSelect'>('title');
 
   useEffect(() => {
     if (gameState) saveGame(gameState);
@@ -26,6 +30,7 @@ export const Game: React.FC = () => {
   const resetToMenu = () => {
     clearSave();
     setGameState(null);
+    setView('title');
   };
 
   const initializeGame = (deckType: DeckType) => {
@@ -384,6 +389,18 @@ export const Game: React.FC = () => {
   };
 
   if (!gameState) {
+    if (view === 'title') {
+      return (
+        <TitleScreen
+          hasSave={hasSave()}
+          onNewGame={() => setView('deckSelect')}
+          onContinue={() => {
+            const saved = loadGame();
+            if (saved) setGameState(saved);
+          }}
+        />
+      );
+    }
     return <DeckSelection onSelectDeck={initializeGame} />;
   }
 

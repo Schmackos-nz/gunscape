@@ -26,8 +26,8 @@ export const DeckRevealScreen: React.FC<DeckRevealScreenProps> = ({ gameState, o
         <p className="deck-offer-desc">
           Your <strong>{DECK_LABELS[reveal.deckType]}</strong> now has{' '}
           <strong>{reveal.empoweredCards.length}</strong> empowered card
-          {reveal.empoweredCards.length === 1 ? '' : 's'} - 50% stronger, marked with a star when
-          drawn.
+          {reveal.empoweredCards.length === 1 ? '' : 's'} - each either cheaper to play or 50%
+          stronger, marked with a star when drawn.
         </p>
 
         {!showCards ? (
@@ -40,7 +40,9 @@ export const DeckRevealScreen: React.FC<DeckRevealScreenProps> = ({ gameState, o
               <div key={card.id} className="empowered-card-row">
                 <span className="empowered-card-star">★</span>
                 <span className="empowered-card-name">{card.name}</span>
-                <span className="empowered-card-value">{card.value}</span>
+                <span className="empowered-card-value">
+                  Cost {card.cost} · Value {card.value}
+                </span>
               </div>
             ))}
           </div>

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { GameState, Item } from '../types';
+import { GameState, Item, Card } from '../types';
 import { getRarityColor } from '../itemData';
 
 interface InventoryScreenProps {
@@ -16,6 +16,7 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
   onClose,
 }) => {
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
+  const [showDeck, setShowDeck] = useState(false);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -34,14 +35,72 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
     return ['accessory'];
   };
 
+  const deckGroups = (() => {
+    const groups = new Map<string, { card: Card; count: number }>();
+    for (const card of gameState.deckCards) {
+      const existing = groups.get(card.name);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        groups.set(card.name, { card, count: 1 });
+      }
+    }
+    return Array.from(groups.values()).sort((a, b) => {
+      if (a.card.isEmpowered !== b.card.isEmpowered) return a.card.isEmpowered ? -1 : 1;
+      return a.card.type.localeCompare(b.card.type) || a.card.name.localeCompare(b.card.name);
+    });
+  })();
+
+  if (showDeck) {
+    return (
+      <div className="inventory-screen">
+        <div className="inventory-modal">
+          <div className="inventory-header">
+            <h2>Your Deck ({gameState.deckCards.length} cards)</h2>
+            <div>
+              <button className="btn-small" onClick={() => setShowDeck(false)}>
+                Back
+              </button>
+              <button className="btn-small" onClick={onClose}>
+                Close
+              </button>
+            </div>
+          </div>
+
+          <div className="deck-view-list">
+            {deckGroups.map(({ card, count }) => (
+              <div
+                key={card.name}
+                className={`deck-view-row${card.isEmpowered ? ' empowered' : ''}`}
+              >
+                {card.isEmpowered && <span className="empowered-card-star">★</span>}
+                <span className="deck-view-name">{card.name}</span>
+                <span className="deck-view-type">{card.type}</span>
+                <span className="deck-view-stats">
+                  Cost {card.cost} · Value {card.value}
+                </span>
+                <span className="deck-view-count">x{count}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="inventory-screen">
       <div className="inventory-modal">
         <div className="inventory-header">
           <h2>Inventory</h2>
-          <button className="btn-small" onClick={onClose}>
-            Close
-          </button>
+          <div>
+            <button className="btn-small" onClick={() => setShowDeck(true)}>
+              View Deck
+            </button>
+            <button className="btn-small" onClick={onClose}>
+              Close
+            </button>
+          </div>
         </div>
 
         <div className="inventory-content">

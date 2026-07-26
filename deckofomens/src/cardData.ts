@@ -92,14 +92,45 @@ export function generateDeck(deckType: DeckType): Card[] {
   return shuffleDeck(buildDeckCards(deckType));
 }
 
-function empowerCard(card: Card): Card {
-  return {
-    ...card,
-    id: `empowered-${card.id}`,
-    name: `Empowered ${card.name}`,
-    value: Math.round(card.value * 1.5),
-    isEmpowered: true,
-  };
+// Rolls d4 for a candidate card: 3 = empowered via cost reduction, 2 =
+// empowered via a 50% value boost, 1 or 4 = not empowered at all. This is
+// what actually keeps the empowered count below the "maximum" rolled for
+// the deck - only about half of candidates end up empowered.
+function empowerCardByRoll(card: Card): Card | null {
+  const roll = 1 + Math.floor(Math.random() * 4);
+
+  if (roll === 3) {
+    // No point "reducing" a cost that's already 0 - boost value instead so
+    // the empowerment always does something.
+    if (card.cost <= 0) {
+      return {
+        ...card,
+        id: `empowered-${card.id}`,
+        name: `Empowered ${card.name}`,
+        value: Math.round(card.value * 1.5),
+        isEmpowered: true,
+      };
+    }
+    return {
+      ...card,
+      id: `empowered-${card.id}`,
+      name: `Empowered ${card.name}`,
+      cost: card.cost - 1,
+      isEmpowered: true,
+    };
+  }
+
+  if (roll === 2) {
+    return {
+      ...card,
+      id: `empowered-${card.id}`,
+      name: `Empowered ${card.name}`,
+      value: Math.round(card.value * 1.5),
+      isEmpowered: true,
+    };
+  }
+
+  return null;
 }
 
 function shuffleIndices(indices: number[]): number[] {
@@ -111,11 +142,12 @@ function shuffleIndices(indices: number[]): number[] {
   return arr;
 }
 
-// Builds a starter deck where up to `requestedCount` of its attack/defense
-// cards (utility cards are excluded - "offensive/defensive stats" doesn't
-// apply to them) are empowered: 50% stronger value, marked isEmpowered so
-// the UI can star them. Returns the actual empowered count applied, which
-// may be lower than requested if it exceeds the eligible card pool.
+// Builds a starter deck with a chance of empowered cards among its
+// attack/defense cards (utility cards are excluded - "offensive/defensive
+// stats" doesn't apply to them). `requestedCount` (rolled 1-52 by whoever
+// creates the offer) caps the CANDIDATE pool considered; each candidate
+// then gets its own d4 roll, so the actual empowered count usually ends up
+// well below that cap. Returns the actual count applied.
 export function generateEmpoweredDeck(
   deckType: DeckType,
   requestedCount: number
@@ -126,10 +158,20 @@ export function generateEmpoweredDeck(
     return acc;
   }, []);
 
-  const empoweredCount = Math.min(requestedCount, eligibleIndices.length);
-  const toEmpower = new Set(shuffleIndices(eligibleIndices).slice(0, empoweredCount));
+  const candidateCount = Math.min(requestedCount, eligibleIndices.length);
+  const candidates = new Set(shuffleIndices(eligibleIndices).slice(0, candidateCount));
 
-  const finalCards = cards.map((card, i) => (toEmpower.has(i) ? empowerCard(card) : card));
+  let empoweredCount = 0;
+  const finalCards = cards.map((card, i) => {
+    if (!candidates.has(i)) return card;
+    const empowered = empowerCardByRoll(card);
+    if (empowered) {
+      empoweredCount++;
+      return empowered;
+    }
+    return card;
+  });
+
   return { cards: shuffleDeck(finalCards), empoweredCount };
 }
 

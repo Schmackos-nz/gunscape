@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.67",
+ "version": "1.0.68",
  "generated": "2026-07-26",
  "patches": [
+  {
+   "version": "1.0.68",
+   "date": "2026-07-26",
+   "title": "Deck of Omens: title screen, empowerment rework, deck viewer",
+   "notes": []
+  },
   {
    "version": "1.0.67",
    "date": "2026-07-26",
@@ -228,12 +234,6 @@ window.PATCHNOTES={
    "version": "1.0.29",
    "date": "2026-06-22",
    "title": "RS-style bottom-right panel + specialized vendors with their own shop window",
-   "notes": []
-  },
-  {
-   "version": "1.0.28",
-   "date": "2026-06-22",
-   "title": "Flowers off the pavement, lush clustered grass, guns held in-hand",
    "notes": []
   }
  ]

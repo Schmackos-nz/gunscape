@@ -30,3 +30,11 @@ export function clearSave() {
     // ignore
   }
 }
+
+export function hasSave(): boolean {
+  try {
+    return localStorage.getItem(SAVE_KEY) !== null;
+  } catch (e) {
+    return false;
+  }
+}

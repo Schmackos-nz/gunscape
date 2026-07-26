@@ -43,6 +43,17 @@ body {
   gap: 3rem;
 }
 
+.title-screen-buttons {
+  display: flex;
+  gap: 1.5rem;
+  margin-top: 1rem;
+}
+
+.title-screen-btn {
+  padding: 1rem 2.5rem;
+  font-size: 1.1rem;
+}
+
 .deck-bg-glow {
   position: absolute;
   border-radius: 50%;
@@ -1322,6 +1333,53 @@ body {
 .inventory-header h2 {
   color: #6ba3ff;
   margin: 0;
+}
+
+.deck-view-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.deck-view-row {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  background: rgba(45, 45, 61, 0.5);
+  border: 1px solid #3d3d4d;
+  border-radius: 6px;
+  padding: 0.6rem 1rem;
+  font-size: 0.9rem;
+}
+
+.deck-view-row.empowered {
+  background: rgba(255, 215, 0, 0.08);
+  border-color: rgba(255, 215, 0, 0.4);
+}
+
+.deck-view-name {
+  flex: 1;
+  font-weight: bold;
+}
+
+.deck-view-type {
+  color: #808080;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+}
+
+.deck-view-stats {
+  color: #a0a0a0;
+  font-size: 0.8rem;
+}
+
+.deck-view-count {
+  color: #88dd55;
+  font-weight: bold;
+  min-width: 2.5rem;
+  text-align: right;
 }
 
 .inventory-content {
