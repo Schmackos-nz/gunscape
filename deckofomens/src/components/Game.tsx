@@ -135,9 +135,19 @@ export const Game: React.FC = () => {
 
     if (card.type === 'attack') {
       playSound('attack');
-      const damage = card.value + gameState.player.attackPower;
+      // Assault's own text promises two hits - it was only ever dealing one.
+      const hits = card.name.includes('Assault') ? 2 : 1;
+      const damage = (card.value + gameState.player.attackPower) * hits;
       combat.enemy.hp -= damage;
-      combat.message = `Dealt ${damage} damage!`;
+      combat.message = hits > 1 ? `Dealt ${damage} damage (2 hits)!` : `Dealt ${damage} damage!`;
+
+      // Pummel's text promises a card draw that never actually happened.
+      if (card.name.includes('Pummel')) {
+        const { hand, deck, discard } = drawCards(combat.deck, combat.discard, 1, combat.hand);
+        combat.hand = hand;
+        combat.deck = deck;
+        combat.discard = discard;
+      }
 
       if (combat.enemy.hp <= 0) {
         combat.gameOver = true;
@@ -151,6 +161,21 @@ export const Game: React.FC = () => {
       const armor = card.value + gameState.player.defense;
       combat.defense += armor;
       combat.message = `Gained ${armor} armor!`;
+
+      // Dodge's text promises a card draw that never actually happened.
+      if (card.name.includes('Dodge')) {
+        const { hand, deck, discard } = drawCards(combat.deck, combat.discard, 1, combat.hand);
+        combat.hand = hand;
+        combat.deck = deck;
+        combat.discard = discard;
+      }
+
+      // Fortify's text promises blocking the next hit entirely - it was
+      // only ever granting plain armor like any other defense card.
+      if (card.name.includes('Fortify')) {
+        combat.blockNextHit = true;
+        combat.message += ' Next hit will be blocked!';
+      }
     } else {
       playSound('utility');
       if (card.effect === 'draw' || card.effect === 'drawEnergy') {
@@ -180,10 +205,15 @@ export const Game: React.FC = () => {
     combat.turn += 1;
 
     const enemyDamage = combat.enemy.nextIntentDamage;
-    const damageAfterDefense = Math.max(1, enemyDamage - defense);
+    const blocked = combat.blockNextHit;
+    combat.blockNextHit = false;
+    const damageAfterDefense = blocked ? 0 : Math.max(1, enemyDamage - defense);
 
-    playSound('damage');
+    playSound(blocked ? 'defense' : 'damage');
     combat.playerHP -= damageAfterDefense;
+    combat.message = blocked
+      ? `Fortify blocked the attack completely!`
+      : `${combat.enemy.name} dealt ${damageAfterDefense} damage!`;
 
     if (combat.playerHP <= 0) {
       playSound('defeat');

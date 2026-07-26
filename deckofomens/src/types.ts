@@ -82,6 +82,7 @@ export interface CombatState {
   playerTaunt: string;
   enemyTaunt: string;
   resultLine?: string;
+  blockNextHit?: boolean;
 }
 
 export interface DeckOffer {

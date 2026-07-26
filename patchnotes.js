@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.71",
+ "version": "1.0.72",
  "generated": "2026-07-26",
  "patches": [
+  {
+   "version": "1.0.72",
+   "date": "2026-07-26",
+   "title": "Deck of Omens: fix orbit camera, tree collision, voice volume, dead card text",
+   "notes": []
+  },
   {
    "version": "1.0.71",
    "date": "2026-07-26",
@@ -228,12 +234,6 @@ window.PATCHNOTES={
    "version": "1.0.33",
    "date": "2026-06-22",
    "title": "Roads between villages, drop the per-house spokes, hide admin note",
-   "notes": []
-  },
-  {
-   "version": "1.0.32",
-   "date": "2026-06-22",
-   "title": "Flat stacked ground loot + chat input under the chat frame",
    "notes": []
   }
  ]

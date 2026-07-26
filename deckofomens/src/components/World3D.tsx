@@ -439,7 +439,11 @@ export const World3D: React.FC<World3DProps> = ({
       const scale = 0.8 + Math.random() * 0.6;
       const rotY = Math.random() * Math.PI * 2;
 
-      treeColliders.push({ x, z, radius: 1.3 * scale });
+      // Matches the foliage cone's own radius (2.2 * scale) rather than
+      // just the trunk - a smaller collider let the player visibly walk
+      // into the canopy before ever touching the "solid" trunk underneath,
+      // which read as no collision at all.
+      treeColliders.push({ x, z, radius: 2.0 * scale });
 
       dummy.position.set(x, groundY + 1.5 * scale, z);
       dummy.rotation.set(0, rotY, 0);
@@ -622,8 +626,12 @@ export const World3D: React.FC<World3DProps> = ({
       if (!isActive || hasTransitioned) return;
       animationFrameId = requestAnimationFrame(animate);
 
+      // At 60fps, 0.3/frame was 18 units/sec - about 7x the player's own eye
+      // height every second (a real walking pace is closer to 0.8x height/
+      // sec), which read as sprinting even at a "walk". Scaled down to a
+      // brisk-but-grounded pace instead.
       const isSprinting = !!keysRef.current['shift'];
-      const moveSpeed = isSprinting ? 0.55 : 0.3;
+      const moveSpeed = isSprinting ? 0.38 : 0.2;
 
       // Ease the look angles toward the raw mouse target each frame - this
       // is what actually smooths the camera; the raw deltas above stay
@@ -696,17 +704,15 @@ export const World3D: React.FC<World3DProps> = ({
       headBob += (targetBob - headBob) * 0.25;
       handGroup.position.y = -0.45 + handBob * 0.03;
 
-      // True look-direction camera: pitch tilts the view itself (not just
-      // camera height), which is what makes "look up" actually look up.
-      const lookDir = new THREE.Vector3(
-        Math.sin(yaw) * Math.cos(pitch),
-        Math.sin(pitch),
-        -Math.cos(yaw) * Math.cos(pitch)
-      );
-
-      // The pivot is the player's head - the camera orbits it at a fixed
-      // radius along lookDir with no extra offset, so pitch swings the
-      // camera around the head rather than sliding it up/down separately.
+      // Traditional third-person camera: POSITION depends on yaw only (it
+      // swings around behind the player as they turn, at a fixed height),
+      // while ROTATION uses both yaw and pitch (looking up/down tilts the
+      // view). These used to both come from the same yaw+pitch lookDir,
+      // which meant the camera sat at a fixed distance and always pointed
+      // exactly at the player's head - pitching swung the whole camera
+      // through an arc around that fixed point instead of just tilting the
+      // view, which read as "orbiting an invisible orb" rather than a
+      // character you're looking from behind.
       const eyeHeight = 2.6 + headBob * 0.06 + groundOffset;
       const headPos = new THREE.Vector3(
         playerRef.current.x,
@@ -714,11 +720,18 @@ export const World3D: React.FC<World3DProps> = ({
         playerRef.current.z
       );
 
+      // Reuses the same "forward" computed above for movement - both are
+      // just (sin(yaw), 0, -cos(yaw)).
       const orbitDistance = 6;
-      const desiredCamPos = headPos.clone().addScaledVector(lookDir, -orbitDistance);
-      // The camera orbits away from the player's own (x, z), so it can end
-      // up over a hill the player isn't standing on - clamp it above that
-      // hill's actual surface instead of letting it sink into the ground.
+      const cameraHeightOffset = 1.0;
+      const desiredCamPos = headPos
+        .clone()
+        .addScaledVector(forward, -orbitDistance)
+        .add(new THREE.Vector3(0, cameraHeightOffset, 0));
+
+      // The camera sits behind the player's (x, z), so it can end up over a
+      // hill the player isn't standing on - clamp it above that hill's
+      // actual surface instead of letting it sink into the ground.
       const camGroundY = getTerrainHeight(desiredCamPos.x, desiredCamPos.z);
       desiredCamPos.y = Math.max(desiredCamPos.y, camGroundY + 1.2);
       camera.position.lerp(desiredCamPos, 0.12);
@@ -826,17 +839,15 @@ export const World3D: React.FC<World3DProps> = ({
     // this, it defaults to (0,0,0) and only lerps toward the real position
     // over the first several frames, rendering below the terrain surface
     // (which sits above y=0) until it catches up.
-    const initialLookDir = new THREE.Vector3(
-      Math.sin(yaw) * Math.cos(pitch),
-      Math.sin(pitch),
-      -Math.cos(yaw) * Math.cos(pitch)
-    );
+    const initialForward = new THREE.Vector3(Math.sin(yaw), 0, -Math.cos(yaw));
     const initialHeadPos = new THREE.Vector3(
       playerRef.current.x,
       playerRef.current.y + 2.6,
       playerRef.current.z
     );
-    const initialCamPos = initialHeadPos.addScaledVector(initialLookDir, -6);
+    const initialCamPos = initialHeadPos
+      .addScaledVector(initialForward, -6)
+      .add(new THREE.Vector3(0, 1.0, 0));
     initialCamPos.y = Math.max(initialCamPos.y, getTerrainHeight(initialCamPos.x, initialCamPos.z) + 1.2);
     camera.position.copy(initialCamPos);
     camera.rotation.set(pitch, -yaw, 0);

@@ -95,7 +95,10 @@ export const GameScreen: React.FC<GameScreenProps> = ({
   // The value shown on a card should reflect what it will ACTUALLY do,
   // including equipped item bonuses - not just the card's base number.
   const getEffectiveValue = (card: Card) => {
-    if (card.type === 'attack') return card.value + gameState.player.attackPower;
+    if (card.type === 'attack') {
+      const hits = card.name.includes('Assault') ? 2 : 1;
+      return (card.value + gameState.player.attackPower) * hits;
+    }
     if (card.type === 'defense') return card.value + gameState.player.defense;
     return card.value;
   };

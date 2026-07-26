@@ -68,26 +68,30 @@ export function getRandomEnemyTaunt(isBoss?: boolean): string {
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
-const ENEMY_VOICES: Record<string, { pitch: number; rate: number }> = {
-  'Goblin Scout': { pitch: 1.6, rate: 1.25 },
-  'Orc Raider': { pitch: 0.55, rate: 0.85 },
-  Bandit: { pitch: 0.95, rate: 1.1 },
-  'Dark Knight': { pitch: 0.5, rate: 0.75 },
-  'Shadow Beast': { pitch: 0.35, rate: 0.7 },
+// Enemy voices sit at a lower volume than the player's own - SpeechSynthesis
+// has no real spatial/distance audio, so volume is the only lever available
+// to make the enemy read as "across the arena" instead of right on top of
+// the player at the same presence as their own voice.
+const ENEMY_VOICES: Record<string, { pitch: number; rate: number; volume: number }> = {
+  'Goblin Scout': { pitch: 1.6, rate: 1.25, volume: 0.55 },
+  'Orc Raider': { pitch: 0.55, rate: 0.85, volume: 0.6 },
+  Bandit: { pitch: 0.95, rate: 1.1, volume: 0.55 },
+  'Dark Knight': { pitch: 0.5, rate: 0.75, volume: 0.6 },
+  'Shadow Beast': { pitch: 0.35, rate: 0.7, volume: 0.55 },
 };
 
-export function getEnemyVoice(name: string, isBoss?: boolean): { pitch: number; rate: number } {
-  if (isBoss) return { pitch: 0.3, rate: 0.65 };
-  return ENEMY_VOICES[name] ?? { pitch: 0.85, rate: 1 };
+export function getEnemyVoice(name: string, isBoss?: boolean): { pitch: number; rate: number; volume: number } {
+  if (isBoss) return { pitch: 0.3, rate: 0.65, volume: 0.7 }; // a boss should still carry more presence
+  return ENEMY_VOICES[name] ?? { pitch: 0.85, rate: 1, volume: 0.55 };
 }
 
-export function speak(text: string, options?: { rate?: number; pitch?: number }) {
+export function speak(text: string, options?: { rate?: number; pitch?: number; volume?: number }) {
   try {
     if (!('speechSynthesis' in window)) return;
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.rate = options?.rate ?? 1.05;
     utterance.pitch = options?.pitch ?? 1.1;
-    utterance.volume = 0.8;
+    utterance.volume = options?.volume ?? 0.8;
     window.speechSynthesis.speak(utterance);
   } catch (e) {
     // speech synthesis unavailable - the on-screen speech bubble still shows
