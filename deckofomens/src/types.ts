@@ -72,6 +72,7 @@ export interface CombatState {
   gameOver: boolean;
   playerWon: boolean;
   message: string;
+  playerTaunt: string;
 }
 
 export interface GameState {

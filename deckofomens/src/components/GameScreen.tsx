@@ -21,6 +21,12 @@ export const GameScreen: React.FC<GameScreenProps> = ({
 }) => {
   const combat = gameState.combat;
   const [drawnCards, setDrawnCards] = useState<Set<string>>(new Set());
+  const [showTaunt, setShowTaunt] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setShowTaunt(false), 2500);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (!combat) return;
@@ -135,7 +141,10 @@ export const GameScreen: React.FC<GameScreenProps> = ({
         </div>
 
         <div className="board-section">
-          <div className="player-container">
+          <div className="player-container" style={{ position: 'relative' }}>
+            {showTaunt && combat.playerTaunt && (
+              <div className="speech-bubble">{combat.playerTaunt}</div>
+            )}
             <div className="player-sprite-wrapper">
               <PlayerSprite size={110} />
             </div>
@@ -151,15 +160,17 @@ export const GameScreen: React.FC<GameScreenProps> = ({
               {combat.hand.length === 0 ? (
                 <p style={{ color: '#808080', fontSize: '0.9rem' }}>No cards in hand</p>
               ) : (
-                combat.hand.map((card, idx) => (
+                combat.hand.map((card, idx) => {
+                  const alreadyDrawn = drawnCards.has(card.id);
+                  return (
                   <div
                     key={card.id}
                     className={`card ${card.type} ${
                       !canPlayCard(card) ? 'disabled' : ''
-                    } ${drawnCards.has(card.id) ? 'drawn' : ''}`}
-                    style={{
-                      animationDelay: `${idx * 0.15}s`,
-                    }}
+                    } ${alreadyDrawn ? 'drawn' : ''}`}
+                    style={
+                      alreadyDrawn ? undefined : { animationDelay: `${idx * 0.15}s` }
+                    }
                     onClick={() => canPlayCard(card) && onPlayCard(card)}
                     title={card.description}
                   >
@@ -177,7 +188,8 @@ export const GameScreen: React.FC<GameScreenProps> = ({
                     <div className="card-value">{card.value}</div>
                     <div className="card-desc">{card.description}</div>
                   </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>

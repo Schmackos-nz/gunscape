@@ -319,6 +319,52 @@ body {
   filter: drop-shadow(0 4px 8px rgba(107, 163, 255, 0.3));
 }
 
+@keyframes speechBubblePop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 10px) scale(0.8);
+  }
+  15% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+  85% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -6px) scale(0.95);
+  }
+}
+
+.speech-bubble {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  background: #ffffff;
+  color: #1a1a2e;
+  padding: 0.6rem 1rem;
+  border-radius: 12px;
+  font-weight: bold;
+  font-size: 0.95rem;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  animation: speechBubblePop 2.5s ease-in-out forwards;
+  z-index: 20;
+}
+
+.speech-bubble::after {
+  content: '';
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 8px 8px 0;
+  border-style: solid;
+  border-color: #ffffff transparent transparent transparent;
+}
+
 .hand-container {
   flex: 1;
   display: flex;

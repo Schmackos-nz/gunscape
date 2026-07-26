@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.62",
+ "version": "1.0.63",
  "generated": "2026-07-26",
  "patches": [
+  {
+   "version": "1.0.63",
+   "date": "2026-07-26",
+   "title": "Deck of Omens: fixed camera feel, sprite enemies, shuffle idle, voice lines",
+   "notes": []
+  },
   {
    "version": "1.0.62",
    "date": "2026-07-26",
@@ -228,12 +234,6 @@ window.PATCHNOTES={
    "version": "1.0.24",
    "date": "2026-06-22",
    "title": "Mobile fixes: real viewport height, fullscreen on play, always-on HUD shrink",
-   "notes": []
-  },
-  {
-   "version": "1.0.23",
-   "date": "2026-06-22",
-   "title": "Mobile support: touch controls, landscape fullscreen, responsive HUD",
    "notes": []
   }
  ]

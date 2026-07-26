@@ -3,6 +3,7 @@ import { GameState, Card, DeckType, Enemy, Item, Player } from '../types';
 import { generateDeck, drawCards } from '../cardData';
 import { generateLoot } from '../itemData';
 import { playSound } from '../audio';
+import { getRandomTaunt, speak } from '../taunts';
 import { DeckSelection } from './DeckSelection';
 import { GameScreen } from './GameScreen';
 import { World3D } from './World3D';
@@ -43,6 +44,8 @@ export const Game: React.FC = () => {
     if (!gameState) return;
 
     playSound('encounter');
+    const taunt = getRandomTaunt();
+    speak(taunt);
 
     const deck = generateDeck(gameState.deckType);
     const { hand, deck: newDeck, discard } = drawCards(deck, [], 5, []);
@@ -63,6 +66,7 @@ export const Game: React.FC = () => {
       gameOver: false,
       playerWon: false,
       message: `Encountered ${enemy.name}!`,
+      playerTaunt: taunt,
     };
 
     setGameState(newState);

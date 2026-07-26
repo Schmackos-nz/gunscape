@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { GameState, Enemy } from '../types';
 import { playSound } from '../audio';
+import { getEnemySpriteUrl, getEnemySpriteHeight } from '../enemySprites';
 
 interface World3DProps {
   gameState: GameState;
@@ -12,7 +13,7 @@ interface World3DProps {
 
 interface Enemy3D {
   enemy: Enemy;
-  mesh: THREE.Mesh;
+  mesh: THREE.Sprite;
   position: THREE.Vector3;
 }
 
@@ -122,9 +123,12 @@ export const World3D: React.FC<World3DProps> = ({
     enemiesRef.current = [];
     hasEncounteredRef.current = new Set();
 
-    // Enemy spawning
+    // Enemy spawning - each enemy is a camera-facing sprite using the exact
+    // same portrait art shown in combat, so what you meet in the field is
+    // recognizably the thing you're about to fight.
     const spawnEnemies = () => {
       const levelDifficulty = gameState.currentLevel;
+      const textureLoader = new THREE.TextureLoader();
 
       const enemySpawns = [
         { x: -30, z: -30 },
@@ -143,10 +147,11 @@ export const World3D: React.FC<World3DProps> = ({
         const enemyLevel = levelDifficulty + Math.floor(Math.random() * 2);
         const hp = 25 + enemyLevel * 5 + Math.random() * 20;
         const damage = 6 + enemyLevel * 1.5 + Math.random() * 4;
+        const name = enemyNames[idx % enemyNames.length];
 
         const enemy: Enemy = {
           id: `enemy-${gameState.currentLevel}-${idx}`,
-          name: enemyNames[idx % enemyNames.length],
+          name,
           level: enemyLevel,
           maxHP: Math.floor(hp),
           hp: Math.floor(hp),
@@ -154,34 +159,16 @@ export const World3D: React.FC<World3DProps> = ({
           defeatReward: 20 * enemyLevel,
         };
 
-        // Create enemy mesh styled to match its combat portrait
-        const enemyAppearance: Record<string, { color: number; emissive: number; geometry: THREE.BufferGeometry; height: number }> = {
-          'Goblin Scout': { color: 0x6b9d1a, emissive: 0x2a3d0a, geometry: new THREE.ConeGeometry(1.6, 3.2, 8), height: 1.6 },
-          'Orc Raider': { color: 0x8b6d47, emissive: 0x3d2d1a, geometry: new THREE.ConeGeometry(2.2, 4.4, 8), height: 2.2 },
-          Bandit: { color: 0x5a4a3a, emissive: 0x1a1a1a, geometry: new THREE.CylinderGeometry(1.6, 1.8, 4, 8), height: 2 },
-          'Dark Knight': { color: 0x2a2a3a, emissive: 0x4a0a0a, geometry: new THREE.BoxGeometry(3, 5, 2), height: 2.5 },
-          'Shadow Beast': { color: 0x3a1a4a, emissive: 0x6a1a8a, geometry: new THREE.SphereGeometry(2.4, 12, 12), height: 2.4 },
-        };
-        const appearance = enemyAppearance[enemy.name] ?? {
-          color: 0xff4444,
-          emissive: 0x4a0a0a,
-          geometry: new THREE.ConeGeometry(2, 4, 8),
-          height: 2,
-        };
-
         const groundY = getTerrainHeight(spawn.x, spawn.z);
+        const spriteHeight = getEnemySpriteHeight(name);
 
-        const enemyMaterial = new THREE.MeshStandardMaterial({
-          color: appearance.color,
-          roughness: 0.5,
-          emissive: appearance.emissive,
-          emissiveIntensity: 0.6,
-        });
-        const enemyMesh = new THREE.Mesh(appearance.geometry, enemyMaterial);
-        enemyMesh.position.set(spawn.x, groundY + appearance.height, spawn.z);
-        enemyMesh.castShadow = true;
-        enemyMesh.receiveShadow = true;
-        scene.add(enemyMesh);
+        const texture = textureLoader.load(getEnemySpriteUrl(name));
+        texture.colorSpace = THREE.SRGBColorSpace;
+        const spriteMaterial = new THREE.SpriteMaterial({ map: texture, transparent: true });
+        const enemySprite = new THREE.Sprite(spriteMaterial);
+        enemySprite.scale.set(spriteHeight, spriteHeight, 1);
+        enemySprite.position.set(spawn.x, groundY + spriteHeight / 2, spawn.z);
+        scene.add(enemySprite);
 
         // Add detection radius visualization (torus ring on ground)
         const radiusGeometry = new THREE.TorusGeometry(10, 0.3, 8, 32);
@@ -205,7 +192,7 @@ export const World3D: React.FC<World3DProps> = ({
 
         enemiesRef.current.push({
           enemy,
-          mesh: enemyMesh,
+          mesh: enemySprite,
           position: new THREE.Vector3(spawn.x, groundY, spawn.z),
         });
       });
@@ -229,14 +216,17 @@ export const World3D: React.FC<World3DProps> = ({
 
     const cardBackMaterial = new THREE.MeshStandardMaterial({ color: 0x3d2d2d, roughness: 0.5 });
     const cardFaceMaterial = new THREE.MeshStandardMaterial({ color: 0xe0d0b0, roughness: 0.7 });
+    const cardMeshes: THREE.Mesh[] = [];
+    const CARD_BASE_X = 0.38;
     for (let i = 0; i < 6; i++) {
       const card = new THREE.Mesh(
         new THREE.BoxGeometry(0.16, 0.012, 0.22),
         i === 5 ? cardBackMaterial : cardFaceMaterial
       );
-      card.position.set(0.38, -0.25 + i * 0.014, -0.1 + i * 0.004);
+      card.position.set(CARD_BASE_X, -0.25 + i * 0.014, -0.1 + i * 0.004);
       card.rotation.y = -0.3 + i * 0.02;
       handGroup.add(card);
+      cardMeshes.push(card);
     }
 
     handGroup.position.set(0.5, -0.45, -0.9);
@@ -256,18 +246,24 @@ export const World3D: React.FC<World3DProps> = ({
     window.addEventListener('keyup', handleKeyUp);
 
     // Mouse-look via the Pointer Lock API: click the canvas to engage,
-    // Escape (browser default) releases it.
+    // Escape (browser default) releases it. Raw mouse deltas accumulate into
+    // target angles instantly (so input never feels laggy); the camera then
+    // eases toward those targets each frame, which is what actually smooths
+    // the motion out and tames how twitchy a fast mouse flick feels.
+    let targetYaw = 0;
+    let targetPitch = 0.35;
     let yaw = 0;
     let pitch = 0.35;
-    const MOUSE_SENSITIVITY = 0.0025;
-    const MIN_PITCH = -0.8;
-    const MAX_PITCH = 1.1;
+    const MOUSE_SENSITIVITY = 0.0015;
+    const LOOK_SMOOTHING = 0.15;
+    const MIN_PITCH = -0.9;
+    const MAX_PITCH = 1.2;
 
     const handleMouseMove = (e: MouseEvent) => {
       if (document.pointerLockElement !== renderer.domElement) return;
-      yaw -= e.movementX * MOUSE_SENSITIVITY;
-      pitch -= e.movementY * MOUSE_SENSITIVITY;
-      pitch = Math.max(MIN_PITCH, Math.min(MAX_PITCH, pitch));
+      targetYaw -= e.movementX * MOUSE_SENSITIVITY;
+      targetPitch -= e.movementY * MOUSE_SENSITIVITY;
+      targetPitch = Math.max(MIN_PITCH, Math.min(MAX_PITCH, targetPitch));
     };
 
     const handleCanvasClick = () => {
@@ -291,6 +287,10 @@ export const World3D: React.FC<World3DProps> = ({
     let animationFrameId = 0;
     let footstepDistance = 0;
     let bobPhase = 0;
+    let handBob = 0;
+    let headBob = 0;
+    let shuffleProgress = -1; // -1 = idle, 0..1 = mid fan-and-restack
+    let nextShuffleAt = performance.now() + 4000 + Math.random() * 4000;
 
     // Animation loop
     const animate = () => {
@@ -299,8 +299,15 @@ export const World3D: React.FC<World3DProps> = ({
 
       const moveSpeed = 0.3;
 
-      // Movement is relative to the camera's yaw, so mouse-look and WASD
-      // work together the way a third-person controller normally does.
+      // Ease the look angles toward the raw mouse target each frame - this
+      // is what actually smooths the camera; the raw deltas above stay
+      // instant so input doesn't feel delayed.
+      yaw += (targetYaw - yaw) * LOOK_SMOOTHING;
+      pitch += (targetPitch - pitch) * LOOK_SMOOTHING;
+
+      // Movement is relative to yaw only (horizontal), so mouse-look and
+      // WASD work together like a normal third-person controller and
+      // looking up/down doesn't change walk speed.
       const forward = new THREE.Vector3(Math.sin(yaw), 0, -Math.cos(yaw));
       const right = new THREE.Vector3(Math.cos(yaw), 0, Math.sin(yaw));
       const moveDir = new THREE.Vector3();
@@ -327,31 +334,66 @@ export const World3D: React.FC<World3DProps> = ({
         }
 
         bobPhase += 0.15;
-        handGroup.position.y = -0.45 + Math.sin(bobPhase) * 0.03;
-      } else {
-        handGroup.position.y += (-0.45 - handGroup.position.y) * 0.2;
       }
 
       // Follow the terrain: feet sit at ground height under the player.
       playerRef.current.y = getTerrainHeight(playerRef.current.x, playerRef.current.z);
 
-      // Orbit camera around the player, driven by mouse yaw/pitch.
-      const eyeHeight = 1.8;
-      const orbitDistance = 6;
-      const horizDist = orbitDistance * Math.cos(pitch);
-      const vertOffset = orbitDistance * Math.sin(pitch);
+      // Bob the hand and head with the walk cycle, easing back to rest when
+      // the player stops instead of snapping.
+      const targetBob = isMoving ? Math.sin(bobPhase) : 0;
+      handBob += (targetBob - handBob) * 0.25;
+      headBob += (targetBob - headBob) * 0.25;
+      handGroup.position.y = -0.45 + handBob * 0.03;
 
-      const camTarget = new THREE.Vector3(
-        playerRef.current.x - Math.sin(yaw) * horizDist,
-        playerRef.current.y + eyeHeight + 1.5 + vertOffset,
-        playerRef.current.z + Math.cos(yaw) * horizDist
+      // True look-direction camera: pitch tilts the view itself (not just
+      // camera height), which is what makes "look up" actually look up.
+      const lookDir = new THREE.Vector3(
+        Math.sin(yaw) * Math.cos(pitch),
+        Math.sin(pitch),
+        -Math.cos(yaw) * Math.cos(pitch)
       );
-      camera.position.lerp(camTarget, 0.15);
-      camera.lookAt(
+
+      const eyeHeight = 1.8 + headBob * 0.06;
+      const eyePos = new THREE.Vector3(
         playerRef.current.x,
         playerRef.current.y + eyeHeight,
         playerRef.current.z
       );
+
+      const orbitDistance = 6;
+      const desiredCamPos = eyePos
+        .clone()
+        .addScaledVector(lookDir, -orbitDistance)
+        .add(new THREE.Vector3(0, 1.3, 0));
+      camera.position.lerp(desiredCamPos, 0.12);
+
+      const lookTarget = eyePos.clone().addScaledVector(lookDir, 10);
+      camera.lookAt(lookTarget);
+
+      // Periodic idle flourish: fan the held cards out and back in, like
+      // shuffling the deck while walking.
+      if (shuffleProgress < 0 && performance.now() > nextShuffleAt) {
+        shuffleProgress = 0;
+        playSound('card');
+      }
+      if (shuffleProgress >= 0) {
+        shuffleProgress += 0.02;
+        const fanAmount = Math.sin(Math.min(shuffleProgress, 1) * Math.PI);
+        cardMeshes.forEach((card, i) => {
+          const spread = i - (cardMeshes.length - 1) / 2;
+          card.rotation.z = spread * 0.18 * fanAmount;
+          card.position.x = CARD_BASE_X + spread * 0.035 * fanAmount;
+        });
+        if (shuffleProgress >= 1) {
+          shuffleProgress = -1;
+          nextShuffleAt = performance.now() + 6000 + Math.random() * 6000;
+          cardMeshes.forEach((card) => {
+            card.rotation.z = 0;
+            card.position.x = CARD_BASE_X;
+          });
+        }
+      }
 
       // Check for collisions with enemies (horizontal distance only, so
       // hills near an enemy don't affect the trigger radius)
@@ -365,10 +407,6 @@ export const World3D: React.FC<World3DProps> = ({
           onEncounter(e3d.enemy);
           return;
         }
-
-        // Make enemies face player
-        const angle = Math.atan2(dx, dz);
-        e3d.mesh.rotation.y = angle;
       }
 
       // Check level completion
