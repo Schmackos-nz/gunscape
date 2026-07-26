@@ -334,9 +334,29 @@ export const Game: React.FC = () => {
   };
 
   const declineDeckOffer = () => {
-    if (!gameState) return;
+    if (!gameState?.deckOffer) return;
     playSound('click');
-    setGameState({ ...gameState, screen: 'world', deckOffer: undefined });
+
+    // Declining leaves the pickup in place, and the player is still
+    // standing inside its trigger radius - without pushing them back, the
+    // next mount immediately re-collides and pops the same offer right back
+    // up, forever. Push them away from the pickup, past the radius.
+    const pickup = gameState.deckPickups.find((p) => p.id === gameState.deckOffer!.id);
+    let playerPosition = gameState.playerPosition;
+
+    if (pickup) {
+      const dx = gameState.playerPosition.x - pickup.x;
+      const dz = gameState.playerPosition.z - pickup.z;
+      const dist = Math.hypot(dx, dz);
+      const pushDistance = 6; // clears the 4-unit trigger radius with room to spare
+
+      playerPosition =
+        dist > 0.01
+          ? { x: pickup.x + (dx / dist) * pushDistance, z: pickup.z + (dz / dist) * pushDistance }
+          : { x: pickup.x, z: pickup.z + pushDistance };
+    }
+
+    setGameState({ ...gameState, screen: 'world', deckOffer: undefined, playerPosition });
   };
 
   const continueDeckReveal = () => {
