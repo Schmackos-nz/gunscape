@@ -40,6 +40,7 @@ export interface Enemy {
   nextIntentDamage: number;
   defeatReward: number;
   level: number;
+  isBoss?: boolean;
 }
 
 export interface Player {
@@ -73,6 +74,8 @@ export interface CombatState {
   playerWon: boolean;
   message: string;
   playerTaunt: string;
+  enemyTaunt: string;
+  resultLine?: string;
 }
 
 export interface GameState {
@@ -83,6 +86,7 @@ export interface GameState {
   worldPosition: number;
   worldLength: number;
   deckType: DeckType;
+  bossTier: number;
   combat?: CombatState;
   lootReward?: {
     items: Item[];

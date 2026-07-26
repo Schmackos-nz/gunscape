@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.63",
+ "version": "1.0.64",
  "generated": "2026-07-26",
  "patches": [
+  {
+   "version": "1.0.64",
+   "date": "2026-07-26",
+   "title": "Deck of Omens: boss lairs, bigger world, voice lines, camera/card fixes",
+   "notes": []
+  },
   {
    "version": "1.0.63",
    "date": "2026-07-26",
@@ -228,12 +234,6 @@ window.PATCHNOTES={
    "version": "1.0.25",
    "date": "2026-06-22",
    "title": "Visual polish: wind grass, rounder characters, custom item icons",
-   "notes": []
-  },
-  {
-   "version": "1.0.24",
-   "date": "2026-06-22",
-   "title": "Mobile fixes: real viewport height, fullscreen on play, always-on HUD shrink",
    "notes": []
   }
  ]

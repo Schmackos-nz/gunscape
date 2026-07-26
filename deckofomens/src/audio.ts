@@ -22,7 +22,8 @@ export type SoundType =
   | 'footstep'
   | 'encounter'
   | 'click'
-  | 'pickup';
+  | 'pickup'
+  | 'bossVictory';
 
 export function playSound(type: SoundType) {
   // Prevent audio spam - only allow one sound every 50ms
@@ -210,6 +211,22 @@ export function playSound(type: SoundType) {
           gain.gain.exponentialRampToValueAtTime(0.01, t + i * 0.07 + 0.12);
           osc.start(t + i * 0.07);
           osc.stop(t + i * 0.07 + 0.12);
+        });
+        break;
+      }
+      case 'bossVictory': {
+        const notes = [392, 523, 659, 784, 1047, 1319];
+        notes.forEach((freq, i) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.type = i % 2 === 0 ? 'sawtooth' : 'sine';
+          osc.frequency.setValueAtTime(freq, t + i * 0.12);
+          gain.gain.setValueAtTime(0.35, t + i * 0.12);
+          gain.gain.exponentialRampToValueAtTime(0.01, t + i * 0.12 + 0.3);
+          osc.start(t + i * 0.12);
+          osc.stop(t + i * 0.12 + 0.3);
         });
         break;
       }

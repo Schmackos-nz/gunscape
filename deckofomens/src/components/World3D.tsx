@@ -24,6 +24,26 @@ function getTerrainHeight(worldX: number, worldZ: number): number {
   return Math.sin(worldX * 0.1) * 2 + Math.cos(worldZ * 0.1) * 2;
 }
 
+const WORLD_HALF = 155;
+const LEVEL_COMPLETE_Z = -145;
+
+// Each boss's display name embeds one of the archetype substrings from
+// enemySprites.ts/Icons.tsx, so it automatically gets that creature's combat
+// portrait and world sprite without needing separate boss-specific art.
+const BOSS_NAMES = [
+  'The Ashen Dark Knight',
+  'Voidspawn Shadow Beast',
+  'Grimjaw the Orc Titan',
+  'The Phantom Bandit King',
+];
+
+const BOSS_CORNERS = [
+  { x: 130, z: 130 },
+  { x: -130, z: 130 },
+  { x: 130, z: -130 },
+  { x: -130, z: -130 },
+];
+
 export const World3D: React.FC<World3DProps> = ({
   gameState,
   onEncounter,
@@ -46,7 +66,7 @@ export const World3D: React.FC<World3DProps> = ({
     // Scene setup
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x1a1a2e);
-    scene.fog = new THREE.Fog(0x1a1a2e, 100, 300);
+    scene.fog = new THREE.Fog(0x1a1a2e, 120, 480);
     sceneRef.current = scene;
 
     // Camera
@@ -74,19 +94,19 @@ export const World3D: React.FC<World3DProps> = ({
     scene.add(ambientLight);
 
     const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    directionalLight.position.set(50, 50, 50);
+    directionalLight.position.set(80, 80, 80);
     directionalLight.castShadow = true;
     directionalLight.shadow.mapSize.width = 2048;
     directionalLight.shadow.mapSize.height = 2048;
-    directionalLight.shadow.camera.far = 200;
-    directionalLight.shadow.camera.left = -100;
-    directionalLight.shadow.camera.right = 100;
-    directionalLight.shadow.camera.top = 100;
-    directionalLight.shadow.camera.bottom = -100;
+    directionalLight.shadow.camera.far = 400;
+    directionalLight.shadow.camera.left = -170;
+    directionalLight.shadow.camera.right = 170;
+    directionalLight.shadow.camera.top = 170;
+    directionalLight.shadow.camera.bottom = -170;
     scene.add(directionalLight);
 
     // Terrain
-    const terrainGeometry = new THREE.PlaneGeometry(200, 200, 64, 64);
+    const terrainGeometry = new THREE.PlaneGeometry(320, 320, 96, 96);
     const terrainMaterial = new THREE.MeshStandardMaterial({
       color: 0x3a5f0b,
       roughness: 0.8,
@@ -109,7 +129,7 @@ export const World3D: React.FC<World3DProps> = ({
     scene.add(terrain);
 
     // Sky
-    const skyGeometry = new THREE.SphereGeometry(400, 32, 32);
+    const skyGeometry = new THREE.SphereGeometry(650, 32, 32);
     const skyMaterial = new THREE.MeshBasicMaterial({
       color: 0x2c3e50,
       side: THREE.BackSide,
@@ -126,19 +146,62 @@ export const World3D: React.FC<World3DProps> = ({
     // Enemy spawning - each enemy is a camera-facing sprite using the exact
     // same portrait art shown in combat, so what you meet in the field is
     // recognizably the thing you're about to fight.
+    const textureLoader = new THREE.TextureLoader();
+
+    const spawnEnemyAt = (
+      spawn: { x: number; z: number },
+      enemy: Enemy,
+      opts: { spriteHeight: number; ringRadius: number; ringColor: number; lightIntensity: number }
+    ) => {
+      const groundY = getTerrainHeight(spawn.x, spawn.z);
+
+      const texture = textureLoader.load(getEnemySpriteUrl(enemy.name));
+      texture.colorSpace = THREE.SRGBColorSpace;
+      const spriteMaterial = new THREE.SpriteMaterial({ map: texture, transparent: true });
+      const enemySprite = new THREE.Sprite(spriteMaterial);
+      enemySprite.scale.set(opts.spriteHeight, opts.spriteHeight, 1);
+      enemySprite.position.set(spawn.x, groundY + opts.spriteHeight / 2, spawn.z);
+      scene.add(enemySprite);
+
+      // Detection radius visualization (torus ring on ground)
+      const radiusGeometry = new THREE.TorusGeometry(opts.ringRadius, 0.3, 8, 32);
+      const radiusMaterial = new THREE.MeshStandardMaterial({
+        color: opts.ringColor,
+        emissive: opts.ringColor,
+        emissiveIntensity: 0.3,
+        transparent: true,
+        opacity: 0.3,
+      });
+      const radiusMesh = new THREE.Mesh(radiusGeometry, radiusMaterial);
+      radiusMesh.rotation.x = -Math.PI / 2;
+      radiusMesh.position.set(spawn.x, groundY + 0.05, spawn.z);
+      radiusMesh.receiveShadow = false;
+      scene.add(radiusMesh);
+
+      // Point light above enemy for visibility
+      const pointLight = new THREE.PointLight(opts.ringColor, opts.lightIntensity, opts.ringRadius * 2.5);
+      pointLight.position.set(spawn.x, groundY + 4, spawn.z);
+      scene.add(pointLight);
+
+      enemiesRef.current.push({
+        enemy,
+        mesh: enemySprite,
+        position: new THREE.Vector3(spawn.x, groundY, spawn.z),
+      });
+    };
+
     const spawnEnemies = () => {
       const levelDifficulty = gameState.currentLevel;
-      const textureLoader = new THREE.TextureLoader();
 
       const enemySpawns = [
-        { x: -30, z: -30 },
-        { x: 30, z: -50 },
-        { x: -50, z: 20 },
-        { x: 50, z: 30 },
-        { x: 0, z: -80 },
-        { x: -60, z: 60 },
-        { x: 60, z: 50 },
-        { x: 20, z: 80 },
+        { x: -55, z: -55 },
+        { x: 55, z: -90 },
+        { x: -90, z: 35 },
+        { x: 90, z: 55 },
+        { x: 0, z: -140 },
+        { x: -110, z: 110 },
+        { x: 110, z: 90 },
+        { x: 35, z: 140 },
       ];
 
       const enemyNames = ['Goblin Scout', 'Orc Raider', 'Bandit', 'Dark Knight', 'Shadow Beast'];
@@ -159,46 +222,159 @@ export const World3D: React.FC<World3DProps> = ({
           defeatReward: 20 * enemyLevel,
         };
 
-        const groundY = getTerrainHeight(spawn.x, spawn.z);
-        const spriteHeight = getEnemySpriteHeight(name);
-
-        const texture = textureLoader.load(getEnemySpriteUrl(name));
-        texture.colorSpace = THREE.SRGBColorSpace;
-        const spriteMaterial = new THREE.SpriteMaterial({ map: texture, transparent: true });
-        const enemySprite = new THREE.Sprite(spriteMaterial);
-        enemySprite.scale.set(spriteHeight, spriteHeight, 1);
-        enemySprite.position.set(spawn.x, groundY + spriteHeight / 2, spawn.z);
-        scene.add(enemySprite);
-
-        // Add detection radius visualization (torus ring on ground)
-        const radiusGeometry = new THREE.TorusGeometry(10, 0.3, 8, 32);
-        const radiusMaterial = new THREE.MeshStandardMaterial({
-          color: 0xff4444,
-          emissive: 0xff4444,
-          emissiveIntensity: 0.3,
-          transparent: true,
-          opacity: 0.3,
-        });
-        const radiusMesh = new THREE.Mesh(radiusGeometry, radiusMaterial);
-        radiusMesh.rotation.x = -Math.PI / 2;
-        radiusMesh.position.set(spawn.x, groundY + 0.05, spawn.z);
-        radiusMesh.receiveShadow = false;
-        scene.add(radiusMesh);
-
-        // Add point light above enemy for visibility
-        const pointLight = new THREE.PointLight(0xff4444, 0.5, 25);
-        pointLight.position.set(spawn.x, groundY + 4, spawn.z);
-        scene.add(pointLight);
-
-        enemiesRef.current.push({
-          enemy,
-          mesh: enemySprite,
-          position: new THREE.Vector3(spawn.x, groundY, spawn.z),
+        spawnEnemyAt(spawn, enemy, {
+          spriteHeight: getEnemySpriteHeight(name),
+          ringRadius: 10,
+          ringColor: 0xff4444,
+          lightIntensity: 0.5,
         });
       });
     };
 
     spawnEnemies();
+
+    // Boss lair: a huge, guaranteed encounter in a deliberately ominous
+    // corner of the map. Its stats and its lair's location both key off
+    // bossTier, so defeating one visibly "upgrades" the world - the next
+    // boss is tougher and waits somewhere new.
+    const spawnBoss = () => {
+      const bossIndex = gameState.bossTier % BOSS_NAMES.length;
+      const bossName = BOSS_NAMES[bossIndex];
+      const corner = BOSS_CORNERS[bossIndex];
+      const bossLevelBasis = gameState.currentLevel + gameState.bossTier;
+
+      const hp = Math.floor((60 + bossLevelBasis * 20) * 3);
+      const damage = Math.floor((10 + bossLevelBasis * 3) * 2.5);
+
+      const boss: Enemy = {
+        id: `boss-${gameState.bossTier}`,
+        name: bossName,
+        level: bossLevelBasis + 5,
+        maxHP: hp,
+        hp,
+        nextIntentDamage: damage,
+        defeatReward: 150 * (bossLevelBasis + 1),
+        isBoss: true,
+      };
+
+      const groundY = getTerrainHeight(corner.x, corner.z);
+
+      // Ominous ground: a scorched dark disc under the boss...
+      const scorchGeometry = new THREE.CircleGeometry(16, 32);
+      const scorchMaterial = new THREE.MeshStandardMaterial({
+        color: 0x1a0505,
+        roughness: 1,
+        emissive: 0x330000,
+        emissiveIntensity: 0.4,
+      });
+      const scorchMesh = new THREE.Mesh(scorchGeometry, scorchMaterial);
+      scorchMesh.rotation.x = -Math.PI / 2;
+      scorchMesh.position.set(corner.x, groundY + 0.03, corner.z);
+      scene.add(scorchMesh);
+
+      // ...ringed with jagged dark spikes...
+      const spikeGeometry = new THREE.ConeGeometry(0.6, 4, 5);
+      const spikeMaterial = new THREE.MeshStandardMaterial({ color: 0x100505, roughness: 0.9 });
+      const spikeCount = 14;
+      for (let i = 0; i < spikeCount; i++) {
+        const angle = (i / spikeCount) * Math.PI * 2;
+        const radius = 15 + Math.sin(i * 3) * 2;
+        const sx = corner.x + Math.cos(angle) * radius;
+        const sz = corner.z + Math.sin(angle) * radius;
+        const spike = new THREE.Mesh(spikeGeometry, spikeMaterial);
+        spike.position.set(sx, getTerrainHeight(sx, sz) + 2, sz);
+        spike.rotation.z = (Math.random() - 0.5) * 0.4;
+        spike.rotation.x = (Math.random() - 0.5) * 0.4;
+        scene.add(spike);
+      }
+
+      // ...and heavy red haze hanging over the whole lair.
+      const hazeLight1 = new THREE.PointLight(0xff2222, 1.2, 60);
+      hazeLight1.position.set(corner.x, groundY + 10, corner.z);
+      scene.add(hazeLight1);
+      const hazeLight2 = new THREE.PointLight(0x880000, 0.8, 40);
+      hazeLight2.position.set(corner.x, groundY + 2, corner.z);
+      scene.add(hazeLight2);
+
+      spawnEnemyAt(corner, boss, {
+        spriteHeight: 12,
+        ringRadius: 15,
+        ringColor: 0xff1111,
+        lightIntensity: 1,
+      });
+    };
+
+    spawnBoss();
+
+    // Decorative trees and bushes, scattered with InstancedMesh so a couple
+    // hundred of them cost almost nothing to render. Purely visual - no
+    // collision, so they never block movement or combat triggers.
+    const scatterPoint = () => ({
+      x: (Math.random() * 2 - 1) * (WORLD_HALF - 10),
+      z: (Math.random() * 2 - 1) * (WORLD_HALF - 10),
+    });
+
+    const TREE_COUNT = 150;
+    const dummy = new THREE.Object3D();
+
+    const trunkMesh = new THREE.InstancedMesh(
+      new THREE.CylinderGeometry(0.4, 0.5, 3, 6),
+      new THREE.MeshStandardMaterial({ color: 0x5c4433, roughness: 0.9 }),
+      TREE_COUNT
+    );
+    trunkMesh.castShadow = true;
+    trunkMesh.receiveShadow = true;
+
+    const foliageMesh = new THREE.InstancedMesh(
+      new THREE.ConeGeometry(2.2, 5, 8),
+      new THREE.MeshStandardMaterial({ color: 0x2d5a1f, roughness: 0.8 }),
+      TREE_COUNT
+    );
+    foliageMesh.castShadow = true;
+
+    for (let i = 0; i < TREE_COUNT; i++) {
+      const { x, z } = scatterPoint();
+      const groundY = getTerrainHeight(x, z);
+      const scale = 0.8 + Math.random() * 0.6;
+      const rotY = Math.random() * Math.PI * 2;
+
+      dummy.position.set(x, groundY + 1.5 * scale, z);
+      dummy.rotation.set(0, rotY, 0);
+      dummy.scale.set(scale, scale, scale);
+      dummy.updateMatrix();
+      trunkMesh.setMatrixAt(i, dummy.matrix);
+
+      dummy.position.set(x, groundY + 3.8 * scale, z);
+      dummy.updateMatrix();
+      foliageMesh.setMatrixAt(i, dummy.matrix);
+    }
+    trunkMesh.instanceMatrix.needsUpdate = true;
+    foliageMesh.instanceMatrix.needsUpdate = true;
+    scene.add(trunkMesh);
+    scene.add(foliageMesh);
+
+    const BUSH_COUNT = 100;
+    const bushMesh = new THREE.InstancedMesh(
+      new THREE.SphereGeometry(0.9, 8, 6),
+      new THREE.MeshStandardMaterial({ color: 0x3d6b28, roughness: 0.9 }),
+      BUSH_COUNT
+    );
+    bushMesh.castShadow = true;
+    bushMesh.receiveShadow = true;
+
+    for (let i = 0; i < BUSH_COUNT; i++) {
+      const { x, z } = scatterPoint();
+      const groundY = getTerrainHeight(x, z);
+      const scale = 0.7 + Math.random() * 0.8;
+
+      dummy.position.set(x, groundY + 0.5 * scale, z);
+      dummy.rotation.set(0, 0, 0);
+      dummy.scale.set(scale, scale * 0.7, scale);
+      dummy.updateMatrix();
+      bushMesh.setMatrixAt(i, dummy.matrix);
+    }
+    bushMesh.instanceMatrix.needsUpdate = true;
+    scene.add(bushMesh);
 
     // Held card-pack viewmodel: a right hand + a small stack of cards,
     // parented to the camera so it stays in view regardless of look angle.
@@ -261,7 +437,7 @@ export const World3D: React.FC<World3DProps> = ({
 
     const handleMouseMove = (e: MouseEvent) => {
       if (document.pointerLockElement !== renderer.domElement) return;
-      targetYaw -= e.movementX * MOUSE_SENSITIVITY;
+      targetYaw += e.movementX * MOUSE_SENSITIVITY;
       targetPitch -= e.movementY * MOUSE_SENSITIVITY;
       targetPitch = Math.max(MIN_PITCH, Math.min(MAX_PITCH, targetPitch));
     };
@@ -324,8 +500,8 @@ export const World3D: React.FC<World3DProps> = ({
         playerRef.current.z += moveDir.z;
 
         // Constrain player within world bounds
-        playerRef.current.x = Math.max(-90, Math.min(90, playerRef.current.x));
-        playerRef.current.z = Math.max(-90, Math.min(90, playerRef.current.z));
+        playerRef.current.x = Math.max(-WORLD_HALF, Math.min(WORLD_HALF, playerRef.current.x));
+        playerRef.current.z = Math.max(-WORLD_HALF, Math.min(WORLD_HALF, playerRef.current.z));
 
         footstepDistance += moveSpeed;
         if (footstepDistance > 4) {
@@ -410,7 +586,7 @@ export const World3D: React.FC<World3DProps> = ({
       }
 
       // Check level completion
-      if (playerRef.current.z < -85) {
+      if (playerRef.current.z < LEVEL_COMPLETE_Z) {
         hasTransitioned = true;
         onLevelComplete();
         return;
@@ -443,7 +619,7 @@ export const World3D: React.FC<World3DProps> = ({
       document.removeEventListener('pointerlockchange', handlePointerLockChange);
       containerRef.current?.removeChild(renderer.domElement);
     };
-  }, [gameState.currentLevel, onEncounter, onLevelComplete]);
+  }, [gameState.currentLevel, gameState.bossTier, onEncounter, onLevelComplete]);
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100vh' }}>

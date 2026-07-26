@@ -77,19 +77,40 @@ const FALLBACK_BODY = `
   <circle cx="50" cy="50" r="30" fill="#ff4444" />
 `;
 
+// Boss names are flavorful ("The Ashen Dark Knight") rather than exact
+// archetype names, so resolution has to be substring-based - this MUST stay
+// in sync with Icons.tsx's EnemySprite, which uses the same substrings, so
+// combat portraits and the world sprite never disagree on what an enemy
+// looks like.
+const ARCHETYPES = ['Goblin', 'Orc', 'Bandit', 'Dark Knight', 'Shadow Beast'] as const;
+
+function resolveArchetype(name: string): string | null {
+  return ARCHETYPES.find((key) => name.includes(key)) ?? null;
+}
+
+const HEIGHTS: Record<string, number> = {
+  Goblin: 3.2,
+  Orc: 4.4,
+  Bandit: 3.8,
+  'Dark Knight': 5,
+  'Shadow Beast': 4.6,
+};
+
+function bodyFor(archetype: string | null): string {
+  if (!archetype) return FALLBACK_BODY;
+  if (archetype === 'Goblin') return ENEMY_SVG_BODIES['Goblin Scout'];
+  if (archetype === 'Orc') return ENEMY_SVG_BODIES['Orc Raider'];
+  return ENEMY_SVG_BODIES[archetype] ?? FALLBACK_BODY;
+}
+
 export function getEnemySpriteUrl(name: string): string {
-  const body = ENEMY_SVG_BODIES[name] ?? FALLBACK_BODY;
+  const body = bodyFor(resolveArchetype(name));
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 100 100">${body}</svg>`;
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
 export function getEnemySpriteHeight(name: string): number {
-  const heights: Record<string, number> = {
-    'Goblin Scout': 3.2,
-    'Orc Raider': 4.4,
-    Bandit: 3.8,
-    'Dark Knight': 5,
-    'Shadow Beast': 4.6,
-  };
-  return heights[name] ?? 4;
+  const archetype = resolveArchetype(name);
+  if (!archetype) return 4;
+  return HEIGHTS[archetype] ?? 4;
 }

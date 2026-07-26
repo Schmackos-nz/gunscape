@@ -263,6 +263,24 @@ body {
   margin-bottom: 0.5rem;
 }
 
+.boss-card {
+  border-color: #ff1111;
+  box-shadow: 0 0 24px rgba(255, 17, 17, 0.5);
+  background: linear-gradient(135deg, #3d1515 0%, #4d1a1a 100%);
+}
+
+.boss-tag {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.15rem 0.5rem;
+  background: #ff1111;
+  color: #fff;
+  font-size: 0.7rem;
+  border-radius: 4px;
+  vertical-align: middle;
+  letter-spacing: 0.05em;
+}
+
 .enemy-hp {
   display: flex;
   align-items: center;
@@ -352,6 +370,15 @@ body {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   animation: speechBubblePop 2.5s ease-in-out forwards;
   z-index: 20;
+}
+
+.speech-bubble.enemy-bubble {
+  background: #ffe8e8;
+  color: #4a1a1a;
+}
+
+.speech-bubble.enemy-bubble::after {
+  border-color: #ffe8e8 transparent transparent transparent;
 }
 
 .speech-bubble::after {
@@ -628,18 +655,6 @@ body {
   transform: translate(450px, -80px) scale(0.5) rotateY(-120deg) rotateX(20deg);
 }
 
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.7;
-  }
-}
-
-.card:hover {
-  animation: pulse 0.5s ease-in-out infinite;
-}
 
 /* Deck Pile */
 .deck-pile {

@@ -48,8 +48,8 @@ function getStatBonus(rarity: ItemRarity, level: number, baseAmount: number) {
   return Math.round((baseAmount + levelBonus) * multiplier);
 }
 
-export function generateWeapon(level: number): Item {
-  const rarity = getRandomRarity(level);
+export function generateWeapon(level: number, forcedRarity?: ItemRarity): Item {
+  const rarity = forcedRarity ?? getRandomRarity(level);
   const name = weaponNames[Math.floor(Math.random() * weaponNames.length)];
   const attackBonus = getStatBonus(rarity, level, 5);
 
@@ -64,8 +64,8 @@ export function generateWeapon(level: number): Item {
   };
 }
 
-export function generateArmor(level: number): Item {
-  const rarity = getRandomRarity(level);
+export function generateArmor(level: number, forcedRarity?: ItemRarity): Item {
+  const rarity = forcedRarity ?? getRandomRarity(level);
   const name = armorNames[Math.floor(Math.random() * armorNames.length)];
   const defenseBonus = getStatBonus(rarity, level, 4);
   const hpBonus = getStatBonus(rarity, level, 10);
@@ -81,8 +81,8 @@ export function generateArmor(level: number): Item {
   };
 }
 
-export function generateAccessory(level: number): Item {
-  const rarity = getRandomRarity(level);
+export function generateAccessory(level: number, forcedRarity?: ItemRarity): Item {
+  const rarity = forcedRarity ?? getRandomRarity(level);
   const name = accessoryNames[Math.floor(Math.random() * accessoryNames.length)];
   const roll = Math.random();
 
@@ -138,6 +138,13 @@ export function generateLoot(level: number): Item[] {
   }
 
   return items;
+}
+
+export function generateBossLoot(level: number): Item[] {
+  const generators = [generateWeapon, generateArmor, generateAccessory];
+  const primary = generators[Math.floor(Math.random() * generators.length)](level, 'legendary');
+  const secondary = generators[Math.floor(Math.random() * generators.length)](level, 'legendary');
+  return [primary, secondary];
 }
 
 export function getRarityColor(rarity: ItemRarity): string {

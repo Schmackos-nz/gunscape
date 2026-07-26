@@ -21,11 +21,20 @@ export const GameScreen: React.FC<GameScreenProps> = ({
 }) => {
   const combat = gameState.combat;
   const [drawnCards, setDrawnCards] = useState<Set<string>>(new Set());
-  const [showTaunt, setShowTaunt] = useState(true);
+  const [showEnemyTaunt, setShowEnemyTaunt] = useState(true);
+  const [showPlayerTaunt, setShowPlayerTaunt] = useState(false);
 
+  // Enemy gets the first word in, player's line follows shortly after -
+  // matches the order the lines are actually spoken in (see Game.tsx).
   useEffect(() => {
-    const timer = setTimeout(() => setShowTaunt(false), 2500);
-    return () => clearTimeout(timer);
+    const hideEnemy = setTimeout(() => setShowEnemyTaunt(false), 2600);
+    const showPlayer = setTimeout(() => setShowPlayerTaunt(true), 1400);
+    const hidePlayer = setTimeout(() => setShowPlayerTaunt(false), 4000);
+    return () => {
+      clearTimeout(hideEnemy);
+      clearTimeout(showPlayer);
+      clearTimeout(hidePlayer);
+    };
   }, []);
 
   useEffect(() => {
@@ -57,6 +66,14 @@ export const GameScreen: React.FC<GameScreenProps> = ({
     return combat.playerEnergy >= card.cost && !combat.gameOver;
   };
 
+  // The value shown on a card should reflect what it will ACTUALLY do,
+  // including equipped item bonuses - not just the card's base number.
+  const getEffectiveValue = (card: Card) => {
+    if (card.type === 'attack') return card.value + gameState.player.attackPower;
+    if (card.type === 'defense') return card.value + gameState.player.defense;
+    return card.value;
+  };
+
   if (combat.gameOver) {
     return (
       <div className="modal-overlay">
@@ -69,6 +86,17 @@ export const GameScreen: React.FC<GameScreenProps> = ({
               ? `You defeated ${combat.enemy.name}!`
               : `You were defeated by ${combat.enemy.name}...`}
           </p>
+          {combat.resultLine && (
+            <p
+              className="modal-text"
+              style={{
+                fontStyle: 'italic',
+                color: combat.playerWon ? '#88dd55' : '#a0a0c0',
+              }}
+            >
+              "{combat.resultLine}"
+            </p>
+          )}
           {!combat.playerWon && (
             <div className="modal-buttons">
               <button className="btn" onClick={onMenu}>
@@ -114,11 +142,17 @@ export const GameScreen: React.FC<GameScreenProps> = ({
       <div className="game-board">
         <div className="board-section">
           <div className="enemy-zone">
-            <div className="enemy-sprite-container">
+            <div className="enemy-sprite-container" style={{ position: 'relative' }}>
+              {showEnemyTaunt && combat.enemyTaunt && (
+                <div className="speech-bubble enemy-bubble">{combat.enemyTaunt}</div>
+              )}
               <EnemySprite name={combat.enemy.name} size={140} />
             </div>
-            <div className="enemy-card">
-              <div className="enemy-name">{combat.enemy.name}</div>
+            <div className={`enemy-card${combat.enemy.isBoss ? ' boss-card' : ''}`}>
+              <div className="enemy-name">
+                {combat.enemy.name}
+                {combat.enemy.isBoss && <span className="boss-tag">BOSS</span>}
+              </div>
               <div className="enemy-hp">
                 <div className="hp-bar">
                   <div
@@ -142,7 +176,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
 
         <div className="board-section">
           <div className="player-container" style={{ position: 'relative' }}>
-            {showTaunt && combat.playerTaunt && (
+            {showPlayerTaunt && combat.playerTaunt && (
               <div className="speech-bubble">{combat.playerTaunt}</div>
             )}
             <div className="player-sprite-wrapper">
@@ -185,7 +219,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
                       )}
                     </div>
                     <div className="card-name">{card.name}</div>
-                    <div className="card-value">{card.value}</div>
+                    <div className="card-value">{getEffectiveValue(card)}</div>
                     <div className="card-desc">{card.description}</div>
                   </div>
                   );

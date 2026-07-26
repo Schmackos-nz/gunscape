@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { GameState, Card, DeckType, Enemy, Item, Player } from '../types';
 import { generateDeck, drawCards } from '../cardData';
-import { generateLoot } from '../itemData';
+import { generateLoot, generateBossLoot } from '../itemData';
 import { playSound } from '../audio';
-import { getRandomTaunt, speak } from '../taunts';
+import { getRandomTaunt, getRandomEnemyTaunt, getRandomVictoryLine, getRandomDefeatLine, getEnemyVoice, speak } from '../taunts';
 import { DeckSelection } from './DeckSelection';
 import { GameScreen } from './GameScreen';
 import { World3D } from './World3D';
@@ -35,6 +35,7 @@ export const Game: React.FC = () => {
       worldPosition: 0,
       worldLength: 30,
       deckType,
+      bossTier: 0,
     };
 
     setGameState(state);
@@ -45,6 +46,10 @@ export const Game: React.FC = () => {
 
     playSound('encounter');
     const taunt = getRandomTaunt();
+    const enemyTaunt = getRandomEnemyTaunt(enemy.isBoss);
+    // The enemy gets the first word in; the player's line queues right
+    // after it since SpeechSynthesis plays queued utterances in order.
+    speak(enemyTaunt, getEnemyVoice(enemy.name, enemy.isBoss));
     speak(taunt);
 
     const deck = generateDeck(gameState.deckType);
@@ -67,6 +72,7 @@ export const Game: React.FC = () => {
       playerWon: false,
       message: `Encountered ${enemy.name}!`,
       playerTaunt: taunt,
+      enemyTaunt,
     };
 
     setGameState(newState);
@@ -102,6 +108,8 @@ export const Game: React.FC = () => {
         combat.gameOver = true;
         combat.playerWon = true;
         combat.message = `Defeated ${combat.enemy.name}!`;
+        combat.resultLine = getRandomVictoryLine();
+        speak(combat.resultLine);
       }
     } else if (card.type === 'defense') {
       playSound('defense');
@@ -147,6 +155,8 @@ export const Game: React.FC = () => {
       combat.gameOver = true;
       combat.playerWon = false;
       combat.message = `${combat.enemy.name} dealt ${damageAfterDefense} damage. You were defeated!`;
+      combat.resultLine = getRandomDefeatLine();
+      speak(combat.resultLine, { pitch: 1.3, rate: 0.85 });
     } else {
       const nextIntents = [6, 8, 10, 12, 15, 18, 20];
       combat.enemy.nextIntentDamage =
@@ -165,12 +175,15 @@ export const Game: React.FC = () => {
   const handleCombatVictory = () => {
     if (!gameState?.combat) return;
 
-    playSound('victory');
+    const enemy = gameState.combat.enemy;
+    const isBoss = !!enemy.isBoss;
+
+    playSound(isBoss ? 'bossVictory' : 'victory');
 
     const player = { ...gameState.player };
-    const expGain = gameState.combat.enemy.defeatReward;
-    const goldGain = gameState.combat.enemy.level * 20;
-    const items = generateLoot(gameState.combat.enemy.level);
+    const expGain = enemy.defeatReward;
+    const goldGain = enemy.level * 20;
+    const items = isBoss ? generateBossLoot(enemy.level) : generateLoot(enemy.level);
 
     player.experience += expGain;
     player.gold += goldGain;
@@ -179,6 +192,12 @@ export const Game: React.FC = () => {
     const nextState = { ...gameState };
     nextState.player = player;
     nextState.screen = 'loot';
+    // Defeating a boss "upgrades" the world: the tier feeds into every
+    // subsequent enemy AND boss spawn, so things get slightly harder from
+    // here on, and the next boss lair moves to a new corner of the map.
+    if (isBoss) {
+      nextState.bossTier = gameState.bossTier + 1;
+    }
     nextState.lootReward = {
       items,
       gold: goldGain,
