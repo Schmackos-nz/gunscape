@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { GameState, Enemy, DeckOffer, DeckType } from '../types';
+import { GameState, Enemy, DeckOffer } from '../types';
 import { playSound } from '../audio';
 import { getEnemySpriteUrl, getEnemySpriteHeight } from '../enemySprites';
+import { WORLD_HALF, LEVEL_COMPLETE_Z } from '../worldGen';
 
 interface WorldPos {
   x: number;
@@ -39,9 +40,6 @@ interface DeckPickup3D {
 function getTerrainHeight(worldX: number, worldZ: number): number {
   return Math.sin(worldX * 0.1) * 2 + Math.cos(worldZ * 0.1) * 2;
 }
-
-const WORLD_HALF = 155;
-const LEVEL_COMPLETE_Z = -145;
 
 // Each boss's display name embeds one of the archetype substrings from
 // enemySprites.ts/Icons.tsx, so it automatically gets that creature's combat
@@ -240,13 +238,16 @@ export const World3D: React.FC<World3DProps> = ({
       const enemyNames = ['Goblin Scout', 'Orc Raider', 'Bandit', 'Dark Knight', 'Shadow Beast'];
 
       enemySpawns.forEach((spawn, idx) => {
+        const id = `enemy-${gameState.currentLevel}-${idx}`;
+        if (gameState.defeatedEnemyIds.includes(id)) return; // despawned - already killed
+
         const enemyLevel = levelDifficulty + Math.floor(Math.random() * 2);
         const hp = 25 + enemyLevel * 5 + Math.random() * 20;
         const damage = 6 + enemyLevel * 1.5 + Math.random() * 4;
         const name = enemyNames[idx % enemyNames.length];
 
         const enemy: Enemy = {
-          id: `enemy-${gameState.currentLevel}-${idx}`,
+          id,
           name,
           level: enemyLevel,
           maxHP: Math.floor(hp),
@@ -349,21 +350,23 @@ export const World3D: React.FC<World3DProps> = ({
     });
 
     // Empowered deck pickups: a small glowing stack of cards, color-themed
-    // per deck type, that offers a swap when walked into.
-    const deckTypeColors: Record<DeckType, number> = {
+    // per deck type, that offers a swap when walked into. Positions/types
+    // come from gameState.deckPickups (generated once when the level
+    // started, see Game.tsx) rather than being rolled here, so a declined
+    // pickup is exactly where it was the next time this mounts; claimed
+    // ones are filtered out via collectedDeckIds and simply don't spawn.
+    const deckTypeColors: Record<string, number> = {
       offensive: 0xff4444,
       defensive: 0x4488ff,
       balanced: 0xffaa33,
     };
-    const deckTypes: DeckType[] = ['offensive', 'defensive', 'balanced'];
     const pickupVisuals: { group: THREE.Group; ring: THREE.Mesh; light: THREE.PointLight; baseY: number }[] = [];
 
-    const DECK_PICKUP_COUNT = 4;
-    for (let i = 0; i < DECK_PICKUP_COUNT; i++) {
-      const { x, z } = scatterPoint();
+    for (const pickup of gameState.deckPickups) {
+      if (gameState.collectedDeckIds.includes(pickup.id)) continue; // despawned - already claimed
+
+      const { x, z, deckType, empoweredCount, id } = pickup;
       const groundY = getTerrainHeight(x, z);
-      const deckType = deckTypes[Math.floor(Math.random() * deckTypes.length)];
-      const empoweredCount = 1 + Math.floor(Math.random() * 52);
       const color = deckTypeColors[deckType];
 
       const pickupGroup = new THREE.Group();
@@ -403,8 +406,8 @@ export const World3D: React.FC<World3DProps> = ({
       pickupVisuals.push({ group: pickupGroup, ring: sparkleRing, light: pickupLight, baseY: groundY });
 
       deckPickupsRef.current.push({
-        id: `deck-pickup-${gameState.currentLevel}-${i}`,
-        offer: { deckType, empoweredCount },
+        id,
+        offer: { id, deckType, empoweredCount },
         position: new THREE.Vector3(x, groundY, z),
         triggerRadius: 4,
       });
@@ -769,9 +772,8 @@ export const World3D: React.FC<World3DProps> = ({
       }
 
       // Check for collisions with enemies (horizontal distance only, so
-      // hills near an enemy don't affect the trigger radius). Enemies within
-      // aggro range but outside the trigger radius actively close the gap so
-      // they can't just be strafed past - sprinting is the way out.
+      // hills near an enemy don't affect the trigger radius). Enemies are
+      // static - they wait exactly where they spawned.
       for (const e3d of enemiesRef.current) {
         if (hasEncounteredRef.current.has(e3d.enemy.id)) continue;
 
@@ -784,19 +786,6 @@ export const World3D: React.FC<World3DProps> = ({
           hasTransitioned = true;
           onEncounter(e3d.enemy, { x: playerRef.current.x, z: playerRef.current.z });
           return;
-        }
-
-        const aggroRadius = e3d.enemy.isBoss ? 40 : 25;
-        if (distance < aggroRadius) {
-          const chaseSpeed = e3d.enemy.isBoss ? 0.22 : 0.16;
-          e3d.position.x += (dx / distance) * chaseSpeed;
-          e3d.position.z += (dz / distance) * chaseSpeed;
-          e3d.position.y = getTerrainHeight(e3d.position.x, e3d.position.z);
-
-          const halfHeight = e3d.mesh.scale.y / 2;
-          e3d.mesh.position.set(e3d.position.x, e3d.position.y + halfHeight, e3d.position.z);
-          e3d.ring.position.set(e3d.position.x, e3d.position.y + 0.05, e3d.position.z);
-          e3d.light.position.set(e3d.position.x, e3d.position.y + 4, e3d.position.z);
         }
       }
 

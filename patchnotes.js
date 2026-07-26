@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.69",
+ "version": "1.0.70",
  "generated": "2026-07-26",
  "patches": [
+  {
+   "version": "1.0.70",
+   "date": "2026-07-26",
+   "title": "Deck of Omens: static enemies, permanent despawn, deterministic pickups",
+   "notes": []
+  },
   {
    "version": "1.0.69",
    "date": "2026-07-26",
@@ -228,12 +234,6 @@ window.PATCHNOTES={
    "version": "1.0.31",
    "date": "2026-06-22",
    "title": "Prayer rebalance + Dampen Harm; soak capped at 20% except the two Protects",
-   "notes": []
-  },
-  {
-   "version": "1.0.30",
-   "date": "2026-06-22",
-   "title": "Camera spring-arm: pull in when blocked by walls/terrain",
    "notes": []
   }
  ]

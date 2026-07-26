@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { GameState, Card, DeckType, DeckOffer, Enemy, Item, Player } from '../types';
 import { generateDeck, generateEmpoweredDeck, shuffleDeck, drawCards } from '../cardData';
 import { generateLoot, generateBossLoot } from '../itemData';
+import { generateDeckPickups } from '../worldGen';
 import { playSound } from '../audio';
 import { getRandomTaunt, getRandomEnemyTaunt, getRandomVictoryLine, getRandomDefeatLine, getEnemyVoice, speak } from '../taunts';
 import { saveGame, loadGame, clearSave, hasSave } from '../saveGame';
@@ -60,6 +61,9 @@ export const Game: React.FC = () => {
       deckCards: generateDeck(deckType),
       bossTier: 0,
       playerPosition: { x: 0, z: 0 },
+      deckPickups: generateDeckPickups(1),
+      defeatedEnemyIds: [],
+      collectedDeckIds: [],
     };
 
     setGameState(state);
@@ -232,6 +236,10 @@ export const Game: React.FC = () => {
     // here on, and the next boss lair moves to a new corner of the map.
     if (isBoss) {
       nextState.bossTier = gameState.bossTier + 1;
+    } else {
+      // Regular enemies despawn permanently once killed - the boss doesn't
+      // need this since advancing bossTier already relocates it elsewhere.
+      nextState.defeatedEnemyIds = [...gameState.defeatedEnemyIds, enemy.id];
     }
     nextState.lootReward = {
       items,
@@ -289,6 +297,9 @@ export const Game: React.FC = () => {
     nextState.player.level += 1;
     nextState.player.maxHP += 10;
     nextState.player.hp = nextState.player.maxHP;
+    nextState.deckPickups = generateDeckPickups(nextState.currentLevel);
+    nextState.defeatedEnemyIds = [];
+    nextState.collectedDeckIds = [];
 
     setGameState(nextState);
   };
@@ -316,6 +327,9 @@ export const Game: React.FC = () => {
       screen: 'deckReveal',
       deckOffer: undefined,
       deckReveal: { deckType: gameState.deckOffer.deckType, empoweredCards },
+      // Claimed - despawns permanently. Declining leaves it untouched so it
+      // stays there for next time.
+      collectedDeckIds: [...gameState.collectedDeckIds, gameState.deckOffer.id],
     });
   };
 

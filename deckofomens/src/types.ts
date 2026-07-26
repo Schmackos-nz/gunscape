@@ -85,8 +85,14 @@ export interface CombatState {
 }
 
 export interface DeckOffer {
+  id: string;
   deckType: DeckType;
   empoweredCount: number;
+}
+
+export interface DeckPickupData extends DeckOffer {
+  x: number;
+  z: number;
 }
 
 export interface GameState {
@@ -100,6 +106,12 @@ export interface GameState {
   deckCards: Card[];
   bossTier: number;
   playerPosition: { x: number; z: number };
+  // Both generated once per level so a pickup declined (or an enemy walked
+  // past) stays exactly where it was across every remount of the 3D world -
+  // only claiming/defeating it removes it, tracked via the id sets below.
+  deckPickups: DeckPickupData[];
+  defeatedEnemyIds: string[];
+  collectedDeckIds: string[];
   combat?: CombatState;
   lootReward?: {
     items: Item[];
