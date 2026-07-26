@@ -2,7 +2,14 @@ export type DeckType = 'offensive' | 'defensive' | 'balanced';
 
 export type CardType = 'attack' | 'defense' | 'utility';
 
-export type UtilityEffect = 'draw' | 'energy' | 'drawEnergy';
+export type UtilityEffect =
+  | 'draw'
+  | 'energy'
+  | 'drawEnergy'
+  | 'heal'
+  | 'immune'
+  | 'playAll'
+  | 'empoweredDraws';
 
 export type ItemType = 'weapon' | 'armor' | 'accessory';
 
@@ -17,6 +24,9 @@ export interface Card {
   description: string;
   effect?: UtilityEffect;
   isEmpowered?: boolean;
+  // Mythical hybrid attack/defense cards deal damage AND grant shield at
+  // the same time (both halved) - see cardData.ts's generateMythicalDeck.
+  isMythical?: boolean;
 }
 
 export interface Item {
@@ -92,12 +102,19 @@ export interface CombatState {
   enemyTaunt: string;
   resultLine?: string;
   blockNextHit?: boolean;
+  // Set by the Mythical "Aegis" card - negates ALL of the enemy's hits this
+  // turn (even a multi-attack special boss), not just one like blockNextHit.
+  immuneThisTurn?: boolean;
+  // Set by the Mythical "Ascendance" card - every draw for the rest of this
+  // fight only pulls empowered cards (see cardData.ts's drawCards).
+  onlyDrawEmpowered?: boolean;
 }
 
 export interface DeckOffer {
   id: string;
   deckType: DeckType;
   empoweredCount: number;
+  isMythical?: boolean;
 }
 
 export interface DeckPickupData extends DeckOffer {
@@ -133,5 +150,7 @@ export interface GameState {
   deckReveal?: {
     deckType: DeckType;
     empoweredCards: Card[];
+    isMythical?: boolean;
+    mythicalCard?: Card;
   };
 }

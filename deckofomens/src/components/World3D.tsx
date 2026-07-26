@@ -408,14 +408,22 @@ export const World3D: React.FC<World3DProps> = ({
       defensive: 0x4488ff,
       balanced: 0xffaa33,
     };
-    const pickupVisuals: { group: THREE.Group; ring: THREE.Mesh; light: THREE.PointLight; baseY: number }[] = [];
+    const pickupVisuals: {
+      group: THREE.Group;
+      ring: THREE.Mesh;
+      light: THREE.PointLight;
+      baseY: number;
+      isMythical?: boolean;
+      cardMaterial?: THREE.MeshStandardMaterial;
+      ringMaterial?: THREE.MeshStandardMaterial;
+    }[] = [];
 
     for (const pickup of gameState.deckPickups) {
       if (gameState.collectedDeckIds.includes(pickup.id)) continue; // despawned - already claimed
 
-      const { x, z, deckType, empoweredCount, id } = pickup;
+      const { x, z, deckType, empoweredCount, id, isMythical } = pickup;
       const groundY = getTerrainHeight(x, z);
-      const color = deckTypeColors[deckType];
+      const color = isMythical ? 0xffffff : deckTypeColors[deckType];
 
       const pickupGroup = new THREE.Group();
       pickupGroup.position.set(x, groundY + 1.2, z);
@@ -425,7 +433,10 @@ export const World3D: React.FC<World3DProps> = ({
         emissiveIntensity: 0.6,
         roughness: 0.4,
       });
-      for (let c = 0; c < 5; c++) {
+      // Mythical decks get a taller, denser stack so they read as rarer even
+      // from a distance, on top of the rainbow hue-shift applied each frame.
+      const cardCount = isMythical ? 9 : 5;
+      for (let c = 0; c < cardCount; c++) {
         const cardMesh = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.08, 1.3), cardMaterial);
         cardMesh.position.set(0, c * 0.1, 0);
         cardMesh.rotation.y = c * 0.15;
@@ -433,29 +444,38 @@ export const World3D: React.FC<World3DProps> = ({
       }
       scene.add(pickupGroup);
 
+      const ringMaterial = new THREE.MeshStandardMaterial({
+        color: isMythical ? 0xffffff : 0xffe066,
+        emissive: isMythical ? 0xffffff : 0xffe066,
+        emissiveIntensity: 0.6,
+        transparent: true,
+        opacity: 0.5,
+      });
       const sparkleRing = new THREE.Mesh(
-        new THREE.TorusGeometry(3, 0.15, 8, 32),
-        new THREE.MeshStandardMaterial({
-          color: 0xffe066,
-          emissive: 0xffe066,
-          emissiveIntensity: 0.6,
-          transparent: true,
-          opacity: 0.5,
-        })
+        new THREE.TorusGeometry(isMythical ? 4 : 3, 0.15, 8, 32),
+        ringMaterial
       );
       sparkleRing.rotation.x = -Math.PI / 2;
       sparkleRing.position.set(x, groundY + 0.1, z);
       scene.add(sparkleRing);
 
-      const pickupLight = new THREE.PointLight(color, 0.8, 15);
+      const pickupLight = new THREE.PointLight(color, 0.8, isMythical ? 20 : 15);
       pickupLight.position.set(x, groundY + 2, z);
       scene.add(pickupLight);
 
-      pickupVisuals.push({ group: pickupGroup, ring: sparkleRing, light: pickupLight, baseY: groundY });
+      pickupVisuals.push({
+        group: pickupGroup,
+        ring: sparkleRing,
+        light: pickupLight,
+        baseY: groundY,
+        isMythical,
+        cardMaterial,
+        ringMaterial,
+      });
 
       deckPickupsRef.current.push({
         id,
-        offer: { id, deckType, empoweredCount },
+        offer: { id, deckType, empoweredCount, isMythical },
         position: new THREE.Vector3(x, groundY, z),
         triggerRadius: 4,
       });
@@ -674,12 +694,11 @@ export const World3D: React.FC<World3DProps> = ({
       if (!isActive || hasTransitioned) return;
       animationFrameId = requestAnimationFrame(animate);
 
-      // At 60fps, 0.3/frame was 18 units/sec - about 7x the player's own eye
-      // height every second (a real walking pace is closer to 0.8x height/
-      // sec), which read as sprinting even at a "walk". Scaled down to a
-      // brisk-but-grounded pace instead.
+      // Previous 0.2/frame (12 units/sec, ~4.6x eye height/sec) still read
+      // as a run rather than a walk. Brought down to an actual walking pace
+      // (~2x eye height/sec); sprint now covers what the old "walk" did.
       const isSprinting = !!keysRef.current['shift'];
-      const moveSpeed = isSprinting ? 0.38 : 0.2;
+      const moveSpeed = isSprinting ? 0.2 : 0.09;
 
       // Ease the look angles toward the raw mouse target each frame - this
       // is what actually smooths the camera; the raw deltas above stay
@@ -731,7 +750,7 @@ export const World3D: React.FC<World3DProps> = ({
           playSound('footstep');
         }
 
-        bobPhase += isSprinting ? 0.22 : 0.15;
+        bobPhase += isSprinting ? 0.12 : 0.07;
       }
 
       // Follow the terrain: feet sit at ground height under the player.
@@ -858,6 +877,16 @@ export const World3D: React.FC<World3DProps> = ({
         p.group.rotation.y += 0.01;
         p.ring.rotation.z += 0.005;
         p.light.intensity = 0.6 + Math.sin(phase * 2) * 0.3;
+
+        if (p.isMythical) {
+          const hue = (nowMs * 0.0002 + i * 0.3) % 1;
+          const shimmer = new THREE.Color().setHSL(hue, 0.8, 0.6);
+          p.cardMaterial?.color.set(shimmer);
+          p.cardMaterial?.emissive.set(shimmer);
+          p.ringMaterial?.color.set(shimmer);
+          p.ringMaterial?.emissive.set(shimmer);
+          p.light.color.set(shimmer);
+        }
       });
 
       for (const pickup of deckPickupsRef.current) {

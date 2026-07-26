@@ -18,6 +18,37 @@ export const DeckRevealScreen: React.FC<DeckRevealScreenProps> = ({ gameState, o
 
   if (!reveal) return null;
 
+  if (reveal.isMythical && reveal.mythicalCard) {
+    const card = reveal.mythicalCard;
+    return (
+      <div className="loot-screen">
+        <div className="loot-modal deck-offer-modal mythical-modal">
+          <h2 className="loot-title">🌈 Mythical Deck Claimed! 🌈</h2>
+
+          <p className="deck-offer-desc">
+            Your deck is now a <strong>Mythical Balanced Deck</strong>: every attack card also
+            shields you, and every defense card also strikes the enemy, both halved. Hidden among
+            its 52 cards is one unique Mythical card:
+          </p>
+
+          <div className="empowered-card-list">
+            <div className="empowered-card-row mythical-card-row">
+              <span className="empowered-card-star">🌈</span>
+              <span className="empowered-card-name">{card.name}</span>
+              <span className="empowered-card-value">{card.description}</span>
+            </div>
+          </div>
+
+          <div className="loot-actions">
+            <button className="btn" onClick={onContinue}>
+              Continue
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="loot-screen">
       <div className="loot-modal deck-offer-modal">

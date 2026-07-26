@@ -94,14 +94,21 @@ export const GameScreen: React.FC<GameScreenProps> = ({
 
   // The value shown on a card should reflect what it will ACTUALLY do,
   // including equipped item bonuses - not just the card's base number.
-  const getEffectiveValue = (card: Card) => {
-    if (card.type === 'attack') {
-      const hits = card.name.includes('Assault') ? 2 : 1;
-      const withGear = card.value * (1 + gameState.player.attackPercent / 100) * hits;
-      const armorReduction = combat.enemy.armor ? 1 - combat.enemy.armor / 100 : 1;
-      return Math.max(1, Math.round(withGear * armorReduction));
+  const getEffectiveValue = (card: Card): string | number => {
+    const hits = card.name.includes('Assault') ? 2 : 1;
+    const armorReduction = combat.enemy.armor ? 1 - combat.enemy.armor / 100 : 1;
+    const damage = Math.max(
+      1,
+      Math.round(card.value * (1 + gameState.player.attackPercent / 100) * hits * armorReduction)
+    );
+    const shield = Math.round(card.value * (1 + gameState.player.defensePercent / 100));
+
+    // Mythical hybrid cards do both at once - show both numbers.
+    if (card.isMythical && (card.type === 'attack' || card.type === 'defense')) {
+      return `${damage}⚔ ${shield}🛡`;
     }
-    if (card.type === 'defense') return Math.round(card.value * (1 + gameState.player.defensePercent / 100));
+    if (card.type === 'attack') return damage;
+    if (card.type === 'defense') return shield;
     return card.value;
   };
 
@@ -248,7 +255,9 @@ export const GameScreen: React.FC<GameScreenProps> = ({
                     key={card.id}
                     className={`card ${card.type} ${
                       !canPlayCard(card) ? 'disabled' : ''
-                    } ${alreadyDrawn ? 'drawn' : ''} ${card.isEmpowered ? 'empowered' : ''}`}
+                    } ${alreadyDrawn ? 'drawn' : ''} ${card.isEmpowered ? 'empowered' : ''} ${
+                      card.isMythical ? 'mythical' : ''
+                    }`}
                     style={
                       alreadyDrawn ? undefined : { animationDelay: `${idx * 0.15}s` }
                     }
@@ -257,6 +266,7 @@ export const GameScreen: React.FC<GameScreenProps> = ({
                   >
                     <div className="card-cost">{card.cost}</div>
                     {card.isEmpowered && <div className="card-star">★</div>}
+                    {card.isMythical && <div className="card-star mythical-star">🌈</div>}
                     <div className="card-icon">
                       {card.type === 'attack' ? (
                         <SwordIcon size={28} />

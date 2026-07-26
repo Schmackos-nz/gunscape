@@ -606,13 +606,16 @@ body {
   padding: 0.8rem;
   cursor: pointer;
   text-align: center;
-  min-width: 95px;
+  width: 130px;
+  height: 195px;
+  flex-shrink: 0;
   transition: all 0.3s ease;
   user-select: none;
   position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
+  overflow: hidden;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 }
 
@@ -648,6 +651,10 @@ body {
   font-weight: bold;
   margin-bottom: 0.4rem;
   line-height: 1.2;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .card-value {
@@ -658,9 +665,13 @@ body {
 }
 
 .card-desc {
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   color: #a0a0a0;
-  line-height: 1.3;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .card.attack {
@@ -750,6 +761,27 @@ body {
   justify-content: center;
   font-size: 0.9rem;
   z-index: 5;
+}
+
+@keyframes mythicalHue {
+  0% { filter: hue-rotate(0deg); }
+  100% { filter: hue-rotate(360deg); }
+}
+
+.card.mythical {
+  border-color: #ff66ff;
+  box-shadow: 0 0 16px rgba(255, 102, 255, 0.6);
+  animation: mythicalHue 4s linear infinite;
+}
+
+.card.mythical:hover {
+  box-shadow: 0 12px 28px rgba(255, 102, 255, 0.7);
+}
+
+.mythical-star {
+  border-color: #ff66ff;
+  color: #ff66ff;
+  font-size: 1rem;
 }
 
 @keyframes damageFloat {
@@ -1241,6 +1273,15 @@ body {
   max-width: 480px;
 }
 
+.mythical-modal {
+  border: 2px solid #ff66ff;
+  animation: mythicalHue 6s linear infinite;
+}
+
+.mythical-card-row {
+  border-color: #ff66ff !important;
+}
+
 .deck-offer-title {
   font-size: 1.8rem;
 }
@@ -1540,8 +1581,9 @@ body {
   }
 
   .card {
-    min-width: 70px;
-    padding: 0.7rem;
+    width: 100px;
+    height: 160px;
+    padding: 0.6rem;
   }
 
   .card-value {

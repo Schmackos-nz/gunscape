@@ -184,12 +184,36 @@ export function shuffleDeck(deck: Card[]): Card[] {
   return shuffled;
 }
 
-export function drawCards(deck: Card[], discard: Card[], count: number, hand: Card[]): { hand: Card[]; deck: Card[]; discard: Card[] } {
+// `onlyEmpowered` is set for the rest of a fight once the Mythical
+// "Ascendance" card is played - every draw (including from a reshuffled
+// discard pile) only surfaces isEmpowered cards. If none are left anywhere,
+// the draw simply comes up short rather than looping forever.
+export function drawCards(
+  deck: Card[],
+  discard: Card[],
+  count: number,
+  hand: Card[],
+  onlyEmpowered: boolean = false
+): { hand: Card[]; deck: Card[]; discard: Card[] } {
   let newDeck = [...deck];
   let newHand = [...hand];
   let newDiscard = [...discard];
 
   for (let i = 0; i < count; i++) {
+    if (onlyEmpowered) {
+      let idx = newDeck.findIndex((c) => c.isEmpowered);
+      if (idx === -1) {
+        if (newDiscard.length === 0) break;
+        newDeck = [...newDeck, ...shuffleDeck(newDiscard)];
+        newDiscard = [];
+        idx = newDeck.findIndex((c) => c.isEmpowered);
+        if (idx === -1) break;
+      }
+      newHand.push(newDeck[idx]);
+      newDeck.splice(idx, 1);
+      continue;
+    }
+
     if (newDeck.length === 0) {
       if (newDiscard.length === 0) break;
       newDeck = shuffleDeck(newDiscard);
@@ -202,4 +226,83 @@ export function drawCards(deck: Card[], discard: Card[], count: number, hand: Ca
   }
 
   return { hand: newHand, deck: newDeck, discard: newDiscard };
+}
+
+// The four unique Mythical special cards - each Mythical deck gets exactly
+// one, replacing a random slot among the 52 hybridized cards.
+export const MYTHICAL_SPECIAL_CARDS: Card[] = [
+  {
+    id: 'mythic-restore',
+    name: 'Restorative Surge',
+    type: 'utility',
+    value: 50,
+    cost: 2,
+    effect: 'heal',
+    description: 'Heal 50% of max HP',
+    isMythical: true,
+  },
+  {
+    id: 'mythic-aegis',
+    name: 'Aegis',
+    type: 'utility',
+    value: 0,
+    cost: 2,
+    effect: 'immune',
+    description: 'Immune to all damage this turn',
+    isMythical: true,
+  },
+  {
+    id: 'mythic-overload',
+    name: 'Overload',
+    type: 'utility',
+    value: 0,
+    cost: 0,
+    effect: 'playAll',
+    description: 'Play every card in your hand instantly, ignoring energy cost',
+    isMythical: true,
+  },
+  {
+    id: 'mythic-ascendance',
+    name: 'Ascendance',
+    type: 'utility',
+    value: 0,
+    cost: 1,
+    effect: 'empoweredDraws',
+    description: 'For the rest of this fight, only draw Empowered cards',
+    isMythical: true,
+  },
+];
+
+// Converts a normal attack/defense card into its Mythical hybrid form: half
+// value, but now does BOTH damage and shield at once. Any bonus clause after
+// the first sentence (Pummel's "Draw 1 card", Fortify's "Block next hit",
+// etc) is preserved since Game.tsx's special-case checks key off card.name.
+function hybridizeCard(card: Card): Card {
+  if (card.type !== 'attack' && card.type !== 'defense') return card;
+  const halved = Math.max(1, Math.round(card.value / 2));
+  const bonusClause = card.description.includes('. ')
+    ? '. ' + card.description.split('. ').slice(1).join('. ')
+    : '';
+  const description =
+    card.type === 'attack'
+      ? `Deal ${halved} damage and gain ${halved} defense${bonusClause}`
+      : `Gain ${halved} defense and deal ${halved} damage${bonusClause}`;
+
+  return { ...card, value: halved, isMythical: true, description };
+}
+
+// Mythical decks are always Balanced-composition, but with every attack/
+// defense card hybridized (halved damage+shield in one) and exactly one of
+// the 52 slots replaced with a random unique Mythical special card.
+export function generateMythicalDeck(): { cards: Card[]; mythicalCard: Card } {
+  const baseCards = buildDeckCards('balanced');
+  const hybridCards = baseCards.map(hybridizeCard);
+
+  const template = MYTHICAL_SPECIAL_CARDS[Math.floor(Math.random() * MYTHICAL_SPECIAL_CARDS.length)];
+  const mythicalCard: Card = { ...template, id: `${template.id}-${Date.now()}` };
+
+  const replaceIndex = Math.floor(Math.random() * hybridCards.length);
+  hybridCards[replaceIndex] = mythicalCard;
+
+  return { cards: shuffleDeck(hybridCards), mythicalCard };
 }

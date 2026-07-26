@@ -22,14 +22,25 @@ export const DeckOfferScreen: React.FC<DeckOfferScreenProps> = ({ gameState, onS
 
   return (
     <div className="loot-screen">
-      <div className="loot-modal deck-offer-modal">
-        <h2 className="loot-title deck-offer-title">✨ EMPOWERED DECK! ✨</h2>
+      <div className={`loot-modal deck-offer-modal${offer.isMythical ? ' mythical-modal' : ''}`}>
+        <h2 className="loot-title deck-offer-title">
+          {offer.isMythical ? '🌈 MYTHICAL DECK! 🌈' : '✨ EMPOWERED DECK! ✨'}
+        </h2>
 
-        <p className="deck-offer-desc">
-          A mysterious <strong>{DECK_LABELS[offer.deckType]}</strong> radiates power. Some of its
-          cards have been empowered - either cheaper to play or 50% stronger, marked with a star -
-          but you won't know how many, or which ones, until you claim it.
-        </p>
+        {offer.isMythical ? (
+          <p className="deck-offer-desc">
+            A shimmering, impossible deck radiates power far beyond a normal find. Every attack card
+            also shields you, and every defense card also strikes back - both halved in exchange for
+            doing both at once. Hidden within it is one unique Mythical card with a game-changing
+            effect, but you won't know what it does until you claim it.
+          </p>
+        ) : (
+          <p className="deck-offer-desc">
+            A mysterious <strong>{DECK_LABELS[offer.deckType]}</strong> radiates power. Some of its
+            cards have been empowered - either cheaper to play or 50% stronger, marked with a star -
+            but you won't know how many, or which ones, until you claim it.
+          </p>
+        )}
 
         <div className="deck-offer-cost">
           <span>Cost to swap</span>

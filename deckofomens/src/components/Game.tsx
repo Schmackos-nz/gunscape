@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { GameState, Card, DeckType, DeckOffer, Enemy, Item, Player } from '../types';
-import { generateDeck, generateEmpoweredDeck, shuffleDeck, drawCards } from '../cardData';
+import { GameState, Card, CombatState, DeckType, DeckOffer, Enemy, Item, Player } from '../types';
+import { generateDeck, generateEmpoweredDeck, generateMythicalDeck, shuffleDeck, drawCards } from '../cardData';
 import { generateLoot, generateBossLoot } from '../itemData';
 import { generateDeckPickups } from '../worldGen';
 import { playSound } from '../audio';
@@ -14,6 +14,116 @@ import { LootScreen } from './LootScreen';
 import { InventoryScreen } from './InventoryScreen';
 import { DeckOfferScreen } from './DeckOfferScreen';
 import { DeckRevealScreen } from './DeckRevealScreen';
+
+// Applies a single card's effect to a combat state and returns the updated
+// copy. Shared by playCard (for the card just clicked) and the Mythical
+// "Overload" card (which replays every other card in hand through the exact
+// same logic, ignoring their energy cost).
+function applyCardEffect(combat: CombatState, card: Card, player: Player): CombatState {
+  const next = { ...combat };
+
+  if (card.type === 'attack') {
+    playSound('attack');
+    const hits = card.name.includes('Assault') ? 2 : 1;
+    const withGear = card.value * (1 + player.attackPercent / 100) * hits;
+    const armorReduction = next.enemy.armor ? 1 - next.enemy.armor / 100 : 1;
+    const damage = Math.max(1, Math.round(withGear * armorReduction));
+    next.enemy = { ...next.enemy, hp: next.enemy.hp - damage };
+    next.message = hits > 1 ? `Dealt ${damage} damage (2 hits)!` : `Dealt ${damage} damage!`;
+
+    // Mythical hybrid attack cards also grant shield at the same time.
+    if (card.isMythical) {
+      const shield = Math.round(card.value * (1 + player.defensePercent / 100));
+      next.defense += shield;
+      next.message += ` Gained ${shield} armor!`;
+    }
+
+    if (card.name.includes('Pummel')) {
+      const drawn = drawCards(next.deck, next.discard, 1, next.hand, next.onlyDrawEmpowered);
+      next.hand = drawn.hand;
+      next.deck = drawn.deck;
+      next.discard = drawn.discard;
+    }
+
+    if (next.enemy.hp <= 0) {
+      next.gameOver = true;
+      next.playerWon = true;
+      next.message = `Defeated ${next.enemy.name}!`;
+      next.resultLine = getRandomVictoryLine();
+      speak(next.resultLine);
+    }
+  } else if (card.type === 'defense') {
+    playSound('defense');
+    const armor = Math.round(card.value * (1 + player.defensePercent / 100));
+    next.defense += armor;
+    next.message = `Gained ${armor} armor!`;
+
+    // Mythical hybrid defense cards also deal damage at the same time.
+    if (card.isMythical) {
+      const withGear = card.value * (1 + player.attackPercent / 100);
+      const armorReduction = next.enemy.armor ? 1 - next.enemy.armor / 100 : 1;
+      const damage = Math.max(1, Math.round(withGear * armorReduction));
+      next.enemy = { ...next.enemy, hp: next.enemy.hp - damage };
+      next.message += ` Dealt ${damage} damage!`;
+
+      if (next.enemy.hp <= 0) {
+        next.gameOver = true;
+        next.playerWon = true;
+        next.message = `Defeated ${next.enemy.name}!`;
+        next.resultLine = getRandomVictoryLine();
+        speak(next.resultLine);
+      }
+    }
+
+    if (card.name.includes('Dodge')) {
+      const drawn = drawCards(next.deck, next.discard, 1, next.hand, next.onlyDrawEmpowered);
+      next.hand = drawn.hand;
+      next.deck = drawn.deck;
+      next.discard = drawn.discard;
+    }
+
+    if (card.name.includes('Fortify')) {
+      next.blockNextHit = true;
+      next.message += ' Next hit will be blocked!';
+    }
+  } else {
+    playSound('utility');
+    if (card.effect === 'draw' || card.effect === 'drawEnergy') {
+      const drawn = drawCards(next.deck, next.discard, card.value, next.hand, next.onlyDrawEmpowered);
+      next.hand = drawn.hand;
+      next.deck = drawn.deck;
+      next.discard = drawn.discard;
+    }
+    if (card.effect === 'energy') {
+      next.playerEnergy += card.value;
+    }
+    if (card.effect === 'drawEnergy') {
+      next.playerEnergy += 1;
+    }
+    // Mythical "Restorative Surge" - heals a percentage of max HP.
+    if (card.effect === 'heal') {
+      playSound('healing');
+      const healAmount = Math.round(next.playerMaxHP * (card.value / 100));
+      next.playerHP = Math.min(next.playerMaxHP, next.playerHP + healAmount);
+      next.message = `Healed ${healAmount} HP!`;
+    }
+    // Mythical "Aegis" - negates every hit the enemy lands this turn,
+    // checked in endTurn so it beats even a multi-attack special boss.
+    if (card.effect === 'immune') {
+      next.immuneThisTurn = true;
+    }
+    // Mythical "Ascendance" - persists for the rest of the fight, filters
+    // every future draw (see drawCards' onlyEmpowered param).
+    if (card.effect === 'empoweredDraws') {
+      next.onlyDrawEmpowered = true;
+    }
+    if (card.effect !== 'heal') {
+      next.message = card.description;
+    }
+  }
+
+  return next;
+}
 
 export const Game: React.FC = () => {
   // Never auto-load on mount - the title screen is always what decides
@@ -127,73 +237,28 @@ export const Game: React.FC = () => {
 
     playSound('card');
 
-    const combat = { ...gameState.combat };
+    let combat = { ...gameState.combat };
     combat.playerEnergy -= cardCost;
     combat.hand = combat.hand.filter((c) => c.id !== card.id);
-    combat.discard.push(card);
+    combat.discard = [...combat.discard, card];
     combat.message = '';
 
-    if (card.type === 'attack') {
-      playSound('attack');
-      // Assault's own text promises two hits - it was only ever dealing one.
-      const hits = card.name.includes('Assault') ? 2 : 1;
-      const withGear = card.value * (1 + gameState.player.attackPercent / 100) * hits;
-      // A special boss's own armor reduces incoming damage.
-      const armorReduction = combat.enemy.armor ? 1 - combat.enemy.armor / 100 : 1;
-      const damage = Math.max(1, Math.round(withGear * armorReduction));
-      combat.enemy.hp -= damage;
-      combat.message = hits > 1 ? `Dealt ${damage} damage (2 hits)!` : `Dealt ${damage} damage!`;
+    combat = applyCardEffect(combat, card, gameState.player);
 
-      // Pummel's text promises a card draw that never actually happened.
-      if (card.name.includes('Pummel')) {
-        const { hand, deck, discard } = drawCards(combat.deck, combat.discard, 1, combat.hand);
-        combat.hand = hand;
-        combat.deck = deck;
-        combat.discard = discard;
+    // Mythical "Overload" - plays every remaining card in hand through the
+    // same logic, ignoring their energy cost entirely.
+    if (card.effect === 'playAll') {
+      const remaining = combat.hand;
+      combat.hand = [];
+      for (const handCard of remaining) {
+        if (combat.gameOver) {
+          combat.discard = [...combat.discard, handCard];
+          continue;
+        }
+        combat.discard = [...combat.discard, handCard];
+        combat = applyCardEffect(combat, handCard, gameState.player);
       }
-
-      if (combat.enemy.hp <= 0) {
-        combat.gameOver = true;
-        combat.playerWon = true;
-        combat.message = `Defeated ${combat.enemy.name}!`;
-        combat.resultLine = getRandomVictoryLine();
-        speak(combat.resultLine);
-      }
-    } else if (card.type === 'defense') {
-      playSound('defense');
-      const armor = Math.round(card.value * (1 + gameState.player.defensePercent / 100));
-      combat.defense += armor;
-      combat.message = `Gained ${armor} armor!`;
-
-      // Dodge's text promises a card draw that never actually happened.
-      if (card.name.includes('Dodge')) {
-        const { hand, deck, discard } = drawCards(combat.deck, combat.discard, 1, combat.hand);
-        combat.hand = hand;
-        combat.deck = deck;
-        combat.discard = discard;
-      }
-
-      // Fortify's text promises blocking the next hit entirely - it was
-      // only ever granting plain armor like any other defense card.
-      if (card.name.includes('Fortify')) {
-        combat.blockNextHit = true;
-        combat.message += ' Next hit will be blocked!';
-      }
-    } else {
-      playSound('utility');
-      if (card.effect === 'draw' || card.effect === 'drawEnergy') {
-        const { hand, deck, discard } = drawCards(combat.deck, combat.discard, card.value, combat.hand);
-        combat.hand = hand;
-        combat.deck = deck;
-        combat.discard = discard;
-      }
-      if (card.effect === 'energy') {
-        combat.playerEnergy += card.value;
-      }
-      if (card.effect === 'drawEnergy') {
-        combat.playerEnergy += 1;
-      }
-      combat.message = card.description;
+      combat.message = 'Played every card in hand!';
     }
 
     setGameState({ ...gameState, combat });
@@ -208,24 +273,31 @@ export const Game: React.FC = () => {
     combat.turn += 1;
 
     // Special bosses can attack more than once per turn - Fortify's block
-    // only negates one of those hits, the rest still land.
+    // only negates one of those hits, the rest still land. Mythical "Aegis"
+    // (immuneThisTurn) negates every hit outright, before any of that math.
+    const wasImmune = !!combat.immuneThisTurn;
+    combat.immuneThisTurn = false;
     const attacksPerTurn = combat.enemy.attacksPerTurn ?? 1;
     const enemyDamage = combat.enemy.nextIntentDamage;
     let totalDamage = 0;
     let blockedAHit = false;
 
-    for (let i = 0; i < attacksPerTurn; i++) {
-      if (combat.blockNextHit && !blockedAHit) {
-        blockedAHit = true;
-        continue;
+    if (!wasImmune) {
+      for (let i = 0; i < attacksPerTurn; i++) {
+        if (combat.blockNextHit && !blockedAHit) {
+          blockedAHit = true;
+          continue;
+        }
+        totalDamage += Math.max(1, enemyDamage - defense);
       }
-      totalDamage += Math.max(1, enemyDamage - defense);
     }
     combat.blockNextHit = false;
 
-    playSound(blockedAHit && !totalDamage ? 'defense' : 'damage');
+    playSound(wasImmune || (blockedAHit && !totalDamage) ? 'defense' : 'damage');
     combat.playerHP -= totalDamage;
-    combat.message = blockedAHit
+    combat.message = wasImmune
+      ? 'Aegis made you immune to all damage this turn!'
+      : blockedAHit
       ? `Fortify blocked one hit! Took ${totalDamage} damage${attacksPerTurn > 1 ? ' from the rest' : ''}.`
       : `${combat.enemy.name} dealt ${totalDamage} damage${attacksPerTurn > 1 ? ` (${attacksPerTurn} hits)` : ''}!`;
 
@@ -243,7 +315,7 @@ export const Game: React.FC = () => {
     }
 
     const drawCount = 5 + gameState.player.bonusDraw;
-    const { hand, deck, discard } = drawCards(combat.deck, combat.discard, drawCount, []);
+    const { hand, deck, discard } = drawCards(combat.deck, combat.discard, drawCount, [], combat.onlyDrawEmpowered);
     combat.hand = hand;
     combat.deck = deck;
     combat.discard = discard;
@@ -361,10 +433,27 @@ export const Game: React.FC = () => {
 
     playSound('levelup');
 
+    const player = { ...gameState.player, coins: gameState.player.coins - 1 };
+    const claimedId = gameState.deckOffer.id;
+
+    if (gameState.deckOffer.isMythical) {
+      const { cards, mythicalCard } = generateMythicalDeck();
+      setGameState({
+        ...gameState,
+        player,
+        deckType: 'balanced',
+        deckCards: cards,
+        screen: 'deckReveal',
+        deckOffer: undefined,
+        deckReveal: { deckType: 'balanced', empoweredCards: [], isMythical: true, mythicalCard },
+        collectedDeckIds: [...gameState.collectedDeckIds, claimedId],
+      });
+      return;
+    }
+
     const { cards } = generateEmpoweredDeck(gameState.deckOffer.deckType, gameState.deckOffer.empoweredCount);
     const empoweredCards = cards.filter((c) => c.isEmpowered);
 
-    const player = { ...gameState.player, coins: gameState.player.coins - 1 };
     setGameState({
       ...gameState,
       player,
@@ -375,7 +464,7 @@ export const Game: React.FC = () => {
       deckReveal: { deckType: gameState.deckOffer.deckType, empoweredCards },
       // Claimed - despawns permanently. Declining leaves it untouched so it
       // stays there for next time.
-      collectedDeckIds: [...gameState.collectedDeckIds, gameState.deckOffer.id],
+      collectedDeckIds: [...gameState.collectedDeckIds, claimedId],
     });
   };
 

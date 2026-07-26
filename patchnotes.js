@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.73",
+ "version": "1.0.74",
  "generated": "2026-07-26",
  "patches": [
+  {
+   "version": "1.0.74",
+   "date": "2026-07-26",
+   "title": "Deck of Omens: Mythical decks, refactored card-effect helper, walk speed fix, fixed card sizing",
+   "notes": []
+  },
   {
    "version": "1.0.73",
    "date": "2026-07-26",
@@ -228,12 +234,6 @@ window.PATCHNOTES={
    "version": "1.0.35",
    "date": "2026-06-22",
    "title": "Admin /give and /itemids commands",
-   "notes": []
-  },
-  {
-   "version": "1.0.34",
-   "date": "2026-06-22",
-   "title": "Detailed patch notes: category tags + before/after values",
    "notes": []
   }
  ]
