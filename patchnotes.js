@@ -235,12 +235,6 @@ window.PATCHNOTES={
    "date": "2026-06-22",
    "title": "Add Darude, a telegraphed desert boss, with the Sands of Fury quest",
    "notes": []
-  },
-  {
-   "version": "1.0.21",
-   "date": "2026-06-22",
-   "title": "Expand the world: 8 towns, 8 new monsters, difficulty gradient",
-   "notes": []
   }
  ]
 };

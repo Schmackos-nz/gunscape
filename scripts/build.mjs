@@ -33,4 +33,14 @@ if (existsSync(join(CE, 'package.json'))) {
   cpSync(join(CE, 'dist'), join(DIST, 'cityofeyes'), { recursive: true });
 }
 
-console.log(`Built dist/ (${FILES.filter(f => existsSync(join(DIST, f))).join(', ')} + ${DIRS.join(', ')} + cityofeyes)`);
+// Deck of Omens is a separate Vite + React app; build it and nest its output
+// at dist/deckofomens/ so it's served at /deckofomens/.
+const DOO = join(ROOT, 'deckofomens');
+if (existsSync(join(DOO, 'package.json'))) {
+  console.log('Building deckofomens/ ...');
+  execSync('npm ci', { cwd: DOO, stdio: 'inherit' });
+  execSync('npm run build', { cwd: DOO, stdio: 'inherit' });
+  cpSync(join(DOO, 'dist'), join(DIST, 'deckofomens'), { recursive: true });
+}
+
+console.log(`Built dist/ (${FILES.filter(f => existsSync(join(DIST, f))).join(', ')} + ${DIRS.join(', ')} + cityofeyes + deckofomens)`);
