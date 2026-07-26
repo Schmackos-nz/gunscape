@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { GameState, Item } from '../types';
 import { getRarityColor } from '../itemData';
 
@@ -16,6 +16,17 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
   onClose,
 }) => {
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Tab' || e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   const getAvailableSlots = (item: Item) => {
     if (item.type === 'weapon') return ['weapon'];

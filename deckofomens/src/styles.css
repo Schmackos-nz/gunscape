@@ -21,12 +21,80 @@ body {
 /* Deck Selection Screen */
 .deck-selection {
   flex: 1;
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 2rem;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 20% 20%, rgba(196, 69, 105, 0.12) 0%, transparent 55%),
+    radial-gradient(ellipse at 80% 80%, rgba(107, 163, 255, 0.1) 0%, transparent 55%),
+    linear-gradient(160deg, #14141f 0%, #1a1a2e 45%, #16213e 100%);
+}
+
+.deck-selection-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   gap: 3rem;
+}
+
+.deck-bg-glow {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  pointer-events: none;
+  z-index: 0;
+  animation: deckGlowPulse 8s ease-in-out infinite;
+}
+
+.deck-bg-glow-1 {
+  top: -10%;
+  left: -8%;
+  width: 420px;
+  height: 420px;
+  background: rgba(255, 107, 157, 0.18);
+}
+
+.deck-bg-glow-2 {
+  bottom: -12%;
+  right: -8%;
+  width: 480px;
+  height: 480px;
+  background: rgba(68, 136, 255, 0.16);
+  animation-delay: 3s;
+}
+
+@keyframes deckGlowPulse {
+  0%, 100% { opacity: 0.7; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.15); }
+}
+
+.floating-card {
+  position: absolute;
+  width: 46px;
+  height: 64px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #3d2d2d 0%, #2d1d1d 100%);
+  border: 1px solid rgba(224, 208, 176, 0.3);
+  opacity: 0.25;
+  z-index: 1;
+  pointer-events: none;
+  animation: floatCard 12s ease-in-out infinite;
+}
+
+.floating-card-1 { top: 12%; left: 10%; animation-duration: 14s; }
+.floating-card-2 { top: 65%; left: 6%; animation-duration: 11s; animation-delay: 1.5s; }
+.floating-card-3 { top: 20%; right: 8%; animation-duration: 13s; animation-delay: 0.7s; }
+.floating-card-4 { top: 70%; right: 12%; animation-duration: 15s; animation-delay: 2.5s; }
+
+@keyframes floatCard {
+  0%, 100% { transform: translateY(0) rotate(-8deg); }
+  50% { transform: translateY(-30px) rotate(8deg); }
 }
 
 .title {
@@ -58,6 +126,7 @@ body {
 }
 
 .deck-card {
+  position: relative;
   background: linear-gradient(135deg, #2d2d3d 0%, #3d3d4d 100%);
   border: 2px solid #4d4d5d;
   border-radius: 12px;
@@ -65,6 +134,9 @@ body {
   cursor: pointer;
   transition: all 0.3s ease;
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .deck-card:hover {
@@ -73,8 +145,39 @@ body {
   box-shadow: 0 10px 30px rgba(255, 107, 157, 0.3);
 }
 
+.deck-tag {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(45deg, #ffaa33, #ff8833);
+  color: #1a1a2e;
+  font-size: 0.7rem;
+  font-weight: bold;
+  padding: 0.3rem 0.8rem;
+  border-radius: 999px;
+  white-space: nowrap;
+  box-shadow: 0 4px 10px rgba(255, 170, 51, 0.4);
+}
+
+.deck-icon-badge {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 1rem;
+  background: rgba(0, 0, 0, 0.25);
+  border: 2px solid currentColor;
+}
+
 .deck-card.offensive {
   border-color: #ff4444;
+}
+
+.deck-card.offensive .deck-icon-badge {
+  color: #ff4444;
 }
 
 .deck-card.offensive:hover {
@@ -86,6 +189,10 @@ body {
   border-color: #4488ff;
 }
 
+.deck-card.defensive .deck-icon-badge {
+  color: #4488ff;
+}
+
 .deck-card.defensive:hover {
   border-color: #6ba3ff;
   box-shadow: 0 10px 30px rgba(68, 136, 255, 0.3);
@@ -93,6 +200,10 @@ body {
 
 .deck-card.balanced {
   border-color: #ffaa33;
+}
+
+.deck-card.balanced .deck-icon-badge {
+  color: #ffaa33;
 }
 
 .deck-card.balanced:hover {
@@ -113,12 +224,39 @@ body {
   line-height: 1.5;
 }
 
+.deck-ratio-bar {
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  display: flex;
+  margin-bottom: 0.5rem;
+  background: #1a1a2e;
+}
+
+.deck-ratio-attack {
+  background: #ff6b6b;
+  transition: width 0.3s ease;
+}
+
+.deck-ratio-defense {
+  background: #6ba3ff;
+  transition: width 0.3s ease;
+}
+
+.deck-ratio-label {
+  font-size: 0.78rem;
+  color: #808080;
+  margin-bottom: 1.2rem;
+}
+
 .deck-stats {
   display: flex;
   justify-content: space-around;
   gap: 1rem;
   font-size: 0.9rem;
-  margin-bottom: 1rem;
+  margin-bottom: 1.5rem;
+  width: 100%;
 }
 
 .stat {
@@ -137,6 +275,25 @@ body {
 .stat-label {
   color: #808080;
   font-size: 0.85rem;
+}
+
+.deck-choose-btn {
+  margin-top: auto;
+  width: 100%;
+  background: linear-gradient(135deg, #ff6b9d, #c44569);
+  color: white;
+  border: none;
+  padding: 0.8rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.deck-choose-btn:hover {
+  transform: scale(1.03);
+  box-shadow: 0 6px 16px rgba(255, 107, 157, 0.4);
 }
 
 /* Game Screen */

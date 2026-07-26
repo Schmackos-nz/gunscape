@@ -14,7 +14,10 @@ interface World3DProps {
 interface Enemy3D {
   enemy: Enemy;
   mesh: THREE.Sprite;
+  ring: THREE.Mesh;
+  light: THREE.PointLight;
   position: THREE.Vector3;
+  triggerRadius: number;
 }
 
 // Matches the vertex displacement applied to the terrain plane below - kept
@@ -76,6 +79,11 @@ export const World3D: React.FC<World3DProps> = ({
       0.1,
       1000
     );
+    // Yaw applied around world Y first, then pitch around the camera's own
+    // X axis - this ordering can never introduce roll, unlike camera.lookAt()
+    // which rebuilds a full basis via cross products with world-up each call
+    // and starts to twist as pitch grows (that was the "weird rolling").
+    camera.rotation.order = 'YXZ';
     cameraRef.current = camera;
     // The camera must be part of the scene graph for its child objects
     // (the held card-pack viewmodel) to be picked up by the render traversal.
@@ -186,7 +194,10 @@ export const World3D: React.FC<World3DProps> = ({
       enemiesRef.current.push({
         enemy,
         mesh: enemySprite,
+        ring: radiusMesh,
+        light: pointLight,
         position: new THREE.Vector3(spawn.x, groundY, spawn.z),
+        triggerRadius: opts.ringRadius,
       });
     };
 
@@ -307,12 +318,15 @@ export const World3D: React.FC<World3DProps> = ({
     spawnBoss();
 
     // Decorative trees and bushes, scattered with InstancedMesh so a couple
-    // hundred of them cost almost nothing to render. Purely visual - no
-    // collision, so they never block movement or combat triggers.
+    // hundred of them cost almost nothing to render. Trees block movement
+    // (see treeColliders, checked in the animation loop); bushes stay purely
+    // visual since they're low enough to walk through.
     const scatterPoint = () => ({
       x: (Math.random() * 2 - 1) * (WORLD_HALF - 10),
       z: (Math.random() * 2 - 1) * (WORLD_HALF - 10),
     });
+
+    const treeColliders: { x: number; z: number; radius: number }[] = [];
 
     const TREE_COUNT = 150;
     const dummy = new THREE.Object3D();
@@ -337,6 +351,8 @@ export const World3D: React.FC<World3DProps> = ({
       const groundY = getTerrainHeight(x, z);
       const scale = 0.8 + Math.random() * 0.6;
       const rotY = Math.random() * Math.PI * 2;
+
+      treeColliders.push({ x, z, radius: 1.3 * scale });
 
       dummy.position.set(x, groundY + 1.5 * scale, z);
       dummy.rotation.set(0, rotY, 0);
@@ -394,23 +410,54 @@ export const World3D: React.FC<World3DProps> = ({
     const cardFaceMaterial = new THREE.MeshStandardMaterial({ color: 0xe0d0b0, roughness: 0.7 });
     const cardMeshes: THREE.Mesh[] = [];
     const CARD_BASE_X = 0.38;
+    const cardBaseY = Array.from({ length: 6 }, (_, i) => -0.25 + i * 0.014);
+    const cardBaseZ = Array.from({ length: 6 }, (_, i) => -0.1 + i * 0.004);
+    const cardBaseRotY = Array.from({ length: 6 }, (_, i) => -0.3 + i * 0.02);
     for (let i = 0; i < 6; i++) {
       const card = new THREE.Mesh(
         new THREE.BoxGeometry(0.16, 0.012, 0.22),
         i === 5 ? cardBackMaterial : cardFaceMaterial
       );
-      card.position.set(CARD_BASE_X, -0.25 + i * 0.014, -0.1 + i * 0.004);
-      card.rotation.y = -0.3 + i * 0.02;
+      card.position.set(CARD_BASE_X, cardBaseY[i], cardBaseZ[i]);
+      card.rotation.y = cardBaseRotY[i];
       handGroup.add(card);
       cardMeshes.push(card);
     }
+
+    const resetCards = () => {
+      cardMeshes.forEach((card, i) => {
+        card.position.set(CARD_BASE_X, cardBaseY[i], cardBaseZ[i]);
+        card.rotation.set(0, cardBaseRotY[i], 0);
+      });
+    };
 
     handGroup.position.set(0.5, -0.45, -0.9);
     handGroup.rotation.x = 0.15;
     camera.add(handGroup);
 
-    // WASD Controls
+    // Jump: a simple velocity/gravity offset layered on top of the terrain
+    // height, purely visual (camera bounces) - it never touches playerRef's
+    // x/z or the horizontal encounter/collision checks.
+    const JUMP_SPEED = 0.55;
+    const GRAVITY = 0.03;
+    let jumpVelocity = 0;
+    let groundOffset = 0;
+
+    // WASD Controls (Tab opens the inventory, matching the usual convention;
+    // Space jumps)
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        onOpenInventory();
+        return;
+      }
+      if (e.code === 'Space') {
+        e.preventDefault();
+        if (groundOffset <= 0) {
+          jumpVelocity = JUMP_SPEED;
+        }
+        return;
+      }
       keysRef.current[e.key.toLowerCase()] = true;
     };
 
@@ -442,8 +489,25 @@ export const World3D: React.FC<World3DProps> = ({
       targetPitch = Math.max(MIN_PITCH, Math.min(MAX_PITCH, targetPitch));
     };
 
+    // Card tricks: left click performs one, chosen at random. First click
+    // just engages mouse-look (matches the existing pointer-lock gesture);
+    // once locked, every click is free to trigger a trick instead.
+    type TrickType = 'fan' | 'spin' | 'toss';
+    const TRICK_DURATION: Record<TrickType, number> = { fan: 1.0, spin: 1.1, toss: 1.3 };
+    let activeTrick: TrickType | null = null;
+    let trickProgress = 0;
+
     const handleCanvasClick = () => {
-      renderer.domElement.requestPointerLock();
+      if (document.pointerLockElement !== renderer.domElement) {
+        renderer.domElement.requestPointerLock();
+        return;
+      }
+      if (!activeTrick) {
+        const tricks: TrickType[] = ['fan', 'spin', 'toss'];
+        activeTrick = tricks[Math.floor(Math.random() * tricks.length)];
+        trickProgress = 0;
+        playSound('card');
+      }
     };
 
     const handlePointerLockChange = () => {
@@ -465,15 +529,14 @@ export const World3D: React.FC<World3DProps> = ({
     let bobPhase = 0;
     let handBob = 0;
     let headBob = 0;
-    let shuffleProgress = -1; // -1 = idle, 0..1 = mid fan-and-restack
-    let nextShuffleAt = performance.now() + 4000 + Math.random() * 4000;
 
     // Animation loop
     const animate = () => {
       if (!isActive || hasTransitioned) return;
       animationFrameId = requestAnimationFrame(animate);
 
-      const moveSpeed = 0.3;
+      const isSprinting = !!keysRef.current['shift'];
+      const moveSpeed = isSprinting ? 0.55 : 0.3;
 
       // Ease the look angles toward the raw mouse target each frame - this
       // is what actually smooths the camera; the raw deltas above stay
@@ -496,8 +559,24 @@ export const World3D: React.FC<World3DProps> = ({
       const isMoving = moveDir.lengthSq() > 0;
       if (isMoving) {
         moveDir.normalize().multiplyScalar(moveSpeed);
-        playerRef.current.x += moveDir.x;
-        playerRef.current.z += moveDir.z;
+        let newX = playerRef.current.x + moveDir.x;
+        let newZ = playerRef.current.z + moveDir.z;
+
+        // Trees block movement: push back out to the edge of any trunk
+        // we'd otherwise walk into.
+        for (const tree of treeColliders) {
+          const tdx = newX - tree.x;
+          const tdz = newZ - tree.z;
+          const distSq = tdx * tdx + tdz * tdz;
+          if (distSq < tree.radius * tree.radius) {
+            const dist = Math.sqrt(distSq) || 0.001;
+            newX = tree.x + (tdx / dist) * tree.radius;
+            newZ = tree.z + (tdz / dist) * tree.radius;
+          }
+        }
+
+        playerRef.current.x = newX;
+        playerRef.current.z = newZ;
 
         // Constrain player within world bounds
         playerRef.current.x = Math.max(-WORLD_HALF, Math.min(WORLD_HALF, playerRef.current.x));
@@ -509,11 +588,19 @@ export const World3D: React.FC<World3DProps> = ({
           playSound('footstep');
         }
 
-        bobPhase += 0.15;
+        bobPhase += isSprinting ? 0.22 : 0.15;
       }
 
       // Follow the terrain: feet sit at ground height under the player.
       playerRef.current.y = getTerrainHeight(playerRef.current.x, playerRef.current.z);
+
+      // Jump arc: gravity pulls the offset back down to the terrain.
+      groundOffset += jumpVelocity;
+      jumpVelocity -= GRAVITY;
+      if (groundOffset <= 0) {
+        groundOffset = 0;
+        jumpVelocity = 0;
+      }
 
       // Bob the hand and head with the walk cycle, easing back to rest when
       // the player stops instead of snapping.
@@ -530,58 +617,97 @@ export const World3D: React.FC<World3DProps> = ({
         -Math.cos(yaw) * Math.cos(pitch)
       );
 
-      const eyeHeight = 1.8 + headBob * 0.06;
-      const eyePos = new THREE.Vector3(
+      // The pivot is the player's head - the camera orbits it at a fixed
+      // radius along lookDir with no extra offset, so pitch swings the
+      // camera around the head rather than sliding it up/down separately.
+      const eyeHeight = 1.8 + headBob * 0.06 + groundOffset;
+      const headPos = new THREE.Vector3(
         playerRef.current.x,
         playerRef.current.y + eyeHeight,
         playerRef.current.z
       );
 
       const orbitDistance = 6;
-      const desiredCamPos = eyePos
-        .clone()
-        .addScaledVector(lookDir, -orbitDistance)
-        .add(new THREE.Vector3(0, 1.3, 0));
+      const desiredCamPos = headPos.clone().addScaledVector(lookDir, -orbitDistance);
       camera.position.lerp(desiredCamPos, 0.12);
 
-      const lookTarget = eyePos.clone().addScaledVector(lookDir, 10);
-      camera.lookAt(lookTarget);
+      // Orientation is set directly from yaw/pitch (not camera.lookAt, which
+      // rebuilds its basis from world-up each call and rolls as pitch grows)
+      // - negated yaw here matches Three's YXZ composition to this file's
+      // yaw/lookDir sign convention used for movement.
+      camera.rotation.set(pitch, -yaw, 0);
 
-      // Periodic idle flourish: fan the held cards out and back in, like
-      // shuffling the deck while walking.
-      if (shuffleProgress < 0 && performance.now() > nextShuffleAt) {
-        shuffleProgress = 0;
-        playSound('card');
-      }
-      if (shuffleProgress >= 0) {
-        shuffleProgress += 0.02;
-        const fanAmount = Math.sin(Math.min(shuffleProgress, 1) * Math.PI);
-        cardMeshes.forEach((card, i) => {
-          const spread = i - (cardMeshes.length - 1) / 2;
-          card.rotation.z = spread * 0.18 * fanAmount;
-          card.position.x = CARD_BASE_X + spread * 0.035 * fanAmount;
-        });
-        if (shuffleProgress >= 1) {
-          shuffleProgress = -1;
-          nextShuffleAt = performance.now() + 6000 + Math.random() * 6000;
-          cardMeshes.forEach((card) => {
-            card.rotation.z = 0;
-            card.position.x = CARD_BASE_X;
+      // Card trick playback, triggered by clicking (see handleCanvasClick).
+      if (activeTrick) {
+        trickProgress += (1 / 60) / TRICK_DURATION[activeTrick];
+        const p = Math.min(trickProgress, 1);
+
+        if (activeTrick === 'fan') {
+          const fanAmount = Math.sin(p * Math.PI);
+          cardMeshes.forEach((card, i) => {
+            const spread = i - (cardMeshes.length - 1) / 2;
+            card.position.set(CARD_BASE_X + spread * 0.035 * fanAmount, cardBaseY[i], cardBaseZ[i]);
+            card.rotation.set(0, cardBaseRotY[i], spread * 0.18 * fanAmount);
           });
+        } else if (activeTrick === 'spin') {
+          // A ripple of full spins runs down the stack, one card after another.
+          cardMeshes.forEach((card, i) => {
+            const ripple = Math.max(0, Math.min(1, p * 1.6 - i * 0.12));
+            card.position.set(CARD_BASE_X, cardBaseY[i], cardBaseZ[i]);
+            card.rotation.set(0, cardBaseRotY[i] + ripple * Math.PI * 4, 0);
+          });
+        } else {
+          // Toss and catch: each card launches in sequence, arcs up in a fast
+          // spin, and lands back in the stack - the "super extreme" one.
+          const STAGGER = 0.12;
+          const FLIGHT = 0.35;
+          cardMeshes.forEach((card, i) => {
+            const cardP = Math.max(0, Math.min(1, (p - i * STAGGER) / FLIGHT));
+            const arc = Math.sin(cardP * Math.PI);
+            card.position.set(
+              CARD_BASE_X,
+              cardBaseY[i] + arc * 0.4,
+              cardBaseZ[i] - arc * 0.3
+            );
+            card.rotation.set(cardP * Math.PI * 6, cardBaseRotY[i] + cardP * Math.PI * 2, cardP * Math.PI * 8);
+          });
+        }
+
+        if (p >= 1) {
+          activeTrick = null;
+          resetCards();
         }
       }
 
       // Check for collisions with enemies (horizontal distance only, so
-      // hills near an enemy don't affect the trigger radius)
+      // hills near an enemy don't affect the trigger radius). Enemies within
+      // aggro range but outside the trigger radius actively close the gap so
+      // they can't just be strafed past - sprinting is the way out.
       for (const e3d of enemiesRef.current) {
+        if (hasEncounteredRef.current.has(e3d.enemy.id)) continue;
+
         const dx = playerRef.current.x - e3d.position.x;
         const dz = playerRef.current.z - e3d.position.z;
         const distance = Math.hypot(dx, dz);
-        if (distance < 10 && !hasEncounteredRef.current.has(e3d.enemy.id)) {
+
+        if (distance < e3d.triggerRadius) {
           hasEncounteredRef.current.add(e3d.enemy.id);
           hasTransitioned = true;
           onEncounter(e3d.enemy);
           return;
+        }
+
+        const aggroRadius = e3d.enemy.isBoss ? 40 : 25;
+        if (distance < aggroRadius) {
+          const chaseSpeed = e3d.enemy.isBoss ? 0.22 : 0.16;
+          e3d.position.x += (dx / distance) * chaseSpeed;
+          e3d.position.z += (dz / distance) * chaseSpeed;
+          e3d.position.y = getTerrainHeight(e3d.position.x, e3d.position.z);
+
+          const halfHeight = e3d.mesh.scale.y / 2;
+          e3d.mesh.position.set(e3d.position.x, e3d.position.y + halfHeight, e3d.position.z);
+          e3d.ring.position.set(e3d.position.x, e3d.position.y + 0.05, e3d.position.z);
+          e3d.light.position.set(e3d.position.x, e3d.position.y + 4, e3d.position.z);
         }
       }
 
@@ -666,8 +792,11 @@ export const World3D: React.FC<World3DProps> = ({
         <div style={{ marginBottom: '0.8rem', fontWeight: 'bold' }}>Controls</div>
         <div style={{ fontSize: '0.85rem', lineHeight: '1.6' }}>
           <div>W / A / S / D - Move</div>
+          <div>Shift - Sprint</div>
+          <div>Space - Jump</div>
           <div>Mouse - Look around</div>
-          <div>Click view - Enable mouse look</div>
+          <div>Click - Look around / card trick</div>
+          <div>Tab - Inventory</div>
         </div>
       </div>
 

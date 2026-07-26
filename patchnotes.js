@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.64",
+ "version": "1.0.65",
  "generated": "2026-07-26",
  "patches": [
+  {
+   "version": "1.0.65",
+   "date": "2026-07-26",
+   "title": "Deck of Omens: inventory tab, jump/sprint, chase AI, saves, camera/UX fixes",
+   "notes": []
+  },
   {
    "version": "1.0.64",
    "date": "2026-07-26",
@@ -228,12 +234,6 @@ window.PATCHNOTES={
    "version": "1.0.26",
    "date": "2026-06-22",
    "title": "Don't let a WebGL failure brick the whole page",
-   "notes": []
-  },
-  {
-   "version": "1.0.25",
-   "date": "2026-06-22",
-   "title": "Visual polish: wind grass, rounder characters, custom item icons",
    "notes": []
   }
  ]

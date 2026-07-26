@@ -123,28 +123,15 @@ export function generateAccessory(level: number, forcedRarity?: ItemRarity): Ite
 }
 
 export function generateLoot(level: number): Item[] {
-  const items: Item[] = [];
-  const rolls = Math.random();
-
-  if (rolls < 0.3) {
-    items.push(generateWeapon(level));
-  } else if (rolls < 0.6) {
-    items.push(generateArmor(level));
-  } else if (rolls < 0.85) {
-    items.push(generateAccessory(level));
-  } else {
-    items.push(generateWeapon(level));
-    items.push(generateAccessory(level));
-  }
-
-  return items;
+  const generators = [generateWeapon, generateArmor, generateAccessory];
+  const item = generators[Math.floor(Math.random() * generators.length)](level);
+  return [item];
 }
 
 export function generateBossLoot(level: number): Item[] {
   const generators = [generateWeapon, generateArmor, generateAccessory];
-  const primary = generators[Math.floor(Math.random() * generators.length)](level, 'legendary');
-  const secondary = generators[Math.floor(Math.random() * generators.length)](level, 'legendary');
-  return [primary, secondary];
+  const item = generators[Math.floor(Math.random() * generators.length)](level, 'legendary');
+  return [item];
 }
 
 export function getRarityColor(rarity: ItemRarity): string {

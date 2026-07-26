@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { GameState, Card, DeckType, Enemy, Item, Player } from '../types';
 import { generateDeck, drawCards } from '../cardData';
 import { generateLoot, generateBossLoot } from '../itemData';
 import { playSound } from '../audio';
 import { getRandomTaunt, getRandomEnemyTaunt, getRandomVictoryLine, getRandomDefeatLine, getEnemyVoice, speak } from '../taunts';
+import { saveGame, loadGame, clearSave } from '../saveGame';
 import { DeckSelection } from './DeckSelection';
 import { GameScreen } from './GameScreen';
 import { World3D } from './World3D';
@@ -11,8 +12,19 @@ import { LootScreen } from './LootScreen';
 import { InventoryScreen } from './InventoryScreen';
 
 export const Game: React.FC = () => {
-  const [gameState, setGameState] = useState<GameState | null>(null);
+  const [gameState, setGameState] = useState<GameState | null>(() => loadGame());
   const [showInventory, setShowInventory] = useState(false);
+
+  useEffect(() => {
+    if (gameState) saveGame(gameState);
+  }, [gameState]);
+
+  // Death is a full reset - permadeath back to deck selection, no carrying
+  // progress, inventory, or bossTier over into the next run.
+  const resetToMenu = () => {
+    clearSave();
+    setGameState(null);
+  };
 
   const initializeGame = (deckType: DeckType) => {
     const initialPlayer: Player = {
@@ -208,8 +220,7 @@ export const Game: React.FC = () => {
   };
 
   const handleCombatDefeat = () => {
-    if (!gameState) return;
-    setGameState({ ...gameState, screen: 'world', worldPosition: 0 });
+    resetToMenu();
   };
 
   const continueLoot = () => {
@@ -233,7 +244,7 @@ export const Game: React.FC = () => {
 
     if (gameState.currentLevel >= gameState.maxLevels) {
       playSound('victory');
-      setGameState({ ...gameState, screen: 'menu' });
+      resetToMenu();
       return;
     }
 
@@ -361,7 +372,7 @@ export const Game: React.FC = () => {
         onEndTurn={endTurn}
         onVictory={handleCombatVictory}
         onDefeat={handleCombatDefeat}
-        onMenu={() => setGameState(null)}
+        onMenu={resetToMenu}
       />
     );
   }
