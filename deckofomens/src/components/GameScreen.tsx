@@ -147,27 +147,44 @@ export const GameScreen: React.FC<GameScreenProps> = ({
     );
   }
 
+  const playerHPPercent = (Math.max(0, combat.playerHP) / combat.playerMaxHP) * 100;
+  const attacksPerTurn = combat.enemy.attacksPerTurn ?? 1;
+
+  // Energy shown as discrete gems so the player reads their pool at a glance.
+  // Cards can push energy above the normal max (Focus, Second Wind); those
+  // overflow gems render in a distinct "bonus" color rather than being lost.
+  const totalPips = Math.max(combat.playerMaxEnergy, combat.playerEnergy);
+  const energyPips = Array.from({ length: totalPips }, (_, i) => ({
+    filled: i < combat.playerEnergy,
+    bonus: i >= combat.playerMaxEnergy,
+  }));
+
   return (
     <div className="game-screen">
-      <div className="game-header">
-        <div className="player-stats">
-          <div className="stat-box hp-stat">
-            <HeartIcon size={20} />
-            <span className="stat-label">Health</span>
-            <span className="stat-value">
-              {Math.max(0, combat.playerHP)}/{combat.playerMaxHP}
+      <div className="combat-hud">
+        <div className="hud-player">
+          <div className="hp-meter">
+            <span className="hud-heart">
+              <HeartIcon size={22} />
             </span>
+            <div className="hp-track">
+              <div className="hp-track-fill" style={{ width: `${playerHPPercent}%` }} />
+              <span className="hp-track-text">
+                {Math.max(0, combat.playerHP)} / {combat.playerMaxHP}
+              </span>
+            </div>
           </div>
-          <div className="stat-box" style={{ color: '#6ba3ff' }}>
-            <ArmorIcon size={20} />
-            <span className="stat-label">Armor</span>
-            <span className="stat-value">{combat.defense}</span>
+          <div className={`armor-badge${combat.defense > 0 ? '' : ' empty'}`}>
+            <ArmorIcon size={18} />
+            <span>{combat.defense}</span>
           </div>
         </div>
-        <span className="turn-counter">Turn {combat.turn}</span>
-        <button className="btn-menu" onClick={onMenu}>
-          Menu
-        </button>
+        <div className="hud-meta">
+          <span className="turn-pill">Turn {combat.turn}</span>
+          <button className="btn-menu" onClick={onMenu}>
+            Menu
+          </button>
+        </div>
       </div>
 
       <div className="game-board">
@@ -193,26 +210,28 @@ export const GameScreen: React.FC<GameScreenProps> = ({
                     className="hp-fill"
                     style={{ width: `${Math.max(0, enemyHPPercent)}%` }}
                   />
+                  <span className="enemy-hp-text">
+                    {Math.max(0, combat.enemy.hp)} / {combat.enemy.maxHP}
+                  </span>
                 </div>
-                <span>{Math.max(0, combat.enemy.hp)}</span>
               </div>
-              {combat.enemy.nextIntentDamage > 0 && (
-                <div className="enemy-intent">
-                  <span style={{ marginRight: '0.3rem', display: 'inline-flex' }}>
-                    <BoltIcon size={14} />
-                  </span>
-                  Deals {combat.enemy.nextIntentDamage} DMG
-                  {(combat.enemy.attacksPerTurn ?? 1) > 1 ? ` x${combat.enemy.attacksPerTurn} hits` : ''} next turn
-                </div>
-              )}
-              {!!combat.enemy.armor && (
-                <div className="enemy-intent" style={{ color: '#6ba3ff' }}>
-                  <span style={{ marginRight: '0.3rem', display: 'inline-flex' }}>
+              <div className="enemy-intents">
+                {combat.enemy.nextIntentDamage > 0 && (
+                  <div className="intent-badge attack-intent">
+                    <SwordIcon size={14} />
+                    <span>
+                      {combat.enemy.nextIntentDamage}
+                      {attacksPerTurn > 1 ? ` ×${attacksPerTurn}` : ''}
+                    </span>
+                  </div>
+                )}
+                {!!combat.enemy.armor && (
+                  <div className="intent-badge armor-intent">
                     <ArmorIcon size={14} />
-                  </span>
-                  {combat.enemy.armor}% damage reduction
-                </div>
-              )}
+                    <span>{combat.enemy.armor}%</span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -232,24 +251,37 @@ export const GameScreen: React.FC<GameScreenProps> = ({
             </div>
           </div>
           <div className="hand-container">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-              <div className="hand-label">Hand ({combat.hand.length})</div>
-              <div className="hand-energy">
-                <BoltIcon size={20} />
-                <span className="stat-value">
+            <div className="hand-toolbar">
+              <div className="hand-label">Hand · {combat.hand.length}</div>
+              <div className="energy-track">
+                <BoltIcon size={18} />
+                <div className="energy-gems">
+                  {energyPips.map((pip, i) => (
+                    <span
+                      key={i}
+                      className={`energy-pip${pip.filled ? ' filled' : ''}${
+                        pip.bonus ? ' bonus' : ''
+                      }`}
+                    />
+                  ))}
+                </div>
+                <span className="energy-count">
                   {combat.playerEnergy}/{combat.playerMaxEnergy}
                 </span>
               </div>
-              <div className="deck-pile">
-                <div className="deck-count">{combat.deck.length + combat.discard.length}</div>
+              <div className="draw-pile-count" title="Cards remaining in deck + discard">
+                <span className="draw-pile-icon">🂠</span>
+                {combat.deck.length + combat.discard.length}
               </div>
             </div>
             <div className="hand">
               {combat.hand.length === 0 ? (
-                <p style={{ color: '#808080', fontSize: '0.9rem' }}>No cards in hand</p>
+                <p className="hand-empty">No cards in hand</p>
               ) : (
                 combat.hand.map((card, idx) => {
                   const alreadyDrawn = drawnCards.has(card.id);
+                  const effVal = getEffectiveValue(card);
+                  const isHybrid = typeof effVal === 'string';
                   return (
                   <div
                     key={card.id}
@@ -269,15 +301,15 @@ export const GameScreen: React.FC<GameScreenProps> = ({
                     {card.isMythical && <div className="card-star mythical-star">🌈</div>}
                     <div className="card-icon">
                       {card.type === 'attack' ? (
-                        <SwordIcon size={28} />
+                        <SwordIcon size={30} />
                       ) : card.type === 'defense' ? (
-                        <ShieldIcon size={28} />
+                        <ShieldIcon size={30} />
                       ) : (
-                        <SparkleIcon size={28} />
+                        <SparkleIcon size={30} />
                       )}
                     </div>
                     <div className="card-name">{card.name}</div>
-                    <div className="card-value">{getEffectiveValue(card)}</div>
+                    <div className={`card-value${isHybrid ? ' hybrid' : ''}`}>{effVal}</div>
                     <div className="card-desc">{card.description}</div>
                   </div>
                   );
@@ -286,30 +318,15 @@ export const GameScreen: React.FC<GameScreenProps> = ({
             </div>
           </div>
 
-          <div style={{ textAlign: 'center', padding: '1rem' }}>
+          <div className="turn-controls">
             <button
-              className="btn"
+              className="btn-end-turn"
               onClick={onEndTurn}
               disabled={combat.gameOver}
-              style={{
-                opacity: combat.gameOver ? 0.5 : 1,
-                cursor: combat.gameOver ? 'not-allowed' : 'pointer',
-              }}
             >
               End Turn
             </button>
-            {combat.message && (
-              <p
-                style={{
-                  marginTop: '0.5rem',
-                  fontSize: '0.9rem',
-                  color: '#ffaa33',
-                  minHeight: '1.2rem',
-                }}
-              >
-                {combat.message}
-              </p>
-            )}
+            {combat.message && <p className="combat-message">{combat.message}</p>}
           </div>
         </div>
       </div>

@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.74",
+ "version": "1.0.75",
  "generated": "2026-07-26",
  "patches": [
+  {
+   "version": "1.0.75",
+   "date": "2026-07-26",
+   "title": "Deck of Omens: combat UI overhaul (HUD health bar, energy gems, redesigned cards)",
+   "notes": []
+  },
   {
    "version": "1.0.74",
    "date": "2026-07-26",
@@ -228,12 +234,6 @@ window.PATCHNOTES={
    "version": "1.0.36",
    "date": "2026-06-22",
    "title": "Gunscape rebrand, escape menu+settings+music, /simulate, gun-in-hand fixes",
-   "notes": []
-  },
-  {
-   "version": "1.0.35",
-   "date": "2026-06-22",
-   "title": "Admin /give and /itemids commands",
    "notes": []
   }
  ]
