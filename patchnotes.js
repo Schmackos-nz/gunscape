@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.80",
+ "version": "1.0.81",
  "generated": "2026-07-27",
  "patches": [
+  {
+   "version": "1.0.81",
+   "date": "2026-07-27",
+   "title": "IPAConverter: sound-alike spelling notation",
+   "notes": []
+  },
   {
    "version": "1.0.80",
    "date": "2026-07-27",
@@ -228,12 +234,6 @@ window.PATCHNOTES={
    "version": "1.0.42",
    "date": "2026-06-22",
    "title": "Audio: meatier gunshots, audible from much further",
-   "notes": []
-  },
-  {
-   "version": "1.0.41",
-   "date": "2026-06-22",
-   "title": "Death drops a gravestone (owner-only) that breaks to public loot after 5min",
    "notes": []
   }
  ]

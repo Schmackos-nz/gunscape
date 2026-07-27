@@ -431,7 +431,89 @@
     var mode = opts.notation || 'ipa';
     if (mode === 'arpabet') return renderArpabet(built);
     if (mode === 'respell') return renderRespell(built);
+    if (mode === 'alt') return renderAlt(built);
     return renderIPA(built, opts, linkR);
+  }
+
+  // ------------------------------------------------------- sound-alike mode
+  var HOMO = null;
+  function homophonesOf(word) {
+    if (!HOMO) {
+      HOMO = {};
+      (D.HOMOPHONES || []).forEach(function (group) {
+        group.forEach(function (w) {
+          var alts = HOMO[w] || (HOMO[w] = []);
+          group.forEach(function (other) {
+            if (other !== w && alts.indexOf(other) < 0) alts.push(other);
+          });
+        });
+      });
+    }
+    return HOMO[word];
+  }
+
+  function matchCase(s, original) {
+    if (original.length > 1 && original === original.toUpperCase() &&
+        original !== original.toLowerCase()) return s.toUpperCase();
+    if (original[0] === original[0].toUpperCase() &&
+        original[0] !== original[0].toLowerCase()) {
+      return s.charAt(0).toUpperCase() + s.slice(1);
+    }
+    return s;
+  }
+
+  /* Every way this syllable could plausibly be spelled, plainest first. */
+  function syllableSpellings(s) {
+    var onsets = s.onset.map(function (c) { return D.ONSET_SPELL[c] || [c.toLowerCase()]; });
+    var codas = s.coda.map(function (c) { return D.CODA_SPELL[c] || [c.toLowerCase()]; });
+    var vSet = s.nucleus ? (D.VOWEL_SPELL[s.nucleus] || { o: ['u'], c: ['u'] }) : null;
+    var vowels = vSet ? (s.coda.length ? vSet.c : vSet.o) : [''];
+
+    // vary one slot at a time rather than taking the full cross product
+    function build(vi, oi, ci) {
+      var v = vowels[Math.min(vi, vowels.length - 1)];
+      var magic = v.indexOf('_') >= 0;
+      if (magic && !codas.length) return null;
+      var head = onsets.map(function (a, i) {
+        return a[i === 0 ? Math.min(oi, a.length - 1) : 0];
+      }).join('');
+      var tail = codas.map(function (a, i) {
+        return a[i === codas.length - 1 ? Math.min(ci, a.length - 1) : 0];
+      }).join('');
+      return head + (magic ? v.slice(0, v.indexOf('_')) : v) + tail + (magic ? 'e' : '');
+    }
+
+    var forms = [];
+    var add = function (f) { if (f && forms.indexOf(f) < 0) forms.push(f); };
+    for (var v = 0; v < vowels.length; v++) add(build(v, 0, 0));
+    for (var o = 1; o < 3; o++) add(build(0, o, 0));
+    for (var c = 1; c < 3; c++) add(build(0, 0, c));
+    return forms.length ? forms : [''];
+  }
+
+  /* Spell the word out afresh. Returns null when the plainest spelling is
+   * the one English already uses (speech, jumps) — forcing a difference there
+   * only produces noise like "speach", so those words are left alone. */
+  function inventSpelling(built, plain) {
+    var per = built.syllables.map(syllableSpellings);
+    var base = per.map(function (f) { return f[0]; }).join('');
+    return base.toLowerCase() === plain ? null : base;
+  }
+
+  /* Three outcomes: a real homophone, an invented spelling, or unchanged. */
+  function renderAlt(built) {
+    var word = built.word;
+    var plain = word.toLowerCase().replace(/[’]/g, "'");
+    var alts = homophonesOf(plain);
+    if (alts && alts.length) {
+      built.altReal = true;
+      built.altSame = false;
+      return matchCase(alts[0], word);
+    }
+    var made = inventSpelling(built, plain.replace(/'/g, ''));
+    built.altReal = made ? false : null;
+    built.altSame = !made;
+    return made ? matchCase(made, word) : word;
   }
 
   function renderIPA(built, opts, linkR) {
@@ -682,6 +764,7 @@
       }
       var pieces = [];
       var syl = 0, phCount = 0, unknown = false;
+      var invented = false, sameSpelling = false, realHomophone = false;
       t.built.forEach(function (group) {
         var sub = [];
         group.forEach(function (b) {
@@ -691,13 +774,22 @@
           syl += b.syllables.length;
           phCount += b.phones.length;
           if (b.source !== 'lexicon') unknown = true;
+          if (b.altReal === false) invented = true;
+          if (b.altReal === true) realHomophone = true;
+          if (b.altSame) sameSpelling = true;
         });
         pieces.push(sub.join('-'));
       });
       t.out = pieces.join(' ');
       t.syllables = syl;
       t.phonemeCount = phCount;
-      t.estimated = unknown;
+      // in sound-alike mode the thing worth flagging is an invented spelling,
+      // not whether the pronunciation came from the dictionary
+      t.estimated = opts.notation === 'alt' ? invented : unknown;
+      if (opts.notation === 'alt') {
+        t.unchanged = sameSpelling && !invented && !realHomophone;
+        t.homophone = realHomophone;
+      }
       if (opts.notation === 'ipa' && opts.brackets) {
         t.out = (opts.brackets === 'slashes' ? '/' + t.out + '/' : '[' + t.out + ']');
       }

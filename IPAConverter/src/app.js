@@ -13,7 +13,8 @@
     lengthMode: $('lengthMode'), lengthN: $('lengthN'),
     lengthUnit: $('lengthUnit'),
     sWords: $('sWords'), sSyl: $('sSyl'), sPhon: $('sPhon'), sLex: $('sLex'),
-    sSkip: $('sSkip'), sSkipWrap: $('sSkipWrap'),
+    sLexLabel: $('sLexLabel'), sSkip: $('sSkip'), sSkipWrap: $('sSkipWrap'),
+    footNote: $('footNote'),
     toast: $('toast'), legendBody: $('legendBody')
   };
 
@@ -84,8 +85,16 @@
 
     el.out.className = (mono ? 'mono' : '') + (el.markEstimates.checked ? ' mark' : '');
     el.outLabel.textContent = {
-      ipa: 'IPA', arpabet: 'ARPAbet', respell: 'Respelling'
+      ipa: 'IPA', arpabet: 'ARPAbet', respell: 'Respelling',
+      alt: 'Sound-alike spelling'
     }[o.notation] + (o.notation === 'ipa' ? ' · ' + IPA.accents[o.accent].name : '');
+
+    var alt = o.notation === 'alt';
+    el.sLexLabel.textContent = alt ? 'real homophones' : 'from dictionary';
+    el.footNote.innerHTML = alt
+      ? '<span class="swatch"></span> underlined = invented spelling · ' +
+        'grey = no better spelling exists'
+      : '<span class="swatch"></span> underlined = spelled out by rule, not looked up';
 
     if (!text.trim()) {
       el.out.innerHTML = '<span class="empty">Nothing to transcribe yet.</span>';
@@ -119,7 +128,10 @@
     if (b) {
       bits.push(b.phones.join(' '));
       bits.push(b.syllables.length + (b.syllables.length === 1 ? ' syllable' : ' syllables'));
-      bits.push(b.source === 'lexicon' ? 'dictionary entry' : 'spelling rules (estimate)');
+      if (t.homophone) bits.push('real homophone');
+      else if (t.unchanged) bits.push('no better spelling exists');
+      else if (b.altReal === false) bits.push('invented spelling');
+      else bits.push(b.source === 'lexicon' ? 'dictionary entry' : 'spelling rules (estimate)');
     }
     return esc(bits.join('  ·  '));
   }
@@ -133,7 +145,8 @@
     var html = tokens.map(function (t) {
       if (t.type !== 'word') return esc(t.raw);
       if (t.skipped) return skipped(t);
-      return '<span class="w' + (t.estimated ? ' est' : '') + '" title="' +
+      return '<span class="w' + (t.estimated ? ' est' : '') +
+        (t.unchanged ? ' same' : '') + '" title="' +
         title(t) + '">' + esc(t.out) + '</span>';
     }).join('');
     el.out.innerHTML = html;
@@ -190,7 +203,7 @@
       el.sLex.textContent = '0%';
       return;
     }
-    var words = 0, syl = 0, phon = 0, lex = 0, skip = 0;
+    var words = 0, syl = 0, phon = 0, lex = 0, skip = 0, homo = 0;
     tokens.forEach(function (t) {
       if (t.type !== 'word') return;
       if (t.skipped) { skip++; return; }
@@ -198,11 +211,13 @@
       syl += t.syllables || 0;
       phon += t.phonemeCount || 0;
       if (!t.estimated) lex++;
+      if (t.homophone) homo++;
     });
     el.sWords.textContent = words;
     el.sSyl.textContent = syl;
     el.sPhon.textContent = phon;
-    el.sLex.textContent = words ? Math.round(lex / words * 100) + '%' : '0%';
+    el.sLex.textContent = el.notation.value === 'alt' ? homo
+      : (words ? Math.round(lex / words * 100) + '%' : '0%');
     el.sSkip.textContent = skip;
     el.sSkipWrap.hidden = !skip;
   }
@@ -253,6 +268,13 @@
       'underlined in the output.</p>' +
       '<p class="note">Stress and syllable splits on rule-derived words are ' +
       'estimated, not looked up. Everything runs locally; nothing is uploaded.</p>' +
+      '<h4>Sound-alike spelling</h4>' +
+      '<p class="note">Rewrites each word as a different spelling that reads ' +
+      'the same aloud. A real homophone wins where one exists ' +
+      '(<i>time → thyme</i>, <i>night → knight</i>); otherwise the word is ' +
+      'respelled from its sounds (<i>quick → kwik</i>, <i>school → skool</i>). ' +
+      'Words English already spells the plain way — <i>jumps</i>, <i>speech</i> ' +
+      '— are left alone in grey rather than mangled into something worse.</p>' +
       '</div>';
     el.legendBody.innerHTML = html;
   }

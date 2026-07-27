@@ -13,8 +13,10 @@ Open `index.html`. No build step, no server, no network calls.
   accents drop coda /r/ properly (`car` → `kɑː`), keep linking /r/ before a
   vowel, and use the right vowel for each lexical set (`lot` is `ɒ` in RP but
   `ɑ` in GA).
-- **Three notations** — IPA, CMU-style ARPAbet (`F AH0 N EH1 T IH0 K S`), and
-  a dictionary-style respelling (`fuh-NE-tiks`).
+- **Four notations** — IPA, CMU-style ARPAbet (`F AH0 N EH1 T IH0 K S`), a
+  dictionary-style respelling (`fuh-NE-tiks`), and **sound-alike spelling**,
+  which rewrites each word as a different spelling that reads the same:
+  *I know their time is right* → *Eye no there thyme iz write*.
 - **Three layouts** — in place, original word above its transcription, or
   aligned monospace columns.
 - **Options** — stress marks, syllable dots, narrow transcription
@@ -50,6 +52,16 @@ Two stages, in `src/`:
 Rule-derived pronunciations land in the right neighbourhood the large majority
 of the time, but stress in particular is a guess — English stress is not
 recoverable from spelling. That's what the underline marks.
+
+**Sound-alike spelling** has three outcomes per word, distinguished in the
+output. A curated list of ~250 homophone groups is checked first, so real
+words win (*time → thyme*, *rough → ruff*, *would → wood*). Failing that the
+word is respelled from its phonemes using a grapheme table whose first choice
+is always the plainest option — that's what produces the simplified-spelling
+look (*kwik, broun, skool, byootiful, luv*); those are underlined as invented.
+If the plainest respelling is what English already uses (*jumps*, *speech*),
+the word is left as-is in grey, because forcing a difference there only yields
+noise like *speach*.
 
 ## Files
 

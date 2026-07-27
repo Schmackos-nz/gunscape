@@ -107,6 +107,7 @@
   #out .empty { color: var(--dimmer); font-family: system-ui, sans-serif; font-size: 14px; }
   #out .skip { color: var(--dimmer); font-family: var(--mono); font-size: .88em; }
   #out.mono .skip { font-size: inherit; }
+  #out .same { color: var(--dim); }
 
   footer {
     display: flex; gap: 8px 20px; flex-wrap: wrap; align-items: center;
@@ -170,6 +171,7 @@
       <option value="ipa">IPA</option>
       <option value="arpabet">ARPAbet</option>
       <option value="respell">Respelling</option>
+      <option value="alt">Sound-alike spelling</option>
     </select>
   </div>
   <div class="field">
@@ -236,10 +238,10 @@ Line breaks, spacing and punctuation come through untouched — only the words a
   <span><b id="sWords">0</b> words</span>
   <span><b id="sSyl">0</b> syllables</span>
   <span><b id="sPhon">0</b> phonemes</span>
-  <span><b id="sLex">0%</b> from dictionary</span>
+  <span><b id="sLex">0%</b> <span id="sLexLabel">from dictionary</span></span>
   <span id="sSkipWrap" hidden><b id="sSkip">0</b> left as written</span>
   <span class="spacer"></span>
-  <span class="note"><span class="swatch"></span> underlined = spelled out by rule, not looked up</span>
+  <span class="note" id="footNote"><span class="swatch"></span> underlined = spelled out by rule, not looked up</span>
 </footer>
 
 <details class="legend">
