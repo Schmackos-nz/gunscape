@@ -70,6 +70,33 @@
   .toggle input { accent-color: var(--accent); margin: 0; }
   .toggle[data-on="1"] { border-color: var(--accent); color: var(--accent); }
 
+  details.adv { background: var(--bg2); border-bottom: 1px solid var(--line); }
+  details.adv > summary {
+    cursor: pointer; padding: 9px 22px; font-size: 12.5px; color: var(--dim);
+    text-transform: uppercase; letter-spacing: .06em; user-select: none;
+  }
+  details.adv > summary:hover { color: var(--fg); }
+  .badge {
+    display: inline-block; margin-left: 6px; padding: 0 7px;
+    background: var(--accent); color: #10221e; border-radius: 999px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0;
+  }
+  html[data-theme="light"] .badge { color: #fff; }
+  .adv-body { padding: 2px 22px 16px; }
+  .rule {
+    display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
+    padding: 5px 0; font-size: 13.5px; color: var(--dim);
+  }
+  .rule .arrow { color: var(--dimmer); }
+  .rule input[type="number"] { width: 66px; }
+  .rule .rdel {
+    padding: 3px 9px; line-height: 1; color: var(--dim); background: transparent;
+  }
+  .rule .rdel:hover { color: var(--accent2); border-color: var(--accent2); }
+  .adv-foot { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 8px; }
+  .adv-foot .note { max-width: 62ch; }
+  .adv-empty { color: var(--dimmer); font-size: 13px; padding: 4px 0 2px; }
+
   main {
     display: grid; grid-template-columns: 1fr 1fr; gap: 1px;
     background: var(--line); min-height: calc(100vh - 190px);
@@ -209,6 +236,22 @@
     <label class="toggle" data-on="1"><input type="checkbox" id="markEstimates" checked> flag guesses</label>
   </div>
 </div>
+
+<details class="adv" id="adv">
+  <summary>
+    Advanced — mix notations by word length
+    <span class="badge" id="advCount" hidden>0</span>
+  </summary>
+  <div class="adv-body">
+    <div id="ruleList"></div>
+    <div class="adv-foot">
+      <button id="addRule">+ Add rule</button>
+      <span class="note">Checked top to bottom, first match wins. Leave a
+        box empty for “no limit”. Words matching nothing use the Notation
+        setting above.</span>
+    </div>
+  </div>
+</details>
 
 <main id="main">
   <section class="pane">

@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.81",
+ "version": "1.0.82",
  "generated": "2026-07-27",
  "patches": [
+  {
+   "version": "1.0.82",
+   "date": "2026-07-27",
+   "title": "IPAConverter: advanced per-length notation rules",
+   "notes": []
+  },
   {
    "version": "1.0.81",
    "date": "2026-07-27",
@@ -228,12 +234,6 @@ window.PATCHNOTES={
    "version": "1.0.43",
    "date": "2026-06-22",
    "title": "World map (M) + grave marker on the minimap",
-   "notes": []
-  },
-  {
-   "version": "1.0.42",
-   "date": "2026-06-22",
-   "title": "Audio: meatier gunshots, audible from much further",
    "notes": []
   }
  ]

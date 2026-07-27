@@ -25,6 +25,16 @@ Open `index.html`. No build step, no server, no network calls.
 - **Length filter** — transcribe only words longer (or shorter) than N
   letters, leaving the rest in their original spelling. Useful for glossing
   just the hard words in a passage.
+- **Advanced rules** — mix notations in one pass by word length. Each rule is
+  a letter-count band (either end optional) pointing at a notation, checked
+  top to bottom with first match winning; unmatched words fall back to the
+  main Notation setting. So *1–3 letters → sound-alike, 4–6 → leave alone,
+  7+ → IPA* gives:
+
+  > Thuh quick brown foks jumps over un ˈɛkstɹəɔɹdɪnəɹɪli lazy daug.
+
+  Rules replace the simple length filter while any exist, and persist between
+  sessions.
 - Words sounded out by rule rather than looked up are underlined, so you can
   see which transcriptions are estimates.
 

@@ -425,10 +425,11 @@
     };
   }
 
-  // Render one built word into a notation string.
-  function renderWord(built, opts, linkR) {
+  // Render one built word into a notation string. `mode` overrides
+  // opts.notation, which is how the advanced per-word rules take effect.
+  function renderWord(built, opts, linkR, mode) {
     if (!built) return '';
-    var mode = opts.notation || 'ipa';
+    mode = mode || opts.notation || 'ipa';
     if (mode === 'arpabet') return renderArpabet(built);
     if (mode === 'respell') return renderRespell(built);
     if (mode === 'alt') return renderAlt(built);
@@ -697,7 +698,8 @@
       reduce: true,
       expandNumbers: true,
       lengthMode: '',
-      lengthN: 0
+      lengthN: 0,
+      rules: null
     }, options || {});
 
     /* Optional length filter: words that fail it are passed through in their
@@ -706,10 +708,28 @@
     var lenN = parseInt(opts.lengthN, 10) || 0;
     var lenMode = lenN > 0 ? opts.lengthMode : '';
     var LETTERS = new RegExp('[^0-9' + L + ']', 'g');
+    function letterCount(raw) { return raw.replace(LETTERS, '').length; }
+
     function passesFilter(raw) {
       if (!lenMode) return true;
-      var n = raw.replace(LETTERS, '').length;
+      var n = letterCount(raw);
       return lenMode === 'over' ? n > lenN : n < lenN;
+    }
+
+    /* Advanced rules: [{min, max, notation}] checked top to bottom, first
+     * match wins, anything unmatched falls back to opts.notation. A rule
+     * notation of 'none' means leave the word in its original spelling. */
+    var rules = opts.rules && opts.rules.length ? opts.rules : null;
+    function notationFor(raw) {
+      if (!rules) return opts.notation;
+      var n = letterCount(raw);
+      for (var i = 0; i < rules.length; i++) {
+        var r = rules[i];
+        if (r.min && n < r.min) continue;
+        if (r.max && n > r.max) continue;
+        return r.notation;
+      }
+      return opts.notation;
     }
 
     var tokens = [];
@@ -735,7 +755,12 @@
     // build phonemes first so linking-r can peek at the next word
     tokens.forEach(function (t) {
       if (t.type !== 'word') return;
-      if (!passesFilter(t.raw)) { t.skipped = true; t.built = []; return; }
+      t.notation = notationFor(t.raw);
+      if (!passesFilter(t.raw) || t.notation === 'none') {
+        t.skipped = true;
+        t.built = [];
+        return;
+      }
       t.built = t.words.map(function (w) {
         return w.split('-').map(function (part) {
           return part ? buildWord(part, opts) : null;
@@ -770,7 +795,7 @@
         group.forEach(function (b) {
           var next = flat[b._i + 1];
           var linkR = !!(next && next.syllables[0] && !next.syllables[0].onset.length);
-          sub.push(renderWord(b, opts, linkR));
+          sub.push(renderWord(b, opts, linkR, t.notation));
           syl += b.syllables.length;
           phCount += b.phones.length;
           if (b.source !== 'lexicon') unknown = true;
@@ -785,12 +810,12 @@
       t.phonemeCount = phCount;
       // in sound-alike mode the thing worth flagging is an invented spelling,
       // not whether the pronunciation came from the dictionary
-      t.estimated = opts.notation === 'alt' ? invented : unknown;
-      if (opts.notation === 'alt') {
+      t.estimated = t.notation === 'alt' ? invented : unknown;
+      if (t.notation === 'alt') {
         t.unchanged = sameSpelling && !invented && !realHomophone;
         t.homophone = realHomophone;
       }
-      if (opts.notation === 'ipa' && opts.brackets) {
+      if (t.notation === 'ipa' && opts.brackets) {
         t.out = (opts.brackets === 'slashes' ? '/' + t.out + '/' : '[' + t.out + ']');
       }
     });

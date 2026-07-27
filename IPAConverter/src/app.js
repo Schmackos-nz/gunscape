@@ -14,7 +14,8 @@
     lengthUnit: $('lengthUnit'),
     sWords: $('sWords'), sSyl: $('sSyl'), sPhon: $('sPhon'), sLex: $('sLex'),
     sLexLabel: $('sLexLabel'), sSkip: $('sSkip'), sSkipWrap: $('sSkipWrap'),
-    footNote: $('footNote'),
+    footNote: $('footNote'), adv: $('adv'), advCount: $('advCount'),
+    ruleList: $('ruleList'),
     toast: $('toast'), legendBody: $('legendBody')
   };
 
@@ -32,6 +33,78 @@
     'syllableBreaks', 'narrow', 'weakForms', 'expandNumbers', 'markEstimates',
     'lengthMode', 'lengthN'];
 
+  /* ------------------------------------------------------------- advanced
+   * Per-length notation rules. Each is {min, max, notation}; min/max are
+   * letter counts and either may be blank for "no limit". */
+  var rules = [];
+
+  var NOTATIONS = [
+    ['ipa', 'IPA'], ['arpabet', 'ARPAbet'], ['respell', 'Respelling'],
+    ['alt', 'Sound-alike'], ['none', 'leave as written']
+  ];
+
+  function renderRules() {
+    if (!rules.length) {
+      el.ruleList.innerHTML = '<div class="adv-empty">No rules — every word ' +
+        'uses the Notation setting above.</div>';
+    } else {
+      el.ruleList.innerHTML = rules.map(function (r, i) {
+        var opt = NOTATIONS.map(function (n) {
+          return '<option value="' + n[0] + '"' +
+            (n[0] === r.notation ? ' selected' : '') + '>' + n[1] + '</option>';
+        }).join('');
+        return '<div class="rule" data-i="' + i + '">' +
+          '<span>Words</span>' +
+          '<input type="number" class="rmin" min="1" max="30" placeholder="any"' +
+          (r.min ? ' value="' + r.min + '"' : '') + '>' +
+          '<span>to</span>' +
+          '<input type="number" class="rmax" min="1" max="30" placeholder="any"' +
+          (r.max ? ' value="' + r.max + '"' : '') + '>' +
+          '<span>letters</span><span class="arrow">→</span>' +
+          '<select class="rnot">' + opt + '</select>' +
+          '<button class="rdel" title="Remove this rule">✕</button>' +
+          '</div>';
+      }).join('');
+    }
+    el.advCount.textContent = rules.length;
+    el.advCount.hidden = !rules.length;
+  }
+
+  function readRules() {
+    rules = [].slice.call(el.ruleList.querySelectorAll('.rule')).map(function (row) {
+      var num = function (sel) {
+        var v = parseInt(row.querySelector(sel).value, 10);
+        return v > 0 ? v : null;
+      };
+      return {
+        min: num('.rmin'),
+        max: num('.rmax'),
+        notation: row.querySelector('.rnot').value
+      };
+    });
+  }
+
+  el.ruleList.addEventListener('input', function () { readRules(); update(); });
+  el.ruleList.addEventListener('change', function () { readRules(); update(); });
+  el.ruleList.addEventListener('click', function (e) {
+    var btn = e.target.closest('.rdel');
+    if (!btn) return;
+    readRules();
+    rules.splice(+btn.parentNode.dataset.i, 1);
+    renderRules();
+    update();
+  });
+
+  $('addRule').addEventListener('click', function () {
+    readRules();
+    // a sensible starting rule that does something visible straight away
+    rules.push(rules.length
+      ? { min: null, max: null, notation: 'none' }
+      : { min: 8, max: null, notation: 'ipa' });
+    renderRules();
+    update();
+  });
+
   // ------------------------------------------------------------------ state
   function opts() {
     return {
@@ -43,8 +116,9 @@
       narrow: el.narrow.checked,
       weakForms: el.weakForms.checked,
       expandNumbers: el.expandNumbers.checked,
-      lengthMode: el.lengthMode.value,
-      lengthN: el.lengthN.value
+      lengthMode: rules.length ? '' : el.lengthMode.value,
+      lengthN: el.lengthN.value,
+      rules: rules
     };
   }
 
@@ -55,6 +129,7 @@
         o[k] = el[k].type === 'checkbox' ? el[k].checked : el[k].value;
       });
       localStorage.setItem('phonemic.settings', JSON.stringify(o));
+      localStorage.setItem('phonemic.rules', JSON.stringify(rules));
       localStorage.setItem('phonemic.text', el.input.value);
     } catch (e) { /* private mode — settings just won't persist */ }
   }
@@ -67,6 +142,9 @@
         if (el[k].type === 'checkbox') el[k].checked = !!o[k];
         else el[k].value = o[k];
       });
+      var r = JSON.parse(localStorage.getItem('phonemic.rules') || '[]');
+      if (Array.isArray(r)) rules = r;
+      if (rules.length) el.adv.open = true;
       var t = localStorage.getItem('phonemic.text');
       el.input.value = (t === null ? EXAMPLE : t);
       var theme = localStorage.getItem('phonemic.theme');
@@ -81,15 +159,20 @@
     var o = opts();
     var text = el.input.value;
     var view = el.view.value;
-    var mono = view === 'aligned' || o.notation === 'arpabet';
+    var usesArpabet = o.notation === 'arpabet' || rules.some(function (r) {
+      return r.notation === 'arpabet';
+    });
+    var mono = view === 'aligned' || usesArpabet;
 
     el.out.className = (mono ? 'mono' : '') + (el.markEstimates.checked ? ' mark' : '');
-    el.outLabel.textContent = {
-      ipa: 'IPA', arpabet: 'ARPAbet', respell: 'Respelling',
-      alt: 'Sound-alike spelling'
-    }[o.notation] + (o.notation === 'ipa' ? ' · ' + IPA.accents[o.accent].name : '');
+    el.outLabel.textContent = rules.length
+      ? 'Mixed · ' + rules.length + (rules.length === 1 ? ' rule' : ' rules')
+      : ({
+        ipa: 'IPA', arpabet: 'ARPAbet', respell: 'Respelling',
+        alt: 'Sound-alike spelling'
+      }[o.notation] + (o.notation === 'ipa' ? ' · ' + IPA.accents[o.accent].name : ''));
 
-    var alt = o.notation === 'alt';
+    var alt = !rules.length && o.notation === 'alt';
     el.sLexLabel.textContent = alt ? 'real homophones' : 'from dictionary';
     el.footNote.innerHTML = alt
       ? '<span class="swatch"></span> underlined = invented spelling · ' +
@@ -216,7 +299,7 @@
     el.sWords.textContent = words;
     el.sSyl.textContent = syl;
     el.sPhon.textContent = phon;
-    el.sLex.textContent = el.notation.value === 'alt' ? homo
+    el.sLex.textContent = (!rules.length && el.notation.value === 'alt') ? homo
       : (words ? Math.round(lex / words * 100) + '%' : '0%');
     el.sSkip.textContent = skip;
     el.sSkipWrap.hidden = !skip;
@@ -275,6 +358,11 @@
       'respelled from its sounds (<i>quick → kwik</i>, <i>school → skool</i>). ' +
       'Words English already spells the plain way — <i>jumps</i>, <i>speech</i> ' +
       '— are left alone in grey rather than mangled into something worse.</p>' +
+      '<h4>Advanced rules</h4>' +
+      '<p class="note">Send different word lengths to different notations: ' +
+      'short words left as written, long ones in IPA, say. Rules are checked ' +
+      'in order and the first match wins, so put the narrow bands above the ' +
+      'wide ones.</p>' +
       '</div>';
     el.legendBody.innerHTML = html;
   }
@@ -348,9 +436,13 @@
       var box = t.querySelector('input');
       t.dataset.on = box && box.checked ? '1' : '';
     });
-    var filtering = !!el.lengthMode.value;
+    // advanced rules subsume the simple filter, so don't offer both at once
+    var ruled = rules.length > 0;
+    var filtering = !ruled && !!el.lengthMode.value;
+    el.lengthMode.disabled = ruled;
     el.lengthN.disabled = !filtering;
     el.lengthUnit.classList.toggle('off', !filtering);
+    el.lengthUnit.textContent = ruled ? 'set by rules below' : 'letters';
     render();
     save();
   }
@@ -371,5 +463,6 @@
 
   load();
   buildLegend();
+  renderRules();
   update();
 })();
