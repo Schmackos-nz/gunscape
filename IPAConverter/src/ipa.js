@@ -613,8 +613,22 @@
       narrow: false,
       weakForms: false,
       reduce: true,
-      expandNumbers: true
+      expandNumbers: true,
+      lengthMode: '',
+      lengthN: 0
     }, options || {});
+
+    /* Optional length filter: words that fail it are passed through in their
+     * original spelling, so you can transcribe only the long (or only the
+     * short) words and leave the rest readable. */
+    var lenN = parseInt(opts.lengthN, 10) || 0;
+    var lenMode = lenN > 0 ? opts.lengthMode : '';
+    var LETTERS = new RegExp('[^0-9' + L + ']', 'g');
+    function passesFilter(raw) {
+      if (!lenMode) return true;
+      var n = raw.replace(LETTERS, '').length;
+      return lenMode === 'over' ? n > lenN : n < lenN;
+    }
 
     var tokens = [];
     var m;
@@ -639,6 +653,7 @@
     // build phonemes first so linking-r can peek at the next word
     tokens.forEach(function (t) {
       if (t.type !== 'word') return;
+      if (!passesFilter(t.raw)) { t.skipped = true; t.built = []; return; }
       t.built = t.words.map(function (w) {
         return w.split('-').map(function (part) {
           return part ? buildWord(part, opts) : null;
@@ -650,6 +665,8 @@
     var flat = [];
     tokens.forEach(function (t) {
       if (t.type !== 'word') return;
+      // a skipped word still occupies a slot, so linking-r can't reach past it
+      if (t.skipped) { flat.push(null); return; }
       t.built.forEach(function (group) {
         group.forEach(function (b) { b._i = flat.length; flat.push(b); });
       });
@@ -657,6 +674,12 @@
 
     tokens.forEach(function (t) {
       if (t.type !== 'word') return;
+      if (t.skipped) {
+        t.out = t.raw;
+        t.syllables = t.phonemeCount = 0;
+        t.estimated = false;
+        return;
+      }
       var pieces = [];
       var syl = 0, phCount = 0, unknown = false;
       t.built.forEach(function (group) {

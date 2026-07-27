@@ -20,6 +20,9 @@ Open `index.html`. No build step, no server, no network calls.
 - **Options** — stress marks, syllable dots, narrow transcription
   (aspiration `tʰ`, flapping `ɾ`, dark `ɫ`, syllabic `l̩ n̩`), weak forms for
   function words, and numbers read out as words (`42` → `ˈfɔɹti tu`).
+- **Length filter** — transcribe only words longer (or shorter) than N
+  letters, leaving the rest in their original spelling. Useful for glossing
+  just the hard words in a passage.
 - Words sounded out by rule rather than looked up are underlined, so you can
   see which transcriptions are estimates.
 
@@ -55,13 +58,13 @@ index.html        markup + styles
 src/ipa-data.js   lexicon, weak forms, letter-to-sound rules, number words
 src/ipa.js        engine: rules, stress, syllables, accents, renderers
 src/app.js        UI wiring, layouts, stats, copy/save
-test/smoke.js     node test/smoke.js — prints transcriptions, asserts key cases
+test/smoke.cjs     node test/smoke.cjs — prints transcriptions, asserts key cases
 ```
 
 ## Test
 
 ```
-node test/smoke.js
+node test/smoke.cjs
 ```
 
 Prints sample transcriptions for eyeballing and asserts a handful of cases

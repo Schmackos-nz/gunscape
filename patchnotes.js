@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.79",
+ "version": "1.0.80",
  "generated": "2026-07-27",
  "patches": [
+  {
+   "version": "1.0.80",
+   "date": "2026-07-27",
+   "title": "IPAConverter: word-length filter",
+   "notes": []
+  },
   {
    "version": "1.0.79",
    "date": "2026-07-27",
@@ -228,12 +234,6 @@ window.PATCHNOTES={
    "version": "1.0.41",
    "date": "2026-06-22",
    "title": "Death drops a gravestone (owner-only) that breaks to public loot after 5min",
-   "notes": []
-  },
-  {
-   "version": "1.0.40",
-   "date": "2026-06-22",
-   "title": "Darude drops: Plasma Gun + Sand Tyrant set; single drop only",
    "notes": []
   }
  ]

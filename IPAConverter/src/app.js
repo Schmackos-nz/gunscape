@@ -10,7 +10,10 @@
     stressMarks: $('stressMarks'), syllableBreaks: $('syllableBreaks'),
     narrow: $('narrow'), weakForms: $('weakForms'),
     expandNumbers: $('expandNumbers'), markEstimates: $('markEstimates'),
+    lengthMode: $('lengthMode'), lengthN: $('lengthN'),
+    lengthUnit: $('lengthUnit'),
     sWords: $('sWords'), sSyl: $('sSyl'), sPhon: $('sPhon'), sLex: $('sLex'),
+    sSkip: $('sSkip'), sSkipWrap: $('sSkipWrap'),
     toast: $('toast'), legendBody: $('legendBody')
   };
 
@@ -25,7 +28,8 @@
     '  3. A yacht, an island, and a subtle receipt — all silent letters.';
 
   var SETTINGS = ['accent', 'notation', 'view', 'brackets', 'stressMarks',
-    'syllableBreaks', 'narrow', 'weakForms', 'expandNumbers', 'markEstimates'];
+    'syllableBreaks', 'narrow', 'weakForms', 'expandNumbers', 'markEstimates',
+    'lengthMode', 'lengthN'];
 
   // ------------------------------------------------------------------ state
   function opts() {
@@ -37,7 +41,9 @@
       syllableBreaks: el.syllableBreaks.checked,
       narrow: el.narrow.checked,
       weakForms: el.weakForms.checked,
-      expandNumbers: el.expandNumbers.checked
+      expandNumbers: el.expandNumbers.checked,
+      lengthMode: el.lengthMode.value,
+      lengthN: el.lengthN.value
     };
   }
 
@@ -118,9 +124,15 @@
     return esc(bits.join('  ·  '));
   }
 
+  function skipped(t) {
+    return '<span class="skip" title="' + esc(t.raw) +
+      ' — outside the length filter">' + esc(t.raw) + '</span>';
+  }
+
   function renderInline(tokens) {
     var html = tokens.map(function (t) {
       if (t.type !== 'word') return esc(t.raw);
+      if (t.skipped) return skipped(t);
       return '<span class="w' + (t.estimated ? ' est' : '') + '" title="' +
         title(t) + '">' + esc(t.out) + '</span>';
     }).join('');
@@ -130,6 +142,7 @@
   function renderStacked(tokens) {
     var html = tokens.map(function (t) {
       if (t.type !== 'word') return esc(t.raw);
+      if (t.skipped) return skipped(t);
       return '<span class="pair w' + (t.estimated ? ' est' : '') + '" title="' + title(t) +
         '"><span class="src">' + esc(t.raw) + '</span>' +
         '<span class="ipa">' + esc(t.out) + '</span></span>';
@@ -177,9 +190,10 @@
       el.sLex.textContent = '0%';
       return;
     }
-    var words = 0, syl = 0, phon = 0, lex = 0;
+    var words = 0, syl = 0, phon = 0, lex = 0, skip = 0;
     tokens.forEach(function (t) {
       if (t.type !== 'word') return;
+      if (t.skipped) { skip++; return; }
       words++;
       syl += t.syllables || 0;
       phon += t.phonemeCount || 0;
@@ -189,6 +203,8 @@
     el.sSyl.textContent = syl;
     el.sPhon.textContent = phon;
     el.sLex.textContent = words ? Math.round(lex / words * 100) + '%' : '0%';
+    el.sSkip.textContent = skip;
+    el.sSkipWrap.hidden = !skip;
   }
 
   // ---------------------------------------------------------------- legend
@@ -310,6 +326,9 @@
       var box = t.querySelector('input');
       t.dataset.on = box && box.checked ? '1' : '';
     });
+    var filtering = !!el.lengthMode.value;
+    el.lengthN.disabled = !filtering;
+    el.lengthUnit.classList.toggle('off', !filtering);
     render();
     save();
   }
@@ -320,6 +339,7 @@
 
   el.input.addEventListener('input', debounced);
   SETTINGS.forEach(function (k) { el[k].addEventListener('change', update); });
+  el.lengthN.addEventListener('input', debounced); // react while typing/spinning
 
   // keep the two panes scrolled together in the aligned/inline views
   el.input.addEventListener('scroll', function () {
