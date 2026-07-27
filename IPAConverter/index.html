@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phonemic — text to IPA</title>
+<style>
+  :root {
+    --bg: #14161c;
+    --bg2: #1b1e26;
+    --bg3: #232732;
+    --line: #2e3340;
+    --fg: #e6e8ee;
+    --dim: #97a0b3;
+    --dimmer: #6a7386;
+    --accent: #7fd4c1;
+    --accent2: #f0a878;
+    --warn: #e2b04a;
+    --radius: 10px;
+    --mono: "Cascadia Code", "JetBrains Mono", Consolas, "DejaVu Sans Mono", monospace;
+    --ipa: "Charis SIL", "Doulos SIL", "Gentium Plus", "Segoe UI", "Lucida Sans Unicode", system-ui, sans-serif;
+  }
+  html[data-theme="light"] {
+    --bg: #f6f5f2; --bg2: #fffefc; --bg3: #eceae5; --line: #dad7d0;
+    --fg: #1d2027; --dim: #5c6470; --dimmer: #8a929e;
+    --accent: #147d68; --accent2: #b0592a; --warn: #8a6a17;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  header {
+    display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
+    padding: 18px 22px 14px; border-bottom: 1px solid var(--line);
+  }
+  h1 {
+    margin: 0; font-size: 21px; font-weight: 600; letter-spacing: -0.01em;
+  }
+  h1 .ipa { color: var(--accent); font-family: var(--ipa); }
+  header p { margin: 0; color: var(--dim); font-size: 13.5px; }
+  header .spacer { flex: 1 1 auto; }
+
+  .bar {
+    display: flex; gap: 10px 18px; flex-wrap: wrap; align-items: center;
+    padding: 12px 22px; background: var(--bg2); border-bottom: 1px solid var(--line);
+  }
+  .field { display: flex; align-items: center; gap: 7px; }
+  .field > label { color: var(--dim); font-size: 12.5px; text-transform: uppercase; letter-spacing: .06em; }
+  select, button, .toggle {
+    font: inherit; font-size: 13.5px; color: var(--fg);
+    background: var(--bg3); border: 1px solid var(--line);
+    border-radius: 7px; padding: 5px 9px;
+  }
+  select { cursor: pointer; }
+  button { cursor: pointer; }
+  button:hover, .toggle:hover { border-color: var(--dimmer); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #10221e; font-weight: 600; }
+  html[data-theme="light"] button.primary { color: #fff; }
+  .toggles { display: flex; gap: 6px; flex-wrap: wrap; }
+  .toggle {
+    display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+    user-select: none; padding: 5px 10px;
+  }
+  .toggle input { accent-color: var(--accent); margin: 0; }
+  .toggle[data-on="1"] { border-color: var(--accent); color: var(--accent); }
+
+  main {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 1px;
+    background: var(--line); min-height: calc(100vh - 190px);
+  }
+  main.single { grid-template-columns: 1fr; }
+  .pane { display: flex; flex-direction: column; background: var(--bg); min-width: 0; }
+  .pane-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 16px; border-bottom: 1px solid var(--line);
+    font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--dimmer);
+  }
+  .pane-head .spacer { flex: 1; }
+  .pane-head button { padding: 3px 8px; font-size: 12px; text-transform: none; letter-spacing: 0; }
+
+  textarea {
+    flex: 1; width: 100%; resize: none; border: 0; outline: 0;
+    background: transparent; color: var(--fg);
+    padding: 16px; font-family: var(--mono); font-size: 14.5px; line-height: 1.7;
+    tab-size: 4;
+  }
+  textarea::placeholder { color: var(--dimmer); }
+
+  #out {
+    flex: 1; overflow: auto; padding: 16px;
+    font-family: var(--ipa); font-size: 16.5px; line-height: 1.85;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  #out.mono { font-family: var(--mono); font-size: 14px; white-space: pre; }
+  #out .w { border-bottom: 1px dotted transparent; }
+  #out.mark .w.est { border-bottom-color: var(--warn); }
+  #out .w:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); border-radius: 3px; }
+  #out .pair { display: inline-flex; flex-direction: column; align-items: center; vertical-align: baseline; }
+  #out .pair .src { font-family: var(--mono); font-size: 11.5px; color: var(--dimmer); line-height: 1.3; }
+  #out .pair .ipa { line-height: 1.35; }
+  #out .empty { color: var(--dimmer); font-family: system-ui, sans-serif; font-size: 14px; }
+
+  footer {
+    display: flex; gap: 8px 20px; flex-wrap: wrap; align-items: center;
+    padding: 10px 22px; background: var(--bg2); border-top: 1px solid var(--line);
+    font-size: 13px; color: var(--dim);
+  }
+  footer .spacer { flex: 1; }
+  footer b { color: var(--fg); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .note { color: var(--dimmer); font-size: 12.5px; }
+  .swatch { display: inline-block; width: 22px; border-bottom: 1px dotted var(--warn); }
+
+  details.legend { border-top: 1px solid var(--line); background: var(--bg2); }
+  details.legend summary {
+    cursor: pointer; padding: 10px 22px; font-size: 13px; color: var(--dim);
+  }
+  .legend-body { padding: 4px 22px 18px; display: flex; flex-wrap: wrap; gap: 18px 26px; }
+  .legend-col h4 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: var(--dimmer); }
+  .legend-col table { border-collapse: collapse; font-size: 13px; }
+  .legend-col td { padding: 1px 10px 1px 0; }
+  .legend-col td:first-child { font-family: var(--ipa); color: var(--accent); font-size: 15px; }
+  .legend-col td:nth-child(2) { color: var(--dim); }
+
+  #toast {
+    position: fixed; bottom: 22px; left: 50%; transform: translate(-50%, 20px);
+    background: var(--accent); color: #10221e; font-weight: 600; font-size: 13.5px;
+    padding: 8px 16px; border-radius: 999px; opacity: 0; pointer-events: none;
+    transition: opacity .18s, transform .18s;
+  }
+  html[data-theme="light"] #toast { color: #fff; }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  @media (max-width: 860px) {
+    main { grid-template-columns: 1fr; }
+    .pane:first-child textarea { min-height: 34vh; }
+    header { padding: 14px 16px 10px; }
+    .bar, footer, .legend-body, details.legend summary { padding-left: 16px; padding-right: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Phonemic <span class="ipa">/fəˈniːmɪk/</span></h1>
+  <p>Paste text — get IPA back in exactly the same shape.</p>
+  <span class="spacer"></span>
+  <button id="theme" title="Toggle light / dark">◐</button>
+</header>
+
+<div class="bar">
+  <div class="field">
+    <label for="accent">Accent</label>
+    <select id="accent">
+      <option value="ga">General American</option>
+      <option value="rp">British (RP)</option>
+      <option value="nz">NZ / Australian</option>
+    </select>
+  </div>
+  <div class="field">
+    <label for="notation">Notation</label>
+    <select id="notation">
+      <option value="ipa">IPA</option>
+      <option value="arpabet">ARPAbet</option>
+      <option value="respell">Respelling</option>
+    </select>
+  </div>
+  <div class="field">
+    <label for="view">Layout</label>
+    <select id="view">
+      <option value="inline">In place</option>
+      <option value="stacked">Word above</option>
+      <option value="aligned">Aligned columns</option>
+    </select>
+  </div>
+  <div class="field">
+    <label for="brackets">Wrap</label>
+    <select id="brackets">
+      <option value="">none</option>
+      <option value="slashes">/ slashes /</option>
+      <option value="square">[ brackets ]</option>
+    </select>
+  </div>
+  <div class="toggles" id="toggles">
+    <label class="toggle" data-on="1"><input type="checkbox" id="stressMarks" checked> stress ˈ</label>
+    <label class="toggle"><input type="checkbox" id="syllableBreaks"> syllables ·</label>
+    <label class="toggle"><input type="checkbox" id="narrow"> narrow [tʰ ɾ ɫ]</label>
+    <label class="toggle"><input type="checkbox" id="weakForms"> weak function words</label>
+    <label class="toggle" data-on="1"><input type="checkbox" id="expandNumbers" checked> read numbers</label>
+    <label class="toggle" data-on="1"><input type="checkbox" id="markEstimates" checked> flag guesses</label>
+  </div>
+</div>
+
+<main id="main">
+  <section class="pane">
+    <div class="pane-head">
+      <span>Your text</span>
+      <span class="spacer"></span>
+      <button id="example">Example</button>
+      <button id="paste">Paste</button>
+      <button id="clear">Clear</button>
+    </div>
+    <textarea id="in" spellcheck="false" placeholder="Type or paste anything…
+
+Line breaks, spacing and punctuation come through untouched — only the words are converted."></textarea>
+  </section>
+  <section class="pane">
+    <div class="pane-head">
+      <span id="outLabel">IPA</span>
+      <span class="spacer"></span>
+      <button id="copy" class="primary">Copy</button>
+      <button id="download">Save .txt</button>
+    </div>
+    <div id="out"></div>
+  </section>
+</main>
+
+<footer>
+  <span><b id="sWords">0</b> words</span>
+  <span><b id="sSyl">0</b> syllables</span>
+  <span><b id="sPhon">0</b> phonemes</span>
+  <span><b id="sLex">0%</b> from dictionary</span>
+  <span class="spacer"></span>
+  <span class="note"><span class="swatch"></span> underlined = spelled out by rule, not looked up</span>
+</footer>
+
+<details class="legend">
+  <summary>Symbol key &amp; how this works</summary>
+  <div class="legend-body" id="legendBody"></div>
+</details>
+
+<div id="toast"></div>
+
+<script src="src/ipa-data.js"></script>
+<script src="src/ipa.js"></script>
+<script src="src/app.js"></script>
+</body>
+</html>

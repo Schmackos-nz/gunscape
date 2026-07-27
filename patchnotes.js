@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.78",
- "generated": "2026-07-26",
+ "version": "1.0.79",
+ "generated": "2026-07-27",
  "patches": [
+  {
+   "version": "1.0.79",
+   "date": "2026-07-27",
+   "title": "Add Phonemic text-to-IPA converter at /IPAConverter",
+   "notes": []
+  },
   {
    "version": "1.0.78",
    "date": "2026-07-26",
@@ -228,12 +234,6 @@ window.PATCHNOTES={
    "version": "1.0.40",
    "date": "2026-06-22",
    "title": "Darude drops: Plasma Gun + Sand Tyrant set; single drop only",
-   "notes": []
-  },
-  {
-   "version": "1.0.39",
-   "date": "2026-06-22",
-   "title": "World: two-handed aim for rifles — support arm grips the gun while firing",
    "notes": []
   }
  ]

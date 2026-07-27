@@ -43,4 +43,13 @@ if (existsSync(join(DOO, 'package.json'))) {
   cpSync(join(DOO, 'dist'), join(DIST, 'deckofomens'), { recursive: true });
 }
 
-console.log(`Built dist/ (${FILES.filter(f => existsSync(join(DIST, f))).join(', ')} + ${DIRS.join(', ')} + cityofeyes + deckofomens)`);
+// Phonemic (text -> IPA) is plain static files, no build step — copy it
+// straight to dist/IPAConverter/ so it's served at /IPAConverter/.
+const IPA = join(ROOT, 'IPAConverter');
+if (existsSync(join(IPA, 'index.html'))) {
+  for (const sub of ['index.html', 'src']) {
+    cpSync(join(IPA, sub), join(DIST, 'IPAConverter', sub), { recursive: true });
+  }
+}
+
+console.log(`Built dist/ (${FILES.filter(f => existsSync(join(DIST, f))).join(', ')} + ${DIRS.join(', ')} + cityofeyes + deckofomens + IPAConverter)`);
