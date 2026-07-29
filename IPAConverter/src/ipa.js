@@ -308,18 +308,22 @@
     return s.normalize ? s.normalize('NFD').replace(COMBINING, '') : s;
   }
 
-  /* Returns { phones:[...], stressSyl:int|null, source:'lexicon'|'rules' } */
+  /* Returns { phones:[...], stressSyl:int|null, source:'lexicon'|'rules' }
+   * opts.noLexicon skips the dictionary entirely, which is how the typo mode
+   * asks "what would a reader sounding this out get?" for two spellings. */
   function lookupWord(word, opts) {
     var key = stripDiacritics(word).toLowerCase().replace(/’/g, "'");
     var entry = null;
     var source = 'rules';
-    if (opts.weakForms && D.WEAK[key]) { entry = D.WEAK[key]; source = 'lexicon'; }
-    if (!entry && D.LEXICON[key]) { entry = D.LEXICON[key]; source = 'lexicon'; }
+    if (!opts.noLexicon) {
+      if (opts.weakForms && D.WEAK[key]) { entry = D.WEAK[key]; source = 'lexicon'; }
+      if (!entry && D.LEXICON[key]) { entry = D.LEXICON[key]; source = 'lexicon'; }
 
-    // regular inflections of a lexicon entry: -s, -es, -ed, -ing, -ly
-    if (!entry) {
-      var infl = inflect(key);
-      if (infl) { entry = infl.phones; source = 'lexicon'; }
+      // regular inflections of a lexicon entry: -s, -es, -ed, -ing, -ly
+      if (!entry) {
+        var infl = inflect(key);
+        if (infl) { entry = infl.phones; source = 'lexicon'; }
+      }
     }
 
     var phones, stressAt = null;
@@ -433,6 +437,7 @@
     if (mode === 'arpabet') return renderArpabet(built);
     if (mode === 'respell') return renderRespell(built);
     if (mode === 'alt') return renderAlt(built);
+    if (mode === 'typo') return renderTypo(built);
     return renderIPA(built, opts, linkR);
   }
 
@@ -512,6 +517,173 @@
       return matchCase(alts[0], word);
     }
     var made = inventSpelling(built, plain.replace(/'/g, ''));
+    built.altReal = made ? false : null;
+    built.altSame = !made;
+    return made ? matchCase(made, word) : word;
+  }
+
+  // ------------------------------------------------------------- typo mode
+  /* Misspellings small enough to slip past a reader, because they don't
+   * change how the word sounds.
+   *
+   * Candidates are generated liberally — swap a vowel letter, double a
+   * consonant, trade -ant for -ent, drop a letter — and correctness is left
+   * to one check: both spellings are sounded out by the letter-to-sound
+   * rules with the dictionary switched off, so like is compared with like,
+   * and a candidate survives only if it lands on the same syllables, the
+   * same vowels and the same stress. That check is what lets "definately"
+   * through and stops "later" becoming "latter". */
+
+  var TYPO_MIN = 4;               // a typo in a three-letter word is a typo
+  var TYPO_KEEP = 3;              // passing spellings to choose between
+  var TYPO_TRIES = 90;            // ceiling on candidates sounded out per word
+  var READ_OPTS = { noLexicon: true, reduce: true, weakForms: false };
+  var readCache = {};
+  var typoCache = {};
+
+  var has = function (o, k) { return Object.prototype.hasOwnProperty.call(o, k); };
+
+  /* How this spelling reads aloud: syllables, reduced vowels and stress. */
+  function readingOf(spelling) {
+    if (has(readCache, spelling)) return readCache[spelling];
+    var built = buildWord(spelling, READ_OPTS);
+    var sig = built && built.syllables.length
+      ? built.syllables.map(function (s) {
+        return (s.stress ? '!' : '') + s.onset.join('.') +
+          '-' + s.nucleus + '-' + s.coda.join('.');
+      }).join(' ')
+      : null;
+    readCache[spelling] = sig;
+    return sig;
+  }
+
+  // y counts as a vowel for deciding where a letter sits, not for swapping
+  var VOWEL_LETTER = 'aeiou';
+  var SWAP_ORDER = ['e', 'a', 'i', 'o', 'u'];   // commonest wrong vowel first
+  var END_DOUBLE = 'lstfz';                     // the ones English doubles there
+  function isVowel(ch) { return !!ch && (VOWEL_LETTER.indexOf(ch) >= 0 || ch === 'y'); }
+
+  /* Plausible slips, roughly most natural first. Whether any of them keep the
+   * sound is not this function's problem. */
+  function typoCandidates(w) {
+    var ranked = [];
+    var seen = {};
+    var i, j, c;
+
+    function add(cand, rank) {
+      if (!cand || cand === w || cand.length < 3) return;
+      if (seen[cand] || /(.)\1\1/.test(cand)) return;   // no "bosss"
+      seen[cand] = 1;
+      ranked.push([rank, ranked.length, cand]);
+    }
+
+    /* An unstressed vowel written as the wrong vowel: seperate, definate,
+     * grammer — the slip nobody notices, so it goes first. Deeper into the
+     * word and spelled with an e or an a is the least noticeable of all;
+     * whether the syllable is unstressed at all is settled by the check. */
+    for (i = 1; i < w.length; i++) {
+      if (VOWEL_LETTER.indexOf(w[i]) < 0) continue;
+      for (j = 0; j < SWAP_ORDER.length; j++) {
+        if (SWAP_ORDER[j] === w[i]) continue;
+        add(w.slice(0, i) + SWAP_ORDER[j] + w.slice(i + 1),
+          (i > 1 && j < 2) ? 0 : 1);
+      }
+    }
+
+    // i before e, or not: recieve, wierd
+    for (i = 1; i < w.length - 1; i++) {
+      c = w.slice(i, i + 2);
+      if (c === 'ie') add(w.slice(0, i) + 'ei' + w.slice(i + 2), 1);
+      else if (c === 'ei') add(w.slice(0, i) + 'ie' + w.slice(i + 2), 1);
+    }
+
+    // the endings that get confused: independant, responsable, docter
+    D.TYPO_SUFFIX.forEach(function (pair) {
+      if (w.length > pair[0].length + 1 && w.slice(-pair[0].length) === pair[0]) {
+        add(w.slice(0, -pair[0].length) + pair[1], 1);
+      }
+    });
+
+    /* One consonant too few or too many: acommodate, occured, comittee.
+     * Only between vowels or at the very end, which is where English doubles
+     * letters in the first place — "brrown" and "sttudy" are mashed keys, not
+     * the kind of typo that gets past anyone. */
+    for (i = 1; i < w.length; i++) {
+      c = w[i];
+      if (c < 'a' || c > 'z' || isVowel(c)) continue;
+      if (w[i + 1] === c) { add(w.slice(0, i) + w.slice(i + 1), 2); continue; }
+      if (w[i - 1] === c || !isVowel(w[i - 1])) continue;
+      var after = w[i + 1];
+      var ok = after === undefined
+        // at the end, only the letters English doubles there, and only after
+        // a bare short vowel: travell yes, beenn and fromm no
+        ? (END_DOUBLE.indexOf(c) >= 0 && !isVowel(w[i - 2]))
+        // and inside, not before a final e — doubling there is what tells a
+        // reader the vowel is short (bite / bitten), so it is never invisible
+        : isVowel(after) && !(after === 'e' && i + 2 === w.length);
+      if (ok) add(w.slice(0, i) + c + w.slice(i), 2);
+    }
+
+    /* A letter lost inside a consonant cluster, where the gap barely shows:
+     * quik, rythm. Never a vowel (approvd) and never the last letter, which
+     * read as a word cut short rather than mistyped. */
+    for (i = 1; i < w.length - 1; i++) {
+      if (isVowel(w[i])) continue;
+      if (isVowel(w[i - 1]) && isVowel(w[i + 1])) continue;
+      add(w.slice(0, i) + w.slice(i + 1), 3);
+    }
+
+    // fingers out of order
+    for (i = 1; i < w.length - 1; i++) {
+      add(w.slice(0, i) + w[i + 1] + w[i] + w.slice(i + 2), 3);
+    }
+
+    ranked.sort(function (a, b) { return (a[0] - b[0]) || (a[1] - b[1]); });
+    return ranked;
+  }
+
+  /* Landing on another real word is a substitution, not a typo — hears must
+   * not come back as heirs. The dictionary only holds English's irregulars,
+   * so this catches the ones that would jar rather than every last one. */
+  function isRealWord(w) {
+    return !!(D.LEXICON[w] || D.WEAK[w] || homophonesOf(w) || inflect(w));
+  }
+
+  /* Stable per word, so the same text always comes back typed the same way
+   * and re-rendering doesn't reshuffle it under the reader. */
+  function hashOf(s) {
+    var h = 0;
+    for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+    return h;
+  }
+
+  function typoFor(plain) {
+    if (has(typoCache, plain)) return typoCache[plain];
+    var made = null;
+    if (plain.length >= TYPO_MIN && /^[a-z]+$/.test(plain)) {
+      var want = readingOf(plain);
+      var cands = typoCandidates(plain);
+      var keep = [];
+      var limit = Math.min(cands.length, TYPO_TRIES);
+      for (var i = 0; i < limit && keep.length < TYPO_KEEP; i++) {
+        var c = cands[i][2];
+        // candidates arrive least noticeable first, so once one kind of slip
+        // works, don't fall back to a clumsier kind for the sake of variety
+        if (keep.length && cands[i][0] !== keep[0][0]) break;
+        if (isRealWord(c)) continue;
+        if (readingOf(c) === want) keep.push(cands[i]);
+      }
+      if (keep.length) made = keep[hashOf(plain) % keep.length][2];
+    }
+    typoCache[plain] = made;
+    return made;
+  }
+
+  /* Two outcomes: a typo, or the word untouched because every slip we can
+   * think of would have changed the way it sounds. */
+  function renderTypo(built) {
+    var word = built.word;
+    var made = typoFor(stripDiacritics(word).toLowerCase());
     built.altReal = made ? false : null;
     built.altSame = !made;
     return made ? matchCase(made, word) : word;
@@ -740,7 +912,9 @@
       if (WORD_START.test(raw)) {
         tokens.push({ type: 'word', raw: raw, words: [raw] });
       } else if (/^\d/.test(raw)) {
-        if (opts.expandNumbers) {
+        // a numeral has no spelling to slip on, and reading it out as words
+        // would be a rewrite rather than a typo, so typo mode leaves it be
+        if (opts.expandNumbers && notationFor(raw) !== 'typo') {
           var ws = numberToWords(raw);
           if (ws.length) tokens.push({ type: 'word', raw: raw, words: ws, numeric: true });
           else tokens.push({ type: 'other', raw: raw });
@@ -808,10 +982,12 @@
       t.out = pieces.join(' ');
       t.syllables = syl;
       t.phonemeCount = phCount;
-      // in sound-alike mode the thing worth flagging is an invented spelling,
-      // not whether the pronunciation came from the dictionary
-      t.estimated = t.notation === 'alt' ? invented : unknown;
-      if (t.notation === 'alt') {
+      // in the modes that rewrite the spelling, the thing worth flagging is
+      // the rewrite itself, not whether the pronunciation came from the
+      // dictionary
+      var respells = t.notation === 'alt' || t.notation === 'typo';
+      t.estimated = respells ? invented : unknown;
+      if (respells) {
         t.unchanged = sameSpelling && !invented && !realHomophone;
         t.homophone = realHomophone;
       }

@@ -13,10 +13,13 @@ Open `index.html`. No build step, no server, no network calls.
   accents drop coda /r/ properly (`car` → `kɑː`), keep linking /r/ before a
   vowel, and use the right vowel for each lexical set (`lot` is `ɒ` in RP but
   `ɑ` in GA).
-- **Four notations** — IPA, CMU-style ARPAbet (`F AH0 N EH1 T IH0 K S`), a
-  dictionary-style respelling (`fuh-NE-tiks`), and **sound-alike spelling**,
-  which rewrites each word as a different spelling that reads the same:
-  *I know their time is right* → *Eye no there thyme iz write*.
+- **Five notations** — IPA, CMU-style ARPAbet (`F AH0 N EH1 T IH0 K S`), a
+  dictionary-style respelling (`fuh-NE-tiks`), **sound-alike spelling**, which
+  rewrites each word as a different spelling that reads the same
+  (*I know their time is right* → *Eye no there thyme iz write*), and
+  **typos**, which misspells each word so subtly that it still sounds
+  identical: *an independent government tomorrow* → *an independant
+  governmant tommorrow*.
 - **Three layouts** — in place, original word above its transcription, or
   aligned monospace columns.
 - **Options** — stress marks, syllable dots, narrow transcription
@@ -72,6 +75,21 @@ look (*kwik, broun, skool, byootiful, luv*); those are underlined as invented.
 If the plainest respelling is what English already uses (*jumps*, *speech*),
 the word is left as-is in grey, because forcing a difference there only yields
 noise like *speach*.
+
+**Typos** works the other way round: instead of respelling from the sounds, it
+mutates the spelling and then checks the sound. Candidates are generated
+liberally — an unstressed vowel written as another vowel (*grammer*), the
+endings English can't keep straight (*independant*, *docter*), a doubled
+consonant added or lost (*tommorrow*, *ocurred*), a letter dropped inside a
+consonant cluster (*quik*) — and each one is sounded out by the letter-to-sound
+rules with the lexicon switched off, so like is compared with like. It survives
+only if it lands on exactly the same syllables, vowels and stress. That check
+is what lets *definately* through, rejects *definate* (which the rules read as
+*def-in-ATE*), and stops *later* becoming *latter*. Candidates that are
+recognisably other words are dropped too, so *hears* never comes back as
+*heirs* — though the lexicon only holds English's irregulars, so that guard is
+best-effort. Words of three letters or fewer are never touched, and words where
+no slip survives the check are left alone in grey.
 
 ## Files
 

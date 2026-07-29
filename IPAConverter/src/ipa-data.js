@@ -716,6 +716,23 @@
     ['whined', 'wind'], ['wood', 'would']
   ];
 
+  /* ---------------------------------------------------------- typo endings
+   * Word endings English itself can't keep straight, as [written, mistyped]
+   * pairs. Both directions are listed because both are typed. Nothing here is
+   * trusted on its own — the typo mode sounds every candidate out and throws
+   * away any that changes the pronunciation, so a pair that only works on
+   * some words (tion/sion) costs nothing to list. */
+  var TYPO_SUFFIX = [
+    ['ance', 'ence'], ['ence', 'ance'], ['ant', 'ent'], ['ent', 'ant'],
+    ['able', 'ible'], ['ible', 'able'], ['ably', 'ibly'], ['ibly', 'ably'],
+    ['ary', 'ery'], ['ery', 'ary'], ['ory', 'ary'], ['ery', 'ory'],
+    ['ise', 'ize'], ['ize', 'ise'], ['yse', 'yze'], ['yze', 'yse'],
+    ['our', 'or'], ['or', 'our'], ['or', 'er'], ['er', 'or'],
+    ['re', 'er'], ['er', 're'], ['ce', 'se'], ['se', 'ce'],
+    ['cy', 'sy'], ['sy', 'cy'], ['sion', 'tion'], ['tion', 'sion'],
+    ['ey', 'y'], ['y', 'ey'], ['ie', 'y'], ['ffe', 'ff'], ['gue', 'g']
+  ];
+
   /* Grapheme options for inventing a fresh spelling when no homophone exists.
    * First choice is always the plainest one, which is what gives the mode its
    * simplified-spelling look: nite, skool, fone, laf. Vowels differ depending
@@ -774,6 +791,7 @@
     WEAK: WEAK,
     RULES: RULES,
     HOMOPHONES: HOMOPHONES,
+    TYPO_SUFFIX: TYPO_SUFFIX,
     ONSET_SPELL: ONSET_SPELL,
     CODA_SPELL: CODA_SPELL,
     VOWEL_SPELL: VOWEL_SPELL,

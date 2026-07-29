@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.82",
- "generated": "2026-07-27",
+ "version": "1.0.83",
+ "generated": "2026-07-29",
  "patches": [
+  {
+   "version": "1.0.83",
+   "date": "2026-07-29",
+   "title": "Phonemic: add the Typos notation",
+   "notes": []
+  },
   {
    "version": "1.0.82",
    "date": "2026-07-27",
@@ -228,12 +234,6 @@ window.PATCHNOTES={
    "version": "1.0.44",
    "date": "2026-06-22",
    "title": "One-handed off-arm stays down, add a mouth, blend paths into terrain",
-   "notes": []
-  },
-  {
-   "version": "1.0.43",
-   "date": "2026-06-22",
-   "title": "World map (M) + grave marker on the minimap",
    "notes": []
   }
  ]

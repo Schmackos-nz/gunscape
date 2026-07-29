@@ -40,7 +40,7 @@
 
   var NOTATIONS = [
     ['ipa', 'IPA'], ['arpabet', 'ARPAbet'], ['respell', 'Respelling'],
-    ['alt', 'Sound-alike'], ['none', 'leave as written']
+    ['alt', 'Sound-alike'], ['typo', 'Typos'], ['none', 'leave as written']
   ];
 
   function renderRules() {
@@ -169,15 +169,20 @@
       ? 'Mixed · ' + rules.length + (rules.length === 1 ? ' rule' : ' rules')
       : ({
         ipa: 'IPA', arpabet: 'ARPAbet', respell: 'Respelling',
-        alt: 'Sound-alike spelling'
+        alt: 'Sound-alike spelling', typo: 'Typos'
       }[o.notation] + (o.notation === 'ipa' ? ' · ' + IPA.accents[o.accent].name : ''));
 
     var alt = !rules.length && o.notation === 'alt';
-    el.sLexLabel.textContent = alt ? 'real homophones' : 'from dictionary';
+    var typo = !rules.length && o.notation === 'typo';
+    el.sLexLabel.textContent = alt ? 'real homophones'
+      : typo ? 'mistyped' : 'from dictionary';
     el.footNote.innerHTML = alt
       ? '<span class="swatch"></span> underlined = invented spelling · ' +
         'grey = no better spelling exists'
-      : '<span class="swatch"></span> underlined = spelled out by rule, not looked up';
+      : typo
+        ? '<span class="swatch"></span> underlined = typo inserted · ' +
+          'grey = left alone, no slip keeps the sound'
+        : '<span class="swatch"></span> underlined = spelled out by rule, not looked up';
 
     if (!text.trim()) {
       el.out.innerHTML = '<span class="empty">Nothing to transcribe yet.</span>';
@@ -211,7 +216,8 @@
     if (b) {
       bits.push(b.phones.join(' '));
       bits.push(b.syllables.length + (b.syllables.length === 1 ? ' syllable' : ' syllables'));
-      if (t.homophone) bits.push('real homophone');
+      if (t.notation === 'typo') bits.push(t.unchanged ? 'left as written' : 'typo');
+      else if (t.homophone) bits.push('real homophone');
       else if (t.unchanged) bits.push('no better spelling exists');
       else if (b.altReal === false) bits.push('invented spelling');
       else bits.push(b.source === 'lexicon' ? 'dictionary entry' : 'spelling rules (estimate)');
@@ -286,7 +292,7 @@
       el.sLex.textContent = '0%';
       return;
     }
-    var words = 0, syl = 0, phon = 0, lex = 0, skip = 0, homo = 0;
+    var words = 0, syl = 0, phon = 0, lex = 0, skip = 0, homo = 0, typos = 0;
     tokens.forEach(function (t) {
       if (t.type !== 'word') return;
       if (t.skipped) { skip++; return; }
@@ -295,11 +301,13 @@
       phon += t.phonemeCount || 0;
       if (!t.estimated) lex++;
       if (t.homophone) homo++;
+      if (t.notation === 'typo' && !t.unchanged) typos++;
     });
+    var mode = rules.length ? '' : el.notation.value;
     el.sWords.textContent = words;
     el.sSyl.textContent = syl;
     el.sPhon.textContent = phon;
-    el.sLex.textContent = (!rules.length && el.notation.value === 'alt') ? homo
+    el.sLex.textContent = mode === 'alt' ? homo : mode === 'typo' ? typos
       : (words ? Math.round(lex / words * 100) + '%' : '0%');
     el.sSkip.textContent = skip;
     el.sSkipWrap.hidden = !skip;
@@ -358,6 +366,13 @@
       'respelled from its sounds (<i>quick → kwik</i>, <i>school → skool</i>). ' +
       'Words English already spells the plain way — <i>jumps</i>, <i>speech</i> ' +
       '— are left alone in grey rather than mangled into something worse.</p>' +
+      '<h4>Typos</h4>' +
+      '<p class="note">Misspells each word in a way that sounds identical: ' +
+      '<i>independent → independant</i>, <i>tomorrow → tommorrow</i>, ' +
+      '<i>quick → quik</i>. Every candidate slip is sounded out by the same ' +
+      'letter-to-sound rules and thrown away unless it reads exactly the ' +
+      'same, stress included — which is why <i>later</i> never becomes ' +
+      '<i>latter</i>. Words where nothing works are left alone in grey.</p>' +
       '<h4>Advanced rules</h4>' +
       '<p class="note">Send different word lengths to different notations: ' +
       'short words left as written, long ones in IPA, say. Rules are checked ' +
