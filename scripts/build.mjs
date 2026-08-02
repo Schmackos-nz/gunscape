@@ -52,4 +52,12 @@ if (existsSync(join(IPA, 'index.html'))) {
   }
 }
 
-console.log(`Built dist/ (${FILES.filter(f => existsSync(join(DIST, f))).join(', ')} + ${DIRS.join(', ')} + cityofeyes + deckofomens + IPAConverter)`);
+// Fevercrawl is a single self-contained HTML file, no build step — copy it to
+// dist/fevercrawl/ so it's served at /fevercrawl/.
+const FEVER = join(ROOT, 'fevercrawl');
+if (existsSync(join(FEVER, 'index.html'))) {
+  mkdirSync(join(DIST, 'fevercrawl'), { recursive: true });
+  copyFileSync(join(FEVER, 'index.html'), join(DIST, 'fevercrawl', 'index.html'));
+}
+
+console.log(`Built dist/ (${FILES.filter(f => existsSync(join(DIST, f))).join(', ')} + ${DIRS.join(', ')} + cityofeyes + deckofomens + IPAConverter + fevercrawl)`);

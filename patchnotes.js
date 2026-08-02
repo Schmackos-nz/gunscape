@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.83",
- "generated": "2026-07-29",
+ "version": "1.0.84",
+ "generated": "2026-08-02",
  "patches": [
+  {
+   "version": "1.0.84",
+   "date": "2026-08-02",
+   "title": "Add Fevercrawl at /fevercrawl",
+   "notes": []
+  },
   {
    "version": "1.0.83",
    "date": "2026-07-29",
@@ -228,12 +234,6 @@ window.PATCHNOTES={
    "version": "1.0.45",
    "date": "2026-06-23",
    "title": "World: 50x-larger map with streaming chunks, shared spawn, mobile menu buttons",
-   "notes": []
-  },
-  {
-   "version": "1.0.44",
-   "date": "2026-06-22",
-   "title": "One-handed off-arm stays down, add a mouth, blend paths into terrain",
    "notes": []
   }
  ]
