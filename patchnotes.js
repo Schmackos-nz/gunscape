@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.84",
+ "version": "1.0.85",
  "generated": "2026-08-02",
  "patches": [
+  {
+   "version": "1.0.85",
+   "date": "2026-08-02",
+   "title": "Fevercrawl: fix unkillable player, add the party member who is not there",
+   "notes": []
+  },
   {
    "version": "1.0.84",
    "date": "2026-08-02",
@@ -228,12 +234,6 @@ window.PATCHNOTES={
    "version": "1.0.46",
    "date": "2026-06-23",
    "title": "Tooling: add server/run-server.bat to launch the dedicated server locally",
-   "notes": []
-  },
-  {
-   "version": "1.0.45",
-   "date": "2026-06-23",
-   "title": "World: 50x-larger map with streaming chunks, shared spawn, mobile menu buttons",
    "notes": []
   }
  ]

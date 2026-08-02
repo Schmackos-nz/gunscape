@@ -23,6 +23,7 @@ starts lying in escalating layers:
 | ~75 | **phantom enemies** spawn — they chase you, hit you, have health bars |
 | ~70 | **fake abilities** appear in empty action-bar slots, with tooltips |
 | ~60 | fake status effects, hallucinated loot on the floor, invented combat-log lines |
+| ~55 | a **party member** joins you, fights alongside you, and talks to you |
 | ~50 | whispers across the screen, minimap grows rooms that don't exist |
 | ~45 | your **real** abilities get disguised under fake names and icons |
 | ~35 | the HP number drifts; the lucidity meter itself misreports |
@@ -41,6 +42,21 @@ check, with three real things also swinging at you?*
 
 The permanent tell, if you don't want to spend composure: **phantoms cast no shadow.**
 
+## The party member
+
+Below about 55 lucidity, someone finds you. `Ellara the Patient has joined your party.`
+A party frame appears in the HUD with their name, class and health bar. They follow you,
+run ahead into fights, swing at things with damage numbers coming off them, take hits,
+and talk — *"I have your back." "On your left." "Watch the shadow."*
+
+They deal exactly zero damage. Enemies do not know they exist. Their health bar is
+decorative. The only thing they change is your judgement: you take fights you would
+otherwise walk away from, because you think you have backup.
+
+They cast no shadow either. Under Focus their party frame reads `NO ONE IS THERE`.
+
+Eventually they leave. If you are far enough gone when they do, they don't leave.
+
 ## Consequences
 
 - **Kill a phantom** — it dissolves into nothing. −8 lucidity. You just fought air,
@@ -54,6 +70,14 @@ The permanent tell, if you don't want to spend composure: **phantoms cast no sha
 
 Restore lucidity at wall sconces (kneel with **E**), with clarity tonics, or by
 killing things that are actually there.
+
+**Only real things can kill you.** Phantom hits show up on your health bar but never
+touch your actual health — imagined wounds are capped at 55% of your maximum, so the
+bar can sink alarmingly but never pins at 1, and they fade once nothing is reinforcing
+them. Real enemies path to you through the level with a flow field, wake each other,
+and hear you fighting from a couple of rooms away. So the health bar you are watching
+is the wrong instrument, and the thing that actually kills you is the thing you can
+still hear breathing.
 
 ## Classes
 
@@ -87,7 +111,7 @@ of her has a shadow, and damaging the copies heals the real one.
 
 ## Technical
 
-Single `index.html`, ~1500 lines, zero dependencies. Canvas 2D for the world with a
+Single `index.html`, ~1700 lines, zero dependencies. Canvas 2D for the world with a
 post-process pass (chromatic aberration, scanlines, tearing, difference-blend
 flicker, vignette) driven by hallucination level; DOM for the HUD so the action bar
 and health bars can be lied to with CSS. Procedural dungeon generation, procedural

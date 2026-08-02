@@ -57,6 +57,21 @@
   #log .bad{color:#c58070}
   #log .lie{color:#a074a0}
   #log .gold{color:var(--gold)}
+  #log .party{color:#9fb8a8}
+
+  /* ---------- party frame (for the party member who is not there) ---------- */
+  #party{position:absolute;left:12px;top:196px;width:214px;padding:7px 9px;display:none}
+  #party .who{display:flex;align-items:center;gap:7px}
+  #party .pip{width:22px;height:22px;border:1px solid #3a3227;flex:0 0 auto}
+  #party .nm{font-size:12.5px;color:#b8ad95;letter-spacing:.5px;line-height:1.2}
+  #party .cl{font-size:9.5px;letter-spacing:1.4px;text-transform:uppercase;color:#5f5748}
+  #party .bar{height:9px;margin:6px 0 0}
+  #party .bar > i{background:linear-gradient(#7d9c86,#42604f)}
+  #party.lie{border-color:#4a2b44;background:rgba(26,8,22,.6)}
+  #party.lie .nm{color:#b07aa0}
+  #party.lie::after{content:"NO ONE IS THERE";position:absolute;inset:0;display:flex;
+    align-items:center;justify-content:center;font-size:10px;letter-spacing:2px;color:#c07ab0;
+    background:repeating-linear-gradient(-45deg,rgba(0,0,0,.6),rgba(0,0,0,.6) 3px,transparent 3px,transparent 6px)}
 
   /* ---------- action bar ---------- */
   #barwrap{position:absolute;left:0;right:0;bottom:12px;display:flex;justify-content:center;gap:7px}
@@ -138,6 +153,12 @@
       <div class="bar co"><i style="width:100%"></i></div>
     </div>
     <div id="statuses"></div>
+
+    <div id="party" class="panel">
+      <div class="who"><span class="pip"></span>
+        <div><div class="nm">—</div><div class="cl">—</div></div></div>
+      <div class="bar"><i style="width:100%"></i></div>
+    </div>
 
     <div id="mini" class="panel"><canvas id="minic" width="176" height="130"></canvas></div>
     <div id="log" class="panel"></div>
@@ -337,11 +358,11 @@ const ABIL = {
 };
 
 const ENEMY = {
-  husk:   {n:'Husk',       hp:36, spd:56, dmg:9,  r:14, atk:1.15, col:'#6b7a63', aggro:250, w:5},
-  gnawer: {n:'Gnawer',     hp:22, spd:104,dmg:6,  r:11, atk:.65,  col:'#8a5c4a', aggro:330, w:4},
-  chanter:{n:'Chanter',    hp:30, spd:46, dmg:12, r:13, atk:2.0,  col:'#5b6a9a', aggro:340, ranged:1, w:3},
-  bellows:{n:'Bellows',    hp:76, spd:40, dmg:13, r:18, atk:1.6,  col:'#7a5a7a', aggro:230, infect:1, w:2},
-  warden: {n:'Reliquary Warden',hp:150,spd:50,dmg:20,r:21, atk:1.3, col:'#a8894c', aggro:300, elite:1, w:1}
+  husk:   {n:'Husk',       hp:36, spd:56, dmg:9,  r:14, atk:1.15, col:'#6b7a63', aggro:430, w:5},
+  gnawer: {n:'Gnawer',     hp:22, spd:104,dmg:6,  r:11, atk:.65,  col:'#8a5c4a', aggro:520, w:4},
+  chanter:{n:'Chanter',    hp:30, spd:46, dmg:12, r:13, atk:2.0,  col:'#5b6a9a', aggro:500, ranged:1, w:3},
+  bellows:{n:'Bellows',    hp:76, spd:40, dmg:13, r:18, atk:1.6,  col:'#7a5a7a', aggro:400, infect:1, w:2},
+  warden: {n:'Reliquary Warden',hp:150,spd:50,dmg:20,r:21, atk:1.3, col:'#a8894c', aggro:470, elite:1, w:1}
 };
 
 const FAKE_A=['Sallow','Ninefold','Mothen','Grave','Wormlit','Hollow','Salt','Bitter','Ashen','Unmade',
@@ -361,6 +382,24 @@ const FAKE_DESC=[
   'Strikes for 4 in the language the floor speaks.',
   'Ends the fight. Ends something.'
 ];
+/* --- the friend who isn't there ------------------------------------------ */
+const ALLY_FIRST=['Ellara','Modric','Sennet','Bram','Oleve','Kestral','Vann','Ithe','Morrow','Cael',
+  'Rusk','Ilma','Thanet','Ondrey','Sabbeth'];
+const ALLY_LAST=['the Patient','Ninefingers','of Low Abbey','Coldhearth','the Second','Ashwake',
+  'the Kind','Longwinter','Gravewell','the Unasked'];
+const ALLY_CLASS=['Warden','Bellringer','Salt Witch','Physician','Lamplighter','Knight of the Ledger'];
+const ALLY_CHAT=[
+  'I have your back.','On your left.','I have this one — go.','Nearly had me there.',
+  'Stay close to me.','You look terrible.','Almost through. Keep moving.',
+  'Do you hear that?','I will hold them.','Nice swing.','Watch the shadow.',
+  'We are nearly out.','I have been down here longer than you.',
+  'Do not look at me for a moment.','You are doing well.'
+];
+const ALLY_LEAVE=[
+  'I have to go back for the others.','You never needed me.','You have been alone since the stairs.',
+  'I was never on your left.','Say my name. You cannot.','Ask yourself who let me in.'
+];
+
 const WHISPERS=['it is not there','count them again','you swung at nothing','the shadow. the shadow.',
   'that door is new','you are still on floor one','stop','someone is using your hands','look up',
   'that was never an ability','you have been here 40 minutes','it has no shadow','breathe'];
@@ -370,7 +409,7 @@ const FAKE_LOG=[
   ()=>['Achievement unlocked: Perfect Clarity.','gold'],
   ()=>['Your left hand reports in.','lie'],
   ()=>['You level up! Welcome to level '+ri(40,99)+'.','gold'],
-  ()=>['Party: <b>'+pick(FAKE_A)+' '+pick(FAKE_B)+'</b> joined your group.','lie'],
+  ()=>['<b>'+pick(ALLY_FIRST)+'</b> is typing…','lie'],
   ()=>['You take '+ri(200,999)+' damage.','bad'],
   ()=>['Quest updated: Remember the Abbey (0/'+ri(2,9)+').','lie'],
   ()=>['Autosaving…','dim'],
@@ -394,7 +433,8 @@ const G = {
   ents:[], fxs:[], p:null, cam:{x:0,y:0}, shakeT:0, shakeM:0,
   hall:0, lastHall:0, phantomTimer:0, hallucTimer:0, whisperTimer:0, logfakeTimer:0,
   kills:0, phantomKills:0, ignored:0, realDmg:0, startTime:0, boss:null, cleared:false,
-  fakeStatus:[], statusTimer:0, minimapLies:[], slotHallTimer:0, invuln:0
+  fakeStatus:[], statusTimer:0, minimapLies:[], slotHallTimer:0, invuln:0,
+  ally:null, allyTimer:0, halluItemTimer:0
 };
 
 const keys={}, mouse={x:VW/2,y:VH/2,down:false};
@@ -438,12 +478,52 @@ function circleFree(x,y,r){
   return !solidAt(x,y);
 }
 
+/* ------------------------------------------------------------ pathfinding
+   A BFS distance field from the player, rebuilt 4x/second. Without it, things
+   that want you steer straight ahead and pile into the nearest wall forever. */
+function computeFlow(){
+  const f=G.flow, q=G.flowQ, m=G.map;
+  if(!f) return;
+  f.fill(-1);
+  const sx=clamp((G.p.x/TS)|0,0,MW-1), sy=clamp((G.p.y/TS)|0,0,MH-1);
+  if(m[sy*MW+sx]===WALL) return;
+  let head=0, tail=0;
+  const s=sy*MW+sx; f[s]=0; q[tail++]=s;
+  while(head<tail){
+    const i=q[head++], d=f[i]+1, x=i%MW, y=(i/MW)|0;
+    if(x+1<MW){ const j=i+1;  if(f[j]<0&&m[j]!==WALL){ f[j]=d; q[tail++]=j; } }
+    if(x-1>=0){ const j=i-1;  if(f[j]<0&&m[j]!==WALL){ f[j]=d; q[tail++]=j; } }
+    if(y+1<MH){ const j=i+MW; if(f[j]<0&&m[j]!==WALL){ f[j]=d; q[tail++]=j; } }
+    if(y-1>=0){ const j=i-MW; if(f[j]<0&&m[j]!==WALL){ f[j]=d; q[tail++]=j; } }
+  }
+}
+// Angle toward the neighbouring tile that is closer to the player, or null if
+// we're already as close as the grid gets (then steer straight at them).
+function flowDir(o){
+  const f=G.flow; if(!f) return null;
+  const x=clamp((o.x/TS)|0,0,MW-1), y=clamp((o.y/TS)|0,0,MH-1);
+  const here=f[y*MW+x];
+  if(here<0) return null;
+  let best=here, bx=-1, by=-1;
+  for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
+    if(!dx&&!dy) continue;
+    const nx=x+dx, ny=y+dy;
+    if(nx<0||ny<0||nx>=MW||ny>=MH) continue;
+    if(dx&&dy&&(G.map[y*MW+nx]===WALL||G.map[ny*MW+x]===WALL)) continue; // no corner-cutting
+    const d=f[ny*MW+nx];
+    if(d>=0&&d<best){ best=d; bx=nx; by=ny; }
+  }
+  if(bx<0) return null;
+  return Math.atan2((by+.5)*TS-o.y,(bx+.5)*TS-o.x);
+}
+
 /* ---------------------------------------------------------------- floor */
 function buildFloor(depth){
   const {m,rooms}=genMap(depth);
   G.map=m; G.rooms=rooms; G.depth=depth;
   G.seen=new Uint8Array(MW*MH);
-  G.ents=[]; G.fxs=[]; G.minimapLies=[]; G.boss=null; G.cleared=false;
+  G.flow=new Int32Array(MW*MH); G.flowQ=new Int32Array(MW*MH); G.flowT=0;
+  G.ents=[]; G.fxs=[]; G.minimapLies=[]; G.boss=null; G.cleared=false; G.ally=null;
 
   const start=rooms[0];
   G.p.x=(start.cx+.5)*TS; G.p.y=(start.cy+.5)*TS;
@@ -536,9 +616,18 @@ function fx(type,x,y,life,extra){ G.fxs.push(Object.assign({type,x,y,life,max:li
 function shake(m){ G.shakeM=Math.max(G.shakeM,m); G.shakeT=.32; }
 function float(x,y,text,col,big){ G.fxs.push({type:'text',x,y,life:1.05,max:1.05,text,col,big,vy:-46,dx:rr(-14,14)}); }
 
+// Noise wakes real things. Phantoms are already looking at you.
+function rouse(x,y,radius){
+  for(const e of G.ents){
+    if(e.kind!=='enemy'||e.seen||e.phantom) continue;
+    if(Math.hypot(e.x-x,e.y-y)<radius) e.seen=true;
+  }
+}
+
 function arcAttack(dmg,range,arc,col,heavy){
   const p=G.p, a=p.face;
   fx('arc',p.x,p.y,.22,{a,arc,range,col});
+  rouse(p.x,p.y,330);
   for(const e of G.ents.slice()){
     if(e.kind!=='enemy') continue;
     const d=dist(e,p); if(d>range+e.r) continue;
@@ -549,6 +638,7 @@ function arcAttack(dmg,range,arc,col,heavy){
   }
 }
 function shoot(x,y,a,spd,dmg,col,friendly){
+  if(friendly) rouse(x,y,300);
   G.ents.push({kind:'proj',x,y,vx:Math.cos(a)*spd,vy:Math.sin(a)*spd,r:5,dmg,col,friendly,life:2.4});
 }
 function spawnCloud(x,y){ G.fxs.push({type:'cloud',x,y,life:5.5,max:5.5,tick:0}); }
@@ -613,7 +703,15 @@ function hurtPlayer(amt,src){
   if(p.iframe>0) return;
   if(src&&src.phantom){
     // phantom "damage": entirely imaginary. It shows on the bar. It is not real.
-    p.phantomHp=Math.min(p.maxhp-1,p.phantomHp+amt);
+    // Capped — a bar pinned at 1hp forever stops reading as a wound and starts
+    // reading as a broken game.
+    const cap=p.maxhp*0.55;
+    if(p.phantomHp<cap && p.phantomHp+amt>=cap && !p.toldNotDying){
+      p.toldNotDying=true;
+      log('You should be dead by now. You are not. Consider what that means.','lie');
+    }
+    p.phantomHp=Math.min(cap,p.phantomHp+amt);
+    p.lastPhantomHit=G.t;
     p.hurtT=.2; shake(3); AU.hurt();
     float(p.x,p.y-26,'-'+Math.round(amt),'#8a5c86');
     loseLucid(0.9);
@@ -675,6 +773,14 @@ function directorUpdate(dt){
     const cap=Math.round(1+H*5);
     if(H>0.14 && phantoms<cap && chance(.3+H*.65)) spawnPhantomNear();
   }
+
+  // --- the friend who isn't there
+  G.allyTimer=(G.allyTimer||0)-dt;
+  if(G.allyTimer<=0){
+    G.allyTimer=rr(20,45);
+    if(!G.ally && H>0.30 && chance(.45)) spawnAlly();
+  }
+  if(G.ally && G.p.lucid>88) dismissAlly(G.ally);   // clarity: nobody was ever with you
 
   // --- loot that isn't there
   G.halluItemTimer=(G.halluItemTimer||0)-dt;
@@ -769,6 +875,119 @@ function directorUpdate(dt){
       }
     }
   }
+}
+
+/* ------------------------------------------------- the phantom party member */
+function spawnAlly(){
+  const p=G.p;
+  let x=p.x,y=p.y;
+  for(let t=0;t<30;t++){
+    const a=rr(0,TAU), d=rr(90,190);
+    if(circleFree(p.x+Math.cos(a)*d,p.y+Math.sin(a)*d,14)){ x=p.x+Math.cos(a)*d; y=p.y+Math.sin(a)*d; break; }
+  }
+  const name=pick(ALLY_FIRST)+' '+pick(ALLY_LAST);
+  const a={kind:'ally',name,short:name.split(' ')[0],cls:pick(ALLY_CLASS),
+    x,y,vx:0,vy:0,r:12,face:0,step:0,
+    hp:ri(58,96),maxhp:100,          // their health bar is decorative and it wobbles
+    life:rr(50,110), atkCd:rr(.6,1.4), chatCd:rr(3,7), hurtT:0,
+    col:pick(['#8a7fb0','#7fa08a','#b09a7f','#7f96b0'])};
+  a.maxhp=Math.max(a.hp,100);
+  G.ally=a; G.ents.push(a);
+  log('<b>'+name+'</b> has joined your party.','party');
+  log(a.short+': "'+pick(['Thank god. Another one alive.','Found you. Stay close.',
+      'I heard you fighting.','You are the first face in days.'])+'"','party');
+  AU.blip(760,.16,'sine',.04,1040);
+  return a;
+}
+function updateAlly(a,dt){
+  const p=G.p;
+  a.life-=dt; a.step+=dt*Math.hypot(a.vx,a.vy)*.05;
+  a.hurtT=Math.max(0,a.hurtT-dt);
+  a.atkCd-=dt; a.chatCd-=dt;
+
+  // find something to "fight"
+  let target=null,bd=1e9;
+  for(const e of G.ents) if(e.kind==='enemy'){ const d=dist(e,a); if(d<300&&d<bd){bd=d;target=e;} }
+
+  const followD=target?Math.max(30,target.r+a.r+2):rr(56,64);
+  const goal=target||p;
+  const d=dist(goal,a);
+  const ang=Math.atan2(goal.y-a.y,goal.x-a.x);
+  const leash=dist(p,a);
+  // never stray far from the player — a friend who wanders off is easy to disbelieve
+  const sp = leash>260 ? 250 : 196;
+  let toPlayer=Math.atan2(p.y-a.y,p.x-a.x);
+  if(leash>70){ const fa=flowDir(a); if(fa!==null) toPlayer=fa; }   // a friend stuck on a wall is not convincing
+  const moveA = leash>260 ? toPlayer : ang;
+  if(d>followD || leash>260){
+    a.vx=lerp(a.vx,Math.cos(moveA)*sp,Math.min(1,dt*5));
+    a.vy=lerp(a.vy,Math.sin(moveA)*sp,Math.min(1,dt*5));
+  } else { a.vx*=Math.pow(.02,dt); a.vy*=Math.pow(.02,dt); }
+  a.face = target?ang:(Math.hypot(a.vx,a.vy)>12?Math.atan2(a.vy,a.vx):a.face);
+  moveCircle(a,dt);
+
+  // "attacks": convincing arcs and damage numbers that change nothing at all
+  if(target && bd<70 && a.atkCd<=0){
+    a.atkCd=rr(.55,1.0);
+    fx('arc',a.x,a.y,.2,{a:a.face,arc:TAU*.36,range:74,col:a.col});
+    float(target.x,target.y-target.r-6, ''+ri(6,19), '#cfc4a8');
+    fx('spark',target.x,target.y,.2,{col:'#cfc4a8'});
+    AU.swing();
+  }
+  // their health bar drifts, so it reads as someone taking hits
+  if(chance(dt*.7)) a.hp=clamp(a.hp+rr(-9,6),14,a.maxhp);
+  if(chance(dt*.25)) a.hurtT=.15;
+
+  if(a.chatCd<=0){ a.chatCd=rr(7,17); log(a.short+': "'+pick(ALLY_CHAT)+'"','party'); }
+
+  if(a.life<=0) dismissAlly(a);
+}
+function dismissAlly(a,silent){
+  const i=G.ents.indexOf(a); if(i>=0) G.ents.splice(i,1);
+  if(G.ally===a) G.ally=null;
+  if(silent) return;
+  fx('dissolve',a.x,a.y,.8,{col:a.col});
+  // sometimes the friend was the thing all along
+  if(hallucination()>.55 && chance(.4)){
+    log(a.short+': "'+pick(ALLY_LEAVE)+'"','party');
+    log('<b>'+a.name+'</b> is not '+a.short+'.','bad');
+    const e=spawnPhantomNear();
+    if(e){ e.x=a.x; e.y=a.y; e.seen=true; e.name=a.name; }
+    loseLucid(7); shake(7); AU.unreal();
+  } else {
+    log(a.short+': "'+pick(ALLY_LEAVE)+'"','party');
+    log('<b>'+a.name+'</b> has left your party. There was no party.','lie');
+    loseLucid(4); AU.unreal();
+  }
+}
+function drawAlly(a,T){
+  const alpha = T>.35 ? lerp(1,.3,clamp((T-.35)/.5,0,1)) : 1;
+  ctx.save(); ctx.globalAlpha=alpha;
+  const bob=Math.sin(a.step)*2, y=a.y+bob;
+  ctx.fillStyle=a.hurtT>0?'#fff':'#272320';
+  ctx.beginPath(); ctx.ellipse(a.x,y,a.r*.95,a.r*1.06,0,0,TAU); ctx.fill();
+  ctx.fillStyle=a.hurtT>0?'#fff':a.col;
+  ctx.beginPath(); ctx.ellipse(a.x,y+2,a.r*.64,a.r*.78,0,0,TAU); ctx.fill();
+  ctx.fillStyle='#d8c4a0';
+  ctx.beginPath(); ctx.arc(a.x,y-a.r*.95,a.r*.48,0,TAU); ctx.fill();
+  ctx.fillStyle='#221e19';
+  ctx.beginPath(); ctx.arc(a.x,y-a.r*1.05,a.r*.54,Math.PI,TAU); ctx.fill();
+  ctx.strokeStyle='#bfb39a'; ctx.lineWidth=3; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(a.x+Math.cos(a.face)*a.r*.5,y+Math.sin(a.face)*a.r*.5);
+  ctx.lineTo(a.x+Math.cos(a.face)*a.r*1.45,y+Math.sin(a.face)*a.r*1.45); ctx.stroke();
+  // name plate, exactly like a co-op game would draw it
+  ctx.font='10px "Iowan Old Style",Georgia,serif'; ctx.textAlign='center';
+  ctx.fillStyle='rgba(0,0,0,.65)'; ctx.fillText(a.short,a.x+1,y-a.r*2.0+1);
+  ctx.fillStyle= T>.55 ? '#c07ab0' : '#9fb8a8';
+  ctx.fillText(a.short,a.x,y-a.r*2.0);
+  if(T>.55){
+    ctx.strokeStyle='rgba(200,130,190,'+((T-.55)/.45)+')'; ctx.lineWidth=1.4;
+    ctx.setLineDash([4,4]); ctx.beginPath(); ctx.arc(a.x,y,a.r*1.8,0,TAU); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle='rgba(220,150,205,'+((T-.55)/.45)+')';
+    ctx.font='9px monospace'; ctx.fillText('NO ONE IS THERE',a.x,y-a.r*2.7);
+  }
+  ctx.restore();
 }
 
 const whisperEl=document.getElementById('whisper');
@@ -893,7 +1112,12 @@ function update(dt){
   p.mp=Math.min(p.maxmp,p.mp+p.mpregen*dt);
   // imagined wounds fade when you look straight at them
   if(p.focus>.72) p.phantomHp=Math.max(0,p.phantomHp-dt*46);
-  else p.phantomHp=Math.max(0,p.phantomHp-dt*1.4);
+  else {
+    // imagined wounds fade on their own once nothing is reinforcing them
+    const quiet=G.t-(p.lastPhantomHit||-99);
+    p.phantomHp=Math.max(0,p.phantomHp-dt*(quiet>2.5?9:1.4));
+  }
+  if(p.phantomHp<2) p.toldNotDying=false;
 
   if(mouse.down) basicAttack();
 
@@ -903,9 +1127,14 @@ function update(dt){
     for(let x=Math.max(0,ptx-R);x<Math.min(MW,ptx+R);x++)
       if((x-ptx)**2+(y-pty)**2<R*R) G.seen[y*MW+x]=1;
 
+  /* --- pathfinding field --- */
+  G.flowT-=dt;
+  if(G.flowT<=0){ G.flowT=.25; computeFlow(); }
+
   /* --- entities --- */
   for(const e of G.ents.slice()){
     if(e.kind==='enemy') updateEnemy(e,dt);
+    else if(e.kind==='ally') updateAlly(e,dt);
     else if(e.kind==='proj') updateProj(e,dt);
     else if(e.kind==='shrine') e.bob+=dt*2.2;
     else if(e.kind==='item'){
@@ -965,13 +1194,26 @@ function updateEnemy(e,dt){
   if(e.poison>0){ e.poison-=dt; e.poisonTick=(e.poisonTick||0)-dt;
     if(e.poisonTick<=0){ e.poisonTick=.5; damage(e,3); } }
   const d=dist(e,p);
-  if(d<e.aggro) e.seen=true;
-  if(!e.seen){ e.vx*=.9; e.vy*=.9; moveCircle(e,dt); return; }
+  if(d<e.aggro && !e.seen){
+    e.seen=true;
+    if(!e.phantom) rouse(e.x,e.y,240);        // they wake each other
+  }
+  if(!e.seen){                                 // idle things drift, they don't stand in corners
+    e.wanderT=(e.wanderT||0)-dt;
+    if(e.wanderT<=0){ e.wanderT=rr(1.6,4.2); e.wanderA=rr(0,TAU); e.wanderGo=chance(.6); }
+    const ws=e.wanderGo?e.spd*.28:0;
+    e.vx=lerp(e.vx,Math.cos(e.wanderA||0)*ws,Math.min(1,dt*3));
+    e.vy=lerp(e.vy,Math.sin(e.wanderA||0)*ws,Math.min(1,dt*3));
+    moveCircle(e,dt); return;
+  }
 
   const a=Math.atan2(p.y-e.y,p.x-e.x);
   const sp=e.spd*(e.slow>0?.42:1)*(e.root>0?0:1);
   const want = e.ranged ? 210 : e.r+p.r-3;
-  if(d>want+8){ e.vx=lerp(e.vx,Math.cos(a)*sp,Math.min(1,dt*6)); e.vy=lerp(e.vy,Math.sin(a)*sp,Math.min(1,dt*6)); }
+  // steer along the flow field until we're close enough to just walk at them
+  let ma=a;
+  if(d>70){ const fa=flowDir(e); if(fa!==null) ma=fa; }
+  if(d>want+8){ e.vx=lerp(e.vx,Math.cos(ma)*sp,Math.min(1,dt*6)); e.vy=lerp(e.vy,Math.sin(ma)*sp,Math.min(1,dt*6)); }
   else if(d<want-30&&e.ranged){ e.vx=lerp(e.vx,-Math.cos(a)*sp,Math.min(1,dt*6)); e.vy=lerp(e.vy,-Math.sin(a)*sp,Math.min(1,dt*6)); }
   else { e.vx*=Math.pow(.02,dt); e.vy*=Math.pow(.02,dt); }
   // separation
@@ -1109,6 +1351,7 @@ function render(){
   for(const f of G.fxs) if(f.type==='cloud') drawCloud(f);
   for(const e of drawables){
     if(e.kind==='enemy') drawEnemy(e,H,T);
+    else if(e.kind==='ally') drawAlly(e,T);
     else if(e.kind==='item') drawItem(e,H);
     else if(e.kind==='shrine') drawShrine(e);
     else if(e.kind==='proj') drawProj(e);
@@ -1534,6 +1777,17 @@ function updateHUD(){
   for(const f of G.fakeStatus) s+='<div class="st fake" style="opacity:'+(T>.55?.25:1)+'">'+f.n+'</div>';
   statusEl.innerHTML=s;
 
+  // ---- the party frame for a party of one
+  const pf=el('party');
+  if(G.ally){
+    pf.style.display='block';
+    pf.className='panel'+(T>.55?' lie':'');
+    pf.querySelector('.nm').textContent=G.ally.name;
+    pf.querySelector('.cl').textContent=G.ally.cls;
+    pf.querySelector('.pip').style.background=G.ally.col;
+    pf.querySelector('.bar > i').style.width=(G.ally.hp/G.ally.maxhp*100)+'%';
+  } else pf.style.display='none';
+
   // ---- action bar
   for(let i=0;i<6;i++){
     const d=slotEls[i], v=slotView(i);
@@ -1658,6 +1912,8 @@ function start(cls){
   G.kills=G.phantomKills=G.ignored=G.realDmg=0;
   G.fakeStatus=[]; G.minimapLies=[];
   G.phantomTimer=6; G.slotHallTimer=8; G.whisperTimer=10; G.logfakeTimer=14; G.statusTimer=12;
+  G.ally=null; G.allyTimer=rr(25,50); G.halluItemTimer=12;
+  el('party').style.display='none';
   G.startTime=Date.now(); G.t=0;
   whisperEl.innerHTML='';
   buildFloor(1);
