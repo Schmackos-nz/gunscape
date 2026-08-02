@@ -1,7 +1,13 @@
 window.PATCHNOTES={
- "version": "1.0.85",
+ "version": "1.0.86",
  "generated": "2026-08-02",
  "patches": [
+  {
+   "version": "1.0.86",
+   "date": "2026-08-02",
+   "title": "Fevercrawl: the false death",
+   "notes": []
+  },
   {
    "version": "1.0.85",
    "date": "2026-08-02",
@@ -228,12 +234,6 @@ window.PATCHNOTES={
    "version": "1.0.47",
    "date": "2026-06-23",
    "title": "Audio: varied multi-song soundtrack; fix enemy combat; grade roads; URL host param",
-   "notes": []
-  },
-  {
-   "version": "1.0.46",
-   "date": "2026-06-23",
-   "title": "Tooling: add server/run-server.bat to launch the dedicated server locally",
    "notes": []
   }
  ]

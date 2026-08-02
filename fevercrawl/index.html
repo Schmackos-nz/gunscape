@@ -136,6 +136,16 @@
   #deathstats{margin-top:14px;font-size:12.5px;color:#8b8270;line-height:1.9}
   #deathstats b{color:#c9b98f;font-weight:normal}
   .hidden{display:none !important}
+  /* the death that comes apart */
+  #over.tearing{animation:tear .13s steps(2) infinite}
+  #over.tearing h1{color:#c07ab0;text-shadow:0 0 26px #6a1050,3px 0 0 #2a6a8a,-3px 0 0 #8a2a4a}
+  @keyframes tear{
+    0%{transform:translate(0,0)}
+    25%{transform:translate(-7px,2px) skewX(1.2deg)}
+    50%{transform:translate(6px,-3px)}
+    75%{transform:translate(-3px,-1px) skewX(-.8deg)}
+    100%{transform:translate(0,0)}
+  }
 </style>
 
 <div id="wrap"><div id="stage">
@@ -524,6 +534,7 @@ function buildFloor(depth){
   G.seen=new Uint8Array(MW*MH);
   G.flow=new Int32Array(MW*MH); G.flowQ=new Int32Array(MW*MH); G.flowT=0;
   G.ents=[]; G.fxs=[]; G.minimapLies=[]; G.boss=null; G.cleared=false; G.ally=null;
+  G.falseDeathUsed=false;              // the trick gets one outing per floor
 
   const start=rooms[0];
   G.p.x=(start.cx+.5)*TS; G.p.y=(start.cy+.5)*TS;
@@ -1119,6 +1130,11 @@ function update(dt){
   }
   if(p.phantomHp<2) p.toldNotDying=false;
 
+  // the bar says zero and you are still standing up
+  if(!G.falseDeathUsed && p.phantomHp>0 && p.hp>0 && (p.hp-p.phantomHp)<=0){
+    G.falseDeathUsed=true; falseDeath(); return;
+  }
+
   if(mouse.down) basicAttack();
 
   /* --- fog of war --- */
@@ -1304,6 +1320,30 @@ function descend(){
   G.p.maxmp+=6;
   buildFloor(G.depth);
 }
+/* The displayed bar has hit zero while you are, in fact, fine. Do not paper over
+   it — commit to the death completely, then take it back. Once per floor. */
+function falseDeath(){
+  G.state='falsedeath'; G.falseT=2.8;
+  AU.die(); shake(18);
+  el('overtitle').textContent='YOU DIE';
+  el('oversub').textContent='the fever keeps going';
+  showStats();
+  el('againbtn').classList.add('hidden');   // no way out: this death is not real
+}
+function endFalseDeath(){
+  const o=el('over');
+  o.classList.add('hidden'); o.classList.remove('tearing');
+  el('againbtn').classList.remove('hidden');
+  G.state='play'; last=performance.now();
+  const p=G.p;
+  p.phantomHp=0; p.toldNotDying=false; p.iframe=Math.max(p.iframe,1.1);
+  shake(12); AU.unreal();
+  whisper('you did not die');
+  log('<b>You did not die.</b> You have not been dying.','lie');
+  log('Check the bar. It has been wrong for a while now.','dim');
+  loseLucid(6);
+}
+
 function die(){
   G.state='over'; AU.die(); shake(16);
   document.getElementById('overtitle').textContent='YOU DIE';
@@ -1843,6 +1883,10 @@ function frame(now){
     update(dt);
     render();
     updateHUD();
+  } else if(G.state==='falsedeath'){
+    G.falseT-=dt;
+    if(G.falseT<0.95) el('over').classList.add('tearing');
+    if(G.falseT<=0) endFalseDeath();
   }
 }
 requestAnimationFrame(frame);
@@ -1918,7 +1962,8 @@ function start(cls){
   whisperEl.innerHTML='';
   buildFloor(1);
   el('title').classList.add('hidden');
-  el('over').classList.add('hidden');
+  el('over').classList.add('hidden'); el('over').classList.remove('tearing');
+  el('againbtn').classList.remove('hidden');
   G.state='play'; last=performance.now();
   log('You go down. The fever comes with you.','dim');
   log('Hold <b>SHIFT</b> to focus. Phantoms cast no shadow.','good');

@@ -71,6 +71,20 @@ Eventually they leave. If you are far enough gone when they do, they don't leave
 Restore lucidity at wall sconces (kneel with **E**), with clarity tonics, or by
 killing things that are actually there.
 
+### The false death
+
+If your real health is low *and* your imagined wounds are heavy, the displayed bar
+reaches zero while you are, in fact, fine. The game does not paper over this. It
+commits: death sound, screen shake, the full `YOU DIE` screen with your run summary —
+and no button on it.
+
+Then, after a couple of seconds, the death screen starts to come apart at the seams and
+hands you back to the dungeon, still standing, `You did not die. You have not been
+dying.` It costs 6 lucidity and clears your imagined wounds, and it can only happen
+once per floor.
+
+A real death — actual health at zero — is final and always has been.
+
 **Only real things can kill you.** Phantom hits show up on your health bar but never
 touch your actual health — imagined wounds are capped at 55% of your maximum, so the
 bar can sink alarmingly but never pins at 1, and they fade once nothing is reinforcing
